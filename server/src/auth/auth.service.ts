@@ -12,19 +12,31 @@ export class AuthService {
 
   // Valida se o usuário existe e a senha bate
   async validateUser(email: string, pass: string) {
-    const user = await (this.prisma as any).user.findUnique({
-      where: { email },
-      include: { tenant: true }
-    });
-    
-    if (!user || !user.password) return null;
+  console.log(`🔍 Tentando login com email: ${email}`); // <--- LOG 1
 
-    const isMatch = await bcrypt.compare(pass, user.password);
-    if (!isMatch) return null;
-
-    const { password, ...result } = user;
-    return result;
+  const user = await (this.prisma as any).user.findUnique({
+    where: { email },
+    include: { tenant: true }
+  });
+  
+  if (!user) {
+    console.log('❌ Usuário não encontrado no banco.'); // <--- LOG 2
+    return null;
   }
+
+  console.log(`✅ Usuário encontrado. Hash no banco: ${user.password.substring(0, 10)}...`); // <--- LOG 3
+
+  const isMatch = await bcrypt.compare(pass, user.password);
+  
+  if (!isMatch) {
+    console.log('❌ Senha não confere.'); // <--- LOG 4
+    return null;
+  }
+
+  console.log('🚀 Login validado com sucesso!'); // <--- LOG 5
+  const { password, ...result } = user;
+  return result;
+}
 
   // Gera o Token JWT
   async login(user: any) {

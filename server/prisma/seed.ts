@@ -22,7 +22,7 @@ async function main() {
   console.log(`🏢 Empresa configurada: ${tenant.name}`);
 
   // 2. Criar Usuário Admin
-  const adminEmail = 'admin@mvp.com'; // <--- EMAIL DE ACESSO
+  const adminEmail = 'admin@zaproute.com.br'; // <--- EMAIL DE ACESSO
   const adminPass = 'senha123';       // <--- SENHA DE ACESSO
   const hashedPassword = await bcrypt.hash(adminPass, 10);
 

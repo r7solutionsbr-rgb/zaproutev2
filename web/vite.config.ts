@@ -4,14 +4,18 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  base: '/', // Garante caminhos absolutos
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './'), // Melhora resolução de caminhos
+      '@': path.resolve(__dirname, './src'), // Aponta para src
     },
   },
-  build: {
-    outDir: 'dist/client',
-    emptyOutDir: true,
-  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000', // Conecta com seu NestJS
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  }
 });
