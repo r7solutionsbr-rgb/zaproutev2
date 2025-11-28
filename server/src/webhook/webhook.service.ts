@@ -87,10 +87,19 @@ export class WebhookService {
     else if (messageContent.type === 'AUDIO') aiResult = await this.aiService.interpretAudio(messageContent.value);
     else if (messageContent.type === 'IMAGE') aiResult = await this.aiService.interpretImage(messageContent.value, messageContent.caption);
 
-    if (!aiResult || aiResult.action === 'UNKNOWN') {
-        await this.whatsapp.sendText(replyPhone, "🤔 Não entendi. Tente falar de forma mais direta ou mande uma foto.");
-        return { status: 'ignored', reason: 'ai_unknown' };
-    }
+    if (aiResult.action === 'UNKNOWN') {
+    // Salva para o Admin ensinar depois
+    await this.prisma.aiLearning.create({
+        data: {
+            phrase: messageContent.value,
+            intent: 'REVISAR', // Marca para você olhar
+            isActive: false    // Ainda não vai para produção
+        }
+    });
+    
+    await this.whatsapp.sendText(replyPhone, "🤔 Não entendi. Vou pedir para o suporte verificar essa mensagem.");
+    return { status: 'learning_queued' };
+   }
 
     // AJUDA
     if (aiResult.action === 'AJUDA') {
@@ -245,7 +254,43 @@ export class WebhookService {
         await this.whatsapp.sendText(replyPhone, `↩️ *Feito!* A entrega da NF *${lastDone.invoiceNumber}* voltou para PENDENTE. Pode corrigir.`);
         return { status: 'action_undone' };
     }
+    // 8. DETALHES (Manda dados da nota)
+    if (action === 'DETALHES') {
+        let targetDelivery;
+        
+        // Tenta achar a entrega específica
+        if (identifier) {
+            targetDelivery = activeRoute.deliveries.find((d: any) => 
+                d.invoiceNumber.toLowerCase().includes(identifier.toLowerCase()) ||
+                d.customer.tradeName.toLowerCase().includes(identifier.toLowerCase())
+            );
+        } 
+        
+        // Se não falou qual, assume a próxima pendente (inteligência de contexto)
+        if (!targetDelivery) {
+            targetDelivery = activeRoute.deliveries.find((d: any) => d.status === 'IN_TRANSIT') 
+                          || activeRoute.deliveries.find((d: any) => d.status === 'PENDING');
+        }
 
+        if (!targetDelivery) {
+            await this.whatsapp.sendText(replyPhone, "❓ Não entendi de qual entrega você quer detalhes.");
+            return { status: 'details_no_target' };
+        }
+
+        // Monta a ficha completa
+        const vendedor = targetDelivery.salesperson || 'Não informado';
+        const produtos = targetDelivery.product || 'Diversos';
+        const valor = targetDelivery.value 
+            ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(targetDelivery.value) 
+            : 'R$ 0,00';
+        const nf = targetDelivery.invoiceNumber;
+        const cliente = targetDelivery.customer.tradeName;
+
+        const msg = `📋 *Detalhes da Nota*\n\n🏢 Cliente: *${cliente}*\n📄 NF: *${nf}*\n\n👤 Vendedor: *${vendedor}*\n📦 Produtos: *${produtos}*\n💰 Valor: *${valor}*`;
+
+        await this.whatsapp.sendText(replyPhone, msg);
+        return { status: 'details_sent' };
+    }
     // --- COMANDOS DE OPERAÇÃO ---
 
     if (action === 'INICIO') {
