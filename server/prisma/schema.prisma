@@ -30,22 +30,26 @@ model Tenant {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String   
-  name      String
-  role      String   
-  phone     String?
-  avatarUrl String?
-  resetToken String?
+  id                String   @id @default(uuid())
+  email             String   @unique
+  password          String   
+  name              String
+  role              String   
+  
+  // --- NOVOS CAMPOS PARA EQUIPE ---
+  phone             String?
+  avatarUrl         String?
+  status            String   @default("ACTIVE") // 'ACTIVE', 'BLOCKED'
+  
+  // --- CAMPOS PARA RECUPERAÇÃO DE SENHA ---
+  resetToken        String?
   resetTokenExpires DateTime?
-  status    String   @default("ACTIVE") // 'ACTIVE', 'BLOCKED'
-  // --------------------------------
+  // ----------------------------------------
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model Driver {
