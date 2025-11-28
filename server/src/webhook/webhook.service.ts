@@ -357,6 +357,25 @@ export class WebhookService {
          }
          return { status: 'missing_identifier' };
     }
+    // 13. OUTRO (Conversa fiada ou Comandos não entendidos)
+    if (action === 'OUTRO') {
+        // Salva no aprendizado para você revisar se foi mesmo conversa fiada ou um erro da IA
+        try {
+            await (this.prisma as any).aiLearning.create({
+                data: {
+                    phrase: typeof messageContent.value === 'string' ? messageContent.value : 'Arquivo de mídia',
+                    intent: 'OUTRO_CHECK', // Marca especial para diferenciar de UNKNOWN
+                    isActive: false
+                }
+            });
+        } catch (e) {
+            this.logger.error('Falha ao salvar aprendizado (OUTRO)', e);
+        }
+
+        // Resposta padrão para não deixar no vácuo
+        await this.whatsapp.sendText(replyPhone, "🤖 Sou o assistente virtual ZapRoute.\nFale sobre sua rota, entregas ou ocorrências.\n\nSe precisar de ajuda com os comandos, digite *'Ajuda'*.");
+        return { status: 'outro_replied' };
+    }
 
     return { status: 'processed_no_action' };
   }
