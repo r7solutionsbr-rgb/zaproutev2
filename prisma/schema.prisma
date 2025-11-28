@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  plan         String
+  
+  // --- NOVOS CAMPOS PARA CONFIGURAÇÕES ---
+  cnpj         String?
+  address      String?
+  logoUrl      String?
+  primaryColor String?  @default("#2563eb")
+  // ---------------------------------------
+
+  users        User[]
+  drivers      Driver[]
+  vehicles     Vehicle[]
+  routes       Route[]
+  customers    Customer[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   
+  name      String
+  role      String   
+  
+  // --- NOVOS CAMPOS PARA EQUIPE ---
+  phone     String?
+  avatarUrl String?
+  status    String   @default("ACTIVE") // 'ACTIVE', 'BLOCKED'
+  // --------------------------------
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Driver {
+  id              String   @id @default(uuid())
+  name            String
+  cpf             String
+  cnh             String
+  cnhCategory     String
+  cnhExpiration   DateTime
+  phone           String
+  email           String
+  status          String   
+  avatarUrl       String?
+  rating          Float?   @default(5.0)
+  totalDeliveries Int      @default(0)
+  
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  
+  vehicleId       String?
+  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id])
+  
+  routes          Route[]
+  deliveries      Delivery[]
+}
+
+model Vehicle {
+  id              String   @id @default(uuid())
+  plate           String
+  brand           String
+  model           String
+  year            Int
+  capacityWeight  Float
+  capacityVolume  Float
+  fuelType        String
+  status          String   
+  lastMaintenance DateTime?
+  nextMaintenance DateTime?
+  imageUrl        String?
+  
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  
+  drivers         Driver[] 
+  routes          Route[]
+}
+
+model Customer {
+  id                String   @id @default(uuid())
+  legalName         String
+  tradeName         String
+  cnpj              String
+  stateRegistration String?
+  email             String
+  phone             String
+  whatsapp          String?
+  salesperson       String?
+  status            String   
+  creditLimit       Float?
+  location          Json?    // { lat: number, lng: number, address: string }
+  addressDetails    Json?    // { street, number, neighborhood, city, state, zipCode }
+  
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  
+  deliveries        Delivery[]
+}
+
+model Route {
+  id                String   @id @default(uuid())
+  name              String
+  date              DateTime
+  status            String   
+  startTime         String?
+  endTime           String?
+  estimatedDistance Float?
+  estimatedTime     Int?
+  
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  
+  driverId          String?
+  driver            Driver?  @relation(fields: [driverId], references: [id])
+  
+  vehicleId         String?
+  vehicle           Vehicle? @relation(fields: [vehicleId], references: [id])
+  
+  deliveries        Delivery[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Delivery {
+  id              String   @id @default(uuid())
+  invoiceNumber   String
+  volume          Float
+  weight          Float
+  value           Float
+  priority        String   
+  status          String   
+  
+  // --- NOVOS CAMPOS PARA SUPORTAR O PDF ---
+  product         String?  // Ex: "S10 COMUM"
+  salesperson     String?  // Ex: "HELMO GOMES..."
+  // ----------------------------------------
+
+  proofOfDelivery String?
+  failureReason   String?
+  
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id])
+  
+  routeId         String?
+  route           Route?   @relation(fields: [routeId], references: [id])
+  
+  driverId        String?
+  driver          Driver?  @relation(fields: [driverId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
