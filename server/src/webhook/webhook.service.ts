@@ -87,19 +87,23 @@ export class WebhookService {
     else if (messageContent.type === 'AUDIO') aiResult = await this.aiService.interpretAudio(messageContent.value);
     else if (messageContent.type === 'IMAGE') aiResult = await this.aiService.interpretImage(messageContent.value, messageContent.caption);
 
-    if (aiResult.action === 'UNKNOWN') {
-    // Salva para o Admin ensinar depois
-    await this.prisma.aiLearning.create({
-        data: {
-            phrase: messageContent.value,
-            intent: 'REVISAR', // Marca para você olhar
-            isActive: false    // Ainda não vai para produção
+    if (!aiResult || aiResult.action === 'UNKNOWN') {
+        // 🔥 NOVO: Salva na memória para você ensinar depois
+        try {
+            await (this.prisma as any).aiLearning.create({
+                data: {
+                    phrase: typeof messageContent.value === 'string' ? messageContent.value : 'Arquivo de mídia',
+                    intent: 'REVISAR', // Marca para o admin ver
+                    isActive: false
+                }
+            });
+        } catch (e) {
+            this.logger.error('Falha ao salvar aprendizado', e);
         }
-    });
-    
-    await this.whatsapp.sendText(replyPhone, "🤔 Não entendi. Vou pedir para o suporte verificar essa mensagem.");
-    return { status: 'learning_queued' };
-   }
+
+        await this.whatsapp.sendText(replyPhone, "🤔 Não entendi. Encaminhei sua mensagem para a supervisão.");
+        return { status: 'learning_queued' };
+    }
 
     // AJUDA
     if (aiResult.action === 'AJUDA') {
