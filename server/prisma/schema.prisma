@@ -35,10 +35,10 @@ model User {
   password  String   
   name      String
   role      String   
-  
-  // --- NOVOS CAMPOS PARA EQUIPE ---
   phone     String?
   avatarUrl String?
+  resetToken String?
+  resetTokenExpires DateTime?
   status    String   @default("ACTIVE") // 'ACTIVE', 'BLOCKED'
   // --------------------------------
 

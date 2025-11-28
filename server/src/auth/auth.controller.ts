@@ -17,4 +17,18 @@ export class AuthController {
     // 2. Gera e retorna o Token
     return this.authService.login(user);
   }
+
+  @Post('forgot-password')
+  async forgotPassword(@Body() body: { email: string }) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() body: { token: string; password: string }) {
+    try {
+      return await this.authService.resetPassword(body.token, body.password);
+    } catch (error: any) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
 }
