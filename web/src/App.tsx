@@ -16,12 +16,12 @@ import { CepSearch } from './pages/CepSearch';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { Delivery, Route as RouteType, Driver, Vehicle } from './types';
-import { LogIn, AlertCircle, Loader2 } from 'lucide-react';
+import { LogIn, AlertCircle, Loader2, Link } from 'lucide-react';
 import { api } from './services/api';
 
 // --- COMPONENTE DE LOGIN (Extraído) ---
 const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
-  const [email, setEmail] = useState('admin@mvp.com'); // Valor padrão ajustado para o seed
+  const [email, setEmail] = useState(''); // Valor padrão ajustado para o seed
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
