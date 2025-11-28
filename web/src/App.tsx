@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+// CORREÇÃO: Adicionado 'Link' na importação abaixo
+import { HashRouter, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { RoutePlanner } from './pages/RoutePlanner';
@@ -114,9 +115,7 @@ const ProtectedLayout = ({ user, logout }: any) => {
   // Carrega dados iniciais
   useEffect(() => {
     const fetchData = async () => {
-        // 🔒 CORREÇÃO APLICADA AQUI:
-        // Se não tiver usuário logado, para a execução imediatamente.
-        // Isso evita o erro "Cannot read properties of null (reading 'tenantId')"
+        // 🔒 TRAVA DE SEGURANÇA:
         if (!user || !user.tenantId) return;
 
         setLoading(true);
