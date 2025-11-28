@@ -16,11 +16,12 @@ import { CepSearch } from './pages/CepSearch';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { Delivery, Route as RouteType, Driver, Vehicle } from './types';
-import { LogIn, AlertCircle, Loader2, Link } from 'lucide-react';
+import { LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { api } from './services/api';
 
+// --- COMPONENTE DE LOGIN ---
 const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
-  const [email, setEmail] = useState(''); // Valor padrão ajustado para o seed
+  const [email, setEmail] = useState('admin@mvp.com');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,8 +35,8 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
       const data = await api.auth.login(email, password);
       localStorage.setItem('zaproute_token', data.access_token);
       localStorage.setItem('zaproute_user', JSON.stringify(data.user));
-      onLogin(); // Atualiza estado do pai
-      navigate('/'); // Redireciona para home
+      onLogin(); 
+      navigate('/'); 
     } catch (err) {
       setError('E-mail ou senha incorretos.');
     } finally {
@@ -98,18 +99,26 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
   );
 };
 
+// --- COMPONENTE LAYOUT PROTEGIDO ---
 const ProtectedLayout = ({ user, logout }: any) => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
+  // Estados de Dados
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [routes, setRoutes] = useState<RouteType[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Carrega dados iniciais
   useEffect(() => {
     const fetchData = async () => {
+        // 🔒 CORREÇÃO APLICADA AQUI:
+        // Se não tiver usuário logado, para a execução imediatamente.
+        // Isso evita o erro "Cannot read properties of null (reading 'tenantId')"
+        if (!user || !user.tenantId) return;
+
         setLoading(true);
         try {
             // 1. Rotas e Entregas
@@ -153,6 +162,7 @@ const ProtectedLayout = ({ user, logout }: any) => {
 
   if (!user) return <Navigate to="/login" />;
 
+  // Se for Motorista, mostra App Simplificado
   if (user.role === 'DRIVER') {
       return <DriverApp driverId={user.id} deliveries={deliveries} updateDeliveryStatus={() => {}} />;
   }
@@ -211,7 +221,7 @@ const App = () => {
       if (cached) setUser(JSON.parse(cached));
   };
 
-  if (!authChecked) return null; // Evita piscar a tela de login se já estiver logado
+  if (!authChecked) return null; 
 
   return (
     <HashRouter>
