@@ -19,7 +19,6 @@ import { Delivery, Route as RouteType, Driver, Vehicle } from './types';
 import { LogIn, AlertCircle, Loader2, Link } from 'lucide-react';
 import { api } from './services/api';
 
-// --- COMPONENTE DE LOGIN (Extraído) ---
 const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
   const [email, setEmail] = useState(''); // Valor padrão ajustado para o seed
   const [password, setPassword] = useState('');
@@ -99,19 +98,16 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
   );
 };
 
-// --- COMPONENTE LAYOUT PROTEGIDO ---
 const ProtectedLayout = ({ user, logout }: any) => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
-  // Estados de Dados
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [routes, setRoutes] = useState<RouteType[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Carrega dados iniciais
   useEffect(() => {
     const fetchData = async () => {
         setLoading(true);
@@ -157,7 +153,6 @@ const ProtectedLayout = ({ user, logout }: any) => {
 
   if (!user) return <Navigate to="/login" />;
 
-  // Se for Motorista, mostra App Simplificado
   if (user.role === 'DRIVER') {
       return <DriverApp driverId={user.id} deliveries={deliveries} updateDeliveryStatus={() => {}} />;
   }
