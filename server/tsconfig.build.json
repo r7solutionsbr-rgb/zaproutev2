@@ -1,11 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "outDir": "./dist/server",
-    "noEmit": false,
-    "types": ["node"]
+    "outDir": "./dist",
+    "baseUrl": "./"
   },
-  "include": ["server/**/*"],
-  "exclude": ["node_modules", "dist", "test", "**/*spec.ts", "pages", "components", "*.tsx", "vite.config.ts"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
 }
