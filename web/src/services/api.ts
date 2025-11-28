@@ -36,6 +36,14 @@ export const api = {
     login: async (email: string, password?: string) => {
       const response = await client.post('/auth/login', { email, password });
       return response.data;
+    },
+    forgotPassword: async (email: string) => {
+      const response = await client.post('/auth/forgot-password', { email });
+      return response.data;
+    },
+    resetPassword: async (token: string, password: string) => {
+      const response = await client.post('/auth/reset-password', { token, password });
+      return response.data;
     }
   },
   // --- EMPRESA (TENANT) ---

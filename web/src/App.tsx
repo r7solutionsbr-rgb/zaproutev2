@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { RoutePlanner } from './pages/RoutePlanner';
@@ -13,263 +13,221 @@ import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { DriverApp } from './pages/DriverApp';
 import { CepSearch } from './pages/CepSearch';
-import { Delivery, Route, Driver, DeliveryStatus, Vehicle } from './types';
-import { LogIn, AlertCircle, Loader2, Menu } from 'lucide-react';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
+import { Delivery, Route as RouteType, Driver, Vehicle } from './types';
+import { LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { api } from './services/api';
 
-const App = () => {
-  // --- GLOBAL STATE (CORRIGIDO: Única declaração com tenantName) ---
-  const [user, setUser] = useState<{ id: string, name: string, role: string, tenantId: string, tenantName?: string } | null>(null);
-  
+// --- COMPONENTE DE LOGIN (Extraído) ---
+const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
+  const [email, setEmail] = useState('admin@mvp.com'); // Valor padrão ajustado para o seed
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const data = await api.auth.login(email, password);
+      localStorage.setItem('zaproute_token', data.access_token);
+      localStorage.setItem('zaproute_user', JSON.stringify(data.user));
+      onLogin(); // Atualiza estado do pai
+      navigate('/'); // Redireciona para home
+    } catch (err) {
+      setError('E-mail ou senha incorretos.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-8">
+        <div className="flex justify-center mb-6">
+           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-3xl font-bold">Z</div>
+        </div>
+        <h1 className="text-2xl font-bold text-center text-slate-800 mb-2">ZapRoute Login</h1>
+        <p className="text-center text-slate-500 mb-8">Acesso Seguro</p>
+        
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+            <input 
+                type="email" 
+                required 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
+            <input 
+                type="password" 
+                required 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">Esqueceu a senha?</Link>
+          </div>
+
+          {error && (
+              <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2">
+                  <AlertCircle size={16} /> {error}
+              </div>
+          )}
+
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {loading ? <Loader2 className="animate-spin" /> : <LogIn size={20} />} 
+            {loading ? 'Entrando...' : 'Acessar Sistema'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENTE LAYOUT PROTEGIDO ---
+const ProtectedLayout = ({ user, logout }: any) => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-
-  // Data State
+  
+  // Estados de Dados
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
-  const [routes, setRoutes] = useState<Route[]>([]);
+  const [routes, setRoutes] = useState<RouteType[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Check for cached user
+  // Carrega dados iniciais
   useEffect(() => {
-    const cached = localStorage.getItem('zaproute_user');
-    if (cached) {
-      setUser(JSON.parse(cached));
-    }
-  }, []);
-
-  // Fetch Data when User Logs In
-  useEffect(() => {
-    if (user && user.role !== 'DRIVER') {
-      fetchDashboardData();
-    }
-  }, [user]);
-
-  const fetchDashboardData = async () => {
-    if (!user) return;
-    setIsLoading(true);
-    try {
-      const routesData = await api.routes.getAll(user.tenantId);
-      
-      // 1. Extrair todas as entregas
-      const allDeliveries: Delivery[] = [];
-      routesData.forEach((r: any) => {
-          if (r.deliveries) {
-             r.deliveries.forEach((d: any) => {
-                if(d.customer) {
-                    allDeliveries.push({
-                        ...d,
-                        customer: {
-                            ...d.customer,
-                            location: d.customer.location || { lat: 0, lng: 0, address: d.customer.addressDetails?.street || '' },
-                            addressDetails: d.customer.addressDetails || { 
-                                street: '', number: '', neighborhood: '', city: '', state: '', zipCode: '' 
-                            }
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            // 1. Rotas e Entregas
+            const routesData = await api.routes.getAll(user.tenantId);
+            const allDeliveries: Delivery[] = [];
+            routesData.forEach((r: any) => {
+                if (r.deliveries) {
+                    r.deliveries.forEach((d: any) => {
+                        if(d.customer) {
+                            allDeliveries.push({
+                                ...d,
+                                customer: {
+                                    ...d.customer,
+                                    location: d.customer.location || { lat: 0, lng: 0, address: d.customer.addressDetails?.street || '' },
+                                    addressDetails: d.customer.addressDetails || { street: '', number: '', neighborhood: '', city: '', state: '', zipCode: '' }
+                                }
+                            });
                         }
                     });
                 }
-             });
-          }
-      });
-      setDeliveries(allDeliveries);
+            });
+            setDeliveries(allDeliveries);
+            setRoutes(routesData.map((r: any) => ({ ...r, deliveries: r.deliveries ? r.deliveries.map((d: any) => d.id) : [] })));
 
-      // 2. Normalizar Rotas
-      const normalizedRoutes = routesData.map((r: any) => ({
-        ...r,
-        deliveries: r.deliveries ? r.deliveries.map((d: any) => d.id) : []
-      }));
-      setRoutes(normalizedRoutes);
+            // 2. Cadastros Básicos
+            const [driversData, vehiclesData] = await Promise.all([
+                api.drivers.getAll(user.tenantId),
+                api.vehicles.getAll(user.tenantId)
+            ]);
+            setDrivers(driversData);
+            setVehicles(vehiclesData);
 
-      const driversData = await api.drivers.getAll(user.tenantId);
-      setDrivers(driversData);
+        } catch (error) {
+            console.error("Erro ao carregar dados:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+    fetchData();
+  }, [user]);
+
+  if (!user) return <Navigate to="/login" />;
+
+  // Se for Motorista, mostra App Simplificado
+  if (user.role === 'DRIVER') {
+      return <DriverApp driverId={user.id} deliveries={deliveries} updateDeliveryStatus={() => {}} />;
+  }
+
+  return (
+    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
+      <Sidebar 
+        currentPage={currentPage} setPage={setCurrentPage} 
+        isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen}
+        userRole={user.role} userName={user.name} tenantName={user.tenantName} logout={logout}
+      />
       
-      const vehiclesData = await api.vehicles.getAll(user.tenantId);
-      setVehicles(vehiclesData);
+      <main className="flex-1 min-w-0 overflow-hidden relative p-4 overflow-y-auto h-screen">
+         {/* Loader Global */}
+         {loading && (
+             <div className="absolute top-4 right-4 z-50 bg-white px-4 py-2 rounded-full shadow flex items-center gap-2 text-sm font-bold text-blue-600 pointer-events-none">
+                 <Loader2 className="animate-spin" size={16} /> Carregando...
+             </div>
+         )}
 
-    } catch (error) {
-      console.error("Failed to load data", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+         {/* Roteamento Interno do Dashboard */}
+         {currentPage === 'dashboard' && <Dashboard deliveries={deliveries} routes={routes} />}
+         {currentPage === 'routes' && <RoutePlanner routes={routes} setRoutes={setRoutes} deliveries={deliveries} setDeliveries={setDeliveries} drivers={drivers} vehicles={vehicles}/>}
+         {currentPage === 'route-list' && <RouteList routes={routes} deliveries={deliveries} drivers={drivers} vehicles={vehicles}/>}
+         {currentPage === 'deliveries' && <DeliveryList deliveries={deliveries} drivers={drivers} />}
+         {currentPage === 'occurrences' && <OccurrenceList deliveries={deliveries} routes={routes} drivers={drivers} />}
+         {currentPage === 'customers' && <CustomerList deliveries={deliveries} />}
+         {currentPage === 'drivers' && <DriverList drivers={drivers} vehicles={vehicles} />}
+         {currentPage === 'vehicles' && <VehicleList vehicles={vehicles} drivers={drivers} />}
+         {currentPage === 'reports' && <Reports />}
+         {currentPage === 'settings' && <Settings />}
+         {currentPage === 'cep-search' && <CepSearch />}
+      </main>
+    </div>
+  );
+};
 
-  // Handlers
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError('');
-    setIsLoading(true);
-    
-    try {
-      const data = await api.auth.login(loginEmail, loginPassword);
-      
-      localStorage.setItem('zaproute_token', data.access_token);
-      localStorage.setItem('zaproute_user', JSON.stringify(data.user));
-      setUser(data.user);
-      
-    } catch (err) {
-      setLoginError('E-mail ou senha incorretos.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+// --- APP ROOT ---
+const App = () => {
+  const [user, setUser] = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const cached = localStorage.getItem('zaproute_user');
+    if (cached) setUser(JSON.parse(cached));
+    setAuthChecked(true);
+  }, []);
 
   const handleLogout = () => {
+    localStorage.clear();
     setUser(null);
-    setRoutes([]);
-    setDeliveries([]);
-    localStorage.removeItem('zaproute_user');
-    localStorage.removeItem('zaproute_token');
   };
 
-  const handleDeliveryUpdate = (id: string, status: DeliveryStatus, proof?: string) => {
-    setDeliveries(prev => prev.map(d => 
-      d.id === id ? { ...d, status, proofOfDelivery: proof } : d
-    ));
-    api.routes.updateDeliveryStatus(id, status, proof);
+  const refreshUser = () => {
+      const cached = localStorage.getItem('zaproute_user');
+      if (cached) setUser(JSON.parse(cached));
   };
 
-  // Login Screen
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-          <div className="p-8">
-            <div className="flex justify-center mb-6">
-               <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-3xl font-bold">Z</div>
-            </div>
-            <h1 className="text-2xl font-bold text-center text-slate-800 mb-2">ZapRoute Login</h1>
-            <p className="text-center text-slate-500 mb-8">Acesso Seguro</p>
-            
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
-                <input 
-                    type="email" 
-                    required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="nome@empresa.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
-                <input 
-                    type="password" 
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="******"
-                />
-              </div>
+  if (!authChecked) return null; // Evita piscar a tela de login se já estiver logado
 
-              {loginError && (
-                  <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2">
-                      <AlertCircle size={16} /> {loginError}
-                  </div>
-              )}
-
-              <button 
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
-              >
-                {isLoading ? <Loader2 className="animate-spin" /> : <LogIn size={20} />} 
-                {isLoading ? 'Entrando...' : 'Acessar Sistema'}
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Driver View
-  if (user.role === 'DRIVER') {
-    return (
-      <DriverApp 
-        driverId={user.id} 
-        deliveries={deliveries} 
-        updateDeliveryStatus={handleDeliveryUpdate} 
-      />
-    );
-  }
-
-  // Admin View
   return (
     <HashRouter>
-      <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
-        <Sidebar 
-          currentPage={currentPage} 
-          setPage={setCurrentPage} 
-          isOpen={isSidebarOpen} 
-          setIsOpen={setIsSidebarOpen}
-          userRole={user.role}
-          userName={user.name}
-          tenantName={user.tenantName || 'Minha Empresa'}
-          logout={handleLogout}
-        />
+      <Routes>
+        <Route path="/login" element={!user ? <LoginScreen onLogin={refreshUser} /> : <Navigate to="/" />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         
-        <main className="flex-1 min-w-0 overflow-hidden relative">
-           <div className="md:hidden p-4 bg-white border-b flex items-center justify-between">
-              <div className="font-bold text-lg">ZapRoute</div>
-              <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-600">
-                <Menu />
-              </button>
-           </div>
-
-           <div className="overflow-y-auto h-[calc(100vh-64px)] md:h-screen">
-             {isLoading && (
-                 <div className="absolute top-4 right-4 z-50 bg-white px-4 py-2 rounded-full shadow flex items-center gap-2 text-sm font-bold text-blue-600 pointer-events-none">
-                     <Loader2 className="animate-spin" size={16} /> Carregando...
-                 </div>
-             )}
-
-             {currentPage === 'dashboard' && <Dashboard deliveries={deliveries} routes={routes} />}
-             {currentPage === 'cep-search' && <CepSearch />}
-             {currentPage === 'routes' && (
-                <RoutePlanner 
-                    routes={routes} 
-                    setRoutes={setRoutes} 
-                    deliveries={deliveries} 
-                    setDeliveries={setDeliveries} 
-                    drivers={drivers} 
-                    vehicles={vehicles}
-                />
-             )}
-             {currentPage === 'route-list' && (
-                <RouteList 
-                  routes={routes} 
-                  deliveries={deliveries} 
-                  drivers={drivers} 
-                  vehicles={vehicles}
-                />
-             )}
-             {currentPage === 'deliveries' && (
-                <DeliveryList deliveries={deliveries} drivers={drivers} />
-             )}
-             {currentPage === 'occurrences' && (
-                <OccurrenceList deliveries={deliveries} routes={routes} drivers={drivers} />
-             )}
-             {currentPage === 'customers' && (
-                <CustomerList deliveries={deliveries} />
-             )}
-             {currentPage === 'drivers' && (
-                <DriverList drivers={drivers} vehicles={vehicles} />
-             )}
-             {currentPage === 'vehicles' && (
-                <VehicleList vehicles={vehicles} drivers={drivers} />
-             )}
-             {currentPage === 'reports' && <Reports />}
-             {currentPage === 'settings' && <Settings />}
-           </div>
-        </main>
-      </div>
+        {/* Rota Protegida (Dashboard) */}
+        <Route path="/*" element={<ProtectedLayout user={user} logout={handleLogout} />} />
+      </Routes>
     </HashRouter>
   );
 };
