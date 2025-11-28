@@ -1,16 +1,15 @@
 {
-  "name": "zaproute-saas",
+  "name": "zaproute-server",
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "npm run build:client && npm run build:server",
-    "build:client": "vite build",
-    "build:server": "nest build",
-    "preview": "vite preview",
-    "start": "node dist/server/main.js",
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push",
     "seed": "ts-node prisma/seed.ts"
   },
   "prisma": {
@@ -31,19 +30,11 @@
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
-    "d3": "^7.9.0",
-    "leaflet": "^1.9.4",
-    "lucide-react": "^0.344.0",
     "papaparse": "^5.5.3",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdfjs-dist": "^4.4.168",
     "prisma": "^5.7.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-leaflet": "^4.2.1",
-    "react-router-dom": "^6.22.2",
-    "recharts": "^2.12.2",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
     "xlsx": "^0.18.5"
@@ -51,17 +42,8 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@types/bcryptjs": "^2.4.6",
-    "@types/d3": "^7.4.3",
-    "@types/leaflet": "^1.9.21",
     "@types/node": "^20.11.24",
-    "@types/react": "^18.2.61",
-    "@types/react-dom": "^18.2.19",
-    "@vitejs/plugin-react": "^4.2.1",
-    "autoprefixer": "^10.4.18",
-    "postcss": "^8.4.35",
-    "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3",
-    "vite": "^5.1.4"
+    "typescript": "^5.3.3"
   }
 }
