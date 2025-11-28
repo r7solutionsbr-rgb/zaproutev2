@@ -27,6 +27,7 @@ model Tenant {
   customers    Customer[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  occurrences Occurrence[] // <--- Adicione esta linha
 }
 
 model User {
@@ -74,6 +75,7 @@ model Driver {
   
   routes          Route[]
   deliveries      Delivery[]
+  occurrences Occurrence[] // <--- Adicione esta linha
 }
 
 model Vehicle {
@@ -140,6 +142,7 @@ model Route {
   deliveries        Delivery[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  occurrences Occurrence[] // <--- Adicione esta linha
 }
 
 model Delivery {
@@ -171,11 +174,29 @@ model Delivery {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
-
+// --- TABELA DE INTELIGÊNCIA (Não apague!) ---
 model AiLearning {
   id        String   @id @default(uuid())
-  phrase    String   // O que o motorista falou (ex: "Já larguei a mercadoria")
-  intent    String   // A intenção correta (ex: "ENTREGA")
-  isActive  Boolean  @default(true) // Se entra no prompt ou não
+  phrase    String
+  intent    String
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+// --- TABELA DE OCORRÊNCIAS (Nova) ---
+model Occurrence {
+  id          String   @id @default(uuid())
+  type        String   
+  description String
+  
+  driverId    String
+  driver      Driver   @relation(fields: [driverId], references: [id])
+  
+  routeId     String?
+  route       Route?   @relation(fields: [routeId], references: [id])
+  
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  createdAt   DateTime @default(now())
 }
