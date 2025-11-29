@@ -183,7 +183,7 @@ const ProtectedLayout = ({ user, logout }: any) => {
          )}
 
          {/* Roteamento Interno do Dashboard */}
-         {currentPage === 'dashboard' && <Dashboard deliveries={deliveries} routes={routes} />}
+         {currentPage === 'dashboard' && <Dashboard deliveries={deliveries} routes={routes} drivers={drivers} />}
          {currentPage === 'routes' && <RoutePlanner routes={routes} setRoutes={setRoutes} deliveries={deliveries} setDeliveries={setDeliveries} drivers={drivers} vehicles={vehicles}/>}
          {currentPage === 'route-list' && <RouteList routes={routes} deliveries={deliveries} drivers={drivers} vehicles={vehicles}/>}
          {currentPage === 'deliveries' && <DeliveryList deliveries={deliveries} drivers={drivers} />}
