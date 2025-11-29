@@ -74,6 +74,9 @@ model Driver {
   routes          Route[]
   deliveries      Delivery[]
   occurrences     Occurrence[]
+  @@index([tenantId])
+  @@index([phone]) // Crítico para o Webhook achar rápido
+  @@index([cpf])
 }
 
 model Vehicle {
@@ -111,6 +114,8 @@ model Seller {
   customers Customer[] // Vendedor tem vários clientes
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  @@index([tenantId])
+  @@index([name])
 }
 
 model Customer {
@@ -138,6 +143,9 @@ model Customer {
   tenant            Tenant   @relation(fields: [tenantId], references: [id])
   
   deliveries        Delivery[]
+  @@index([tenantId])
+  @@index([cnpj])
+  @@index([tradeName]) // Para busca no import
 }
 
 model Route {
@@ -163,6 +171,10 @@ model Route {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   occurrences       Occurrence[]
+  @@index([tenantId])
+  @@index([driverId])
+  @@index([date]) // Crítico para filtrar rotas do dia
+  @@index([status])
 }
 
 model Delivery {
@@ -191,6 +203,10 @@ model Delivery {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  @@index([routeId])
+  @@index([invoiceNumber]) // Crítico para o motorista baixar nota
+  @@index([customerId])
+  @@index([status])
 }
 
 model AiLearning {
