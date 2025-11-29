@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Building, Users, Bell, Save, Shield, Mail, Plus, Trash2, Check, X, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Building, Users, Bell, Save, Shield, Plus, Trash2, Check, X, Loader2, CheckCircle, AlertCircle, Upload, Image as ImageIcon, Edit } from 'lucide-react';
 import { api } from '../services/api';
 
 export const Settings: React.FC = () => {
@@ -8,13 +8,17 @@ export const Settings: React.FC = () => {
 
   // --- DADOS DA EMPRESA (TENANT) ---
   const [tenant, setTenant] = useState<any>({});
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // --- DADOS DA EQUIPE (USERS) ---
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'DISPATCHER' });
+  
+  // Estado para controlar Edição vs Criação
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [userData, setUserData] = useState({ name: '', email: '', password: '', role: 'DISPATCHER' });
 
-  // Estado de Notificação Global
+  // Notificação Global
   const [notification, setNotification] = useState<{ type: 'SUCCESS' | 'ERROR', message: string } | null>(null);
 
   // Auto-dismiss da notificação
@@ -25,7 +29,7 @@ export const Settings: React.FC = () => {
     }
   }, [notification]);
 
-  // Carregar Dados Iniciais
+  // Carregar Dados
   useEffect(() => {
     loadData();
   }, []);
@@ -33,17 +37,41 @@ export const Settings: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-        // Carrega Empresa
         const tenantData = await api.tenants.getMe();
         setTenant(tenantData);
-
-        // Carrega Equipe
         const usersData = await api.users.getAll();
         setTeamMembers(usersData);
     } catch (error) {
         console.error("Erro ao carregar configurações", error);
     } finally {
         setIsLoading(false);
+    }
+  };
+
+  // --- MÁSCARA CNPJ ---
+  const maskCNPJ = (value: string) => {
+    if (!value) return "";
+    const v = value.replace(/\D/g, '').slice(0, 14);
+    if (v.length > 12) return `${v.slice(0,2)}.${v.slice(2,5)}.${v.slice(5,8)}/${v.slice(8,12)}-${v.slice(12)}`;
+    if (v.length > 8) return `${v.slice(0,2)}.${v.slice(2,5)}.${v.slice(5,8)}/${v.slice(8)}`;
+    if (v.length > 5) return `${v.slice(0,2)}.${v.slice(2,5)}.${v.slice(5)}`;
+    if (v.length > 2) return `${v.slice(0,2)}.${v.slice(2)}`;
+    return v;
+  };
+
+  // --- HANDLER UPLOAD LOGO ---
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { 
+        setNotification({ type: 'ERROR', message: 'A imagem é muito grande. Máximo 2MB.' });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTenant((prev: any) => ({ ...prev, logoUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -57,17 +85,49 @@ export const Settings: React.FC = () => {
       }
   };
 
-  // --- HANDLERS USUÁRIO ---
-  const handleCreateUser = async (e: React.FormEvent) => {
+  // --- HANDLERS USUÁRIO (CRIAR E EDITAR) ---
+  
+  const openCreateUserModal = () => {
+      setUserData({ name: '', email: '', password: '', role: 'DISPATCHER' });
+      setEditingUserId(null); // Modo Criação
+      setIsUserModalOpen(true);
+  };
+
+  const openEditUserModal = (user: any) => {
+      setUserData({ 
+          name: user.name, 
+          email: user.email, 
+          password: '', // Senha vem vazia na edição (só preenche se quiser trocar)
+          role: user.role 
+      });
+      setEditingUserId(user.id); // Modo Edição
+      setIsUserModalOpen(true);
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
       e.preventDefault();
       try {
-          await api.users.create(newUser);
-          setNotification({ type: 'SUCCESS', message: 'Usuário adicionado à equipe com sucesso!' });
+          if (editingUserId) {
+              // MODO EDIÇÃO
+              const payload: any = { ...userData };
+              if (!payload.password) delete payload.password; // Se não digitou senha, não envia (mantém a antiga)
+              
+              await api.users.update(editingUserId, payload);
+              setNotification({ type: 'SUCCESS', message: 'Usuário atualizado com sucesso!' });
+          } else {
+              // MODO CRIAÇÃO
+              if (!userData.password) {
+                  setNotification({ type: 'ERROR', message: 'Senha é obrigatória para novos usuários.' });
+                  return;
+              }
+              await api.users.create(userData);
+              setNotification({ type: 'SUCCESS', message: 'Usuário criado com sucesso!' });
+          }
+
           setIsUserModalOpen(false);
-          setNewUser({ name: '', email: '', password: '', role: 'DISPATCHER' });
           loadData(); // Recarrega lista
       } catch (error) {
-          setNotification({ type: 'ERROR', message: 'Erro ao criar usuário. Verifique se o e-mail já existe.' });
+          setNotification({ type: 'ERROR', message: 'Erro ao salvar usuário.' });
       }
   };
 
@@ -144,19 +204,41 @@ export const Settings: React.FC = () => {
                 <h2 className="text-xl font-bold text-slate-800 mb-6 pb-4 border-b border-slate-100">Dados da Organização</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* UPLOAD DE LOGO */}
                   <div className="col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Logo da Empresa (URL)</label>
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 border border-slate-200 overflow-hidden">
-                        {tenant.logoUrl ? <img src={tenant.logoUrl} alt="Logo" className="w-full h-full object-contain"/> : <Building size={32} />}
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Logotipo</label>
+                    <div className="flex items-center gap-6">
+                      <div className="w-24 h-24 bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 overflow-hidden relative group">
+                        {tenant.logoUrl ? (
+                            <img src={tenant.logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
+                        ) : (
+                            <ImageIcon size={32} />
+                        )}
+                        {/* Overlay para remover */}
+                        {tenant.logoUrl && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => setTenant({...tenant, logoUrl: ''})} className="text-white p-1 bg-red-600 rounded-full"><X size={16}/></button>
+                            </div>
+                        )}
                       </div>
-                      <input 
-                        type="text" 
-                        placeholder="https://exemplo.com/logo.png"
-                        value={tenant.logoUrl || ''}
-                        onChange={(e) => setTenant({...tenant, logoUrl: e.target.value})}
-                        className="flex-1 px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500"
-                      />
+                      
+                      <div>
+                          <input 
+                            type="file" 
+                            ref={logoInputRef} 
+                            onChange={handleLogoChange} 
+                            accept="image/png, image/jpeg, image/svg+xml" 
+                            className="hidden" 
+                          />
+                          <button 
+                            onClick={() => logoInputRef.current?.click()}
+                            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors flex items-center gap-2"
+                          >
+                            <Upload size={18} /> Alterar Imagem
+                          </button>
+                          <p className="text-xs text-slate-500 mt-2">Recomendado: PNG ou SVG (Max 2MB).</p>
+                      </div>
                     </div>
                   </div>
 
@@ -175,7 +257,8 @@ export const Settings: React.FC = () => {
                     <input 
                       type="text" 
                       value={tenant.cnpj || ''}
-                      onChange={(e) => setTenant({...tenant, cnpj: e.target.value})}
+                      onChange={(e) => setTenant({...tenant, cnpj: maskCNPJ(e.target.value)})}
+                      maxLength={18}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" 
                       placeholder="00.000.000/0000-00"
                     />
@@ -191,6 +274,8 @@ export const Settings: React.FC = () => {
                       placeholder="Av. Principal, 1000 - Cidade - UF"
                     />
                   </div>
+                  
+                  {/* REMOVIDO: Campo de Cor Primária */}
                 </div>
 
                 <div className="mt-8 flex justify-end">
@@ -215,7 +300,7 @@ export const Settings: React.FC = () => {
                       <p className="text-sm text-slate-500">Quem tem acesso ao painel administrativo.</p>
                    </div>
                    <button 
-                      onClick={() => setIsUserModalOpen(true)}
+                      onClick={openCreateUserModal}
                       className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm"
                    >
                       <Plus size={16} /> Novo Usuário
@@ -250,13 +335,25 @@ export const Settings: React.FC = () => {
                             </span>
                           </td>
                           <td className="p-3 text-right">
-                             <button 
-                                onClick={() => handleDeleteUser(member.id)}
-                                className="text-slate-400 hover:text-red-600 transition-colors"
-                                title="Remover Acesso"
-                             >
-                                <Trash2 size={18} />
-                             </button>
+                             <div className="flex justify-end gap-2">
+                                 {/* BOTÃO DE EDITAR */}
+                                 <button 
+                                    onClick={() => openEditUserModal(member)}
+                                    className="text-slate-400 hover:text-blue-600 transition-colors p-1"
+                                    title="Editar Usuário"
+                                 >
+                                    <Edit size={18} />
+                                 </button>
+
+                                 {/* BOTÃO DE DELETAR */}
+                                 <button 
+                                    onClick={() => handleDeleteUser(member.id)}
+                                    className="text-slate-400 hover:text-red-600 transition-colors p-1"
+                                    title="Remover Acesso"
+                                 >
+                                    <Trash2 size={18} />
+                                 </button>
+                             </div>
                           </td>
                         </tr>
                       ))}
@@ -277,36 +374,49 @@ export const Settings: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL NOVO USUÁRIO */}
+      {/* MODAL USUÁRIO (CRIAR / EDITAR) */}
       {isUserModalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden p-6 animate-in fade-in zoom-in duration-200">
                   <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-lg font-bold text-slate-800">Novo Usuário</h3>
+                      <h3 className="text-lg font-bold text-slate-800">
+                          {editingUserId ? 'Editar Usuário' : 'Novo Usuário'}
+                      </h3>
                       <button onClick={() => setIsUserModalOpen(false)}><X size={20} className="text-slate-400 hover:text-slate-600"/></button>
                   </div>
-                  <form onSubmit={handleCreateUser} className="space-y-4">
+                  <form onSubmit={handleSaveUser} className="space-y-4">
                       <div>
                           <label className="block text-sm font-bold text-slate-700 mb-1">Nome</label>
-                          <input required className="w-full p-2 border rounded" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} />
+                          <input required className="w-full p-2 border rounded" value={userData.name} onChange={e => setUserData({...userData, name: e.target.value})} />
                       </div>
                       <div>
                           <label className="block text-sm font-bold text-slate-700 mb-1">E-mail</label>
-                          <input type="email" required className="w-full p-2 border rounded" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} />
+                          <input type="email" required className="w-full p-2 border rounded" value={userData.email} onChange={e => setUserData({...userData, email: e.target.value})} />
                       </div>
                       <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-1">Senha Inicial</label>
-                          <input type="text" required className="w-full p-2 border rounded" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
+                          <label className="block text-sm font-bold text-slate-700 mb-1">
+                              {editingUserId ? 'Nova Senha (Opcional)' : 'Senha Inicial'}
+                          </label>
+                          <input 
+                            type="text" 
+                            required={!editingUserId} // Obrigatório apenas se for novo
+                            className="w-full p-2 border rounded" 
+                            value={userData.password} 
+                            onChange={e => setUserData({...userData, password: e.target.value})} 
+                            placeholder={editingUserId ? "Deixe em branco para manter a atual" : ""}
+                          />
                       </div>
                       <div>
                           <label className="block text-sm font-bold text-slate-700 mb-1">Função</label>
-                          <select className="w-full p-2 border rounded" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
+                          <select className="w-full p-2 border rounded" value={userData.role} onChange={e => setUserData({...userData, role: e.target.value})}>
                               <option value="ADMIN">Administrador</option>
                               <option value="DISPATCHER">Expedidor</option>
                               <option value="DRIVER">Motorista (Acesso App)</option>
                           </select>
                       </div>
-                      <button type="submit" className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-sm">Criar Usuário</button>
+                      <button type="submit" className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-sm">
+                          {editingUserId ? 'Salvar Alterações' : 'Criar Usuário'}
+                      </button>
                   </form>
               </div>
           </div>

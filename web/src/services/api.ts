@@ -67,6 +67,12 @@ export const api = {
           const response = await client.post('/users', data);
           return response.data;
       },
+      // --- ADICIONE ESTE MÉTODO ---
+      update: async (id: string, data: any) => {
+          const response = await client.patch(`/users/${id}`, data);
+          return response.data;
+      },
+      // ----------------------------
       delete: async (id: string) => {
           const response = await client.delete(`/users/${id}`);
           return response.data;
