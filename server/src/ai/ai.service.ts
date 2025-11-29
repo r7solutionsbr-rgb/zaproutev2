@@ -93,24 +93,29 @@ export class AiService {
               ${learningContext}
 
               COMANDOS E REGRAS:
-              1. INICIO: Iniciar rota. (Ex: "Saindo", "Iniciando", "Partiu")
+              1. INICIO: Iniciar rota. (Ex: "Saindo", "Iniciando")
               2. ENTREGA: Sucesso. (Ex: "Entreguei a 1020", Foto de comprovante)
               3. FALHA: Problema. (Ex: "Fechado", "Devolução", "Não atende")
               4. PAUSA: Parada temporária. (Ex: "Vou almoçar", "Parada pra café", "Abastecer")
               5. RETOMADA: Voltar ao trabalho. (Ex: "Voltei do almoço", "Seguindo rota")
               6. RESUMO: Pedido de status. (Ex: "O que falta?", "Resumo", "Quantas faltam?")
               7. ATRASO: Aviso de demora. (Ex: "Vou atrasar 10 min", "Trânsito parado")
-              8. NAVEGACAO: Pedir rota GPS. (Ex: "Me leva na próxima", "Manda a localização")
-              9. CONTATO: Pedir telefone. (Ex: "Manda o zap do cliente", "Cliente não atende")
-              10. DESFAZER: Corrigir erro. (Ex: "Baixei errado", "Desfaz a última")
-              11. DETALHES: Perguntar dados da nota. (Ex: "Quem é o vendedor?", "Quais os produtos?")
-              12. SAUDACAO: Cumprimentos iniciais. (Ex: "Bom dia", "Opa", "Boa tarde", "E ai", "Tudo bom?")
-              13. AJUDA: Pedido de ajuda.
-              14. OUTRO: Conversa fiada sem comando claro.
+              8. NAVEGACAO: Pedir rota GPS. (Ex: "Me leva na próxima", "Manda a localização", "Como chego lá?")
+              9. CONTATO: Pedir telefone. (Ex: "Manda o zap do cliente", "Cliente não atende", "Qual o numero dele?")
+              10. DESFAZER: Corrigir erro. (Ex: "Baixei errado", "Desfaz a última", "Não entreguei ainda")
+              11. DETALHES: Perguntar dados da nota. (Ex: "Quem é o vendedor?", "Quais os produtos?", "Qual o valor?")
+              12. AJUDA: Pedido de ajuda.
+              13. SAUDACAO: Cumprimentos. (Ex: "Bom dia", "Boa tarde", "Oi", "Opa")
+              14. FINALIZAR: Encerrar o dia/rota manualmente. (Ex: "Terminei por hoje", "Finalizar rota", "Encerrar", "Acabei tudo")
+              15. VENDEDOR: Pedir contato comercial. (Ex: "Quem vendeu essa nota?", "Preciso falar com o vendedor", "Qual o vendedor desse cliente?")
+              16. SUPERVISOR: Pedir ajuda da base. (Ex: "Preciso falar com o chefe", "Me passa o numero do supervisor", "Ligar para a base", "Emergência com a gestão")
+              17. LISTAR: Ver nomes dos próximos. (Ex: "Quem são os próximos?", "Lista de clientes", "Quais faltam?", "Me manda a lista")
+              18. SINISTRO: Acidente ou problema grave. (Ex: "Bati o carro", "Fui roubado", "Pneu furou", "Acidente na via", "Quebrou o caminhão")
+              15. OUTRO: Conversa fiada ou assuntos não relacionados à logística.
 
               SAÍDA JSON (Sem markdown):
               {
-                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "SAUDACAO" | "AJUDA" | "OUTRO" | "UNKNOWN",
+                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "AJUDA" | "SAUDACAO" | "FINALIZAR" | "VENDEDOR" | "SUPERVISOR" | "LISTAR" | "SINISTRO" | "OUTRO" | "UNKNOWN",
                 "identifier": "numero nota ou nome cliente",
                 "reason": "motivo, tempo de atraso ou detalhe"
               }

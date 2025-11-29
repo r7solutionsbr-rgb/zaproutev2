@@ -13,21 +13,22 @@ model Tenant {
   slug         String   @unique
   plan         String
   
-  // --- NOVOS CAMPOS PARA CONFIGURAÇÕES ---
+  // --- CAMPOS DE CONFIGURAÇÃO ---
   cnpj         String?
   address      String?
   logoUrl      String?
   primaryColor String?  @default("#2563eb")
-  // ---------------------------------------
 
+  // --- RELACIONAMENTOS ---
   users        User[]
   drivers      Driver[]
   vehicles     Vehicle[]
   routes       Route[]
   customers    Customer[]
+  sellers      Seller[]   // <--- NOVO (Relacionamento inverso)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  occurrences Occurrence[] // <--- Adicione esta linha
+  occurrences  Occurrence[]
 }
 
 model User {
@@ -37,15 +38,12 @@ model User {
   name              String
   role              String   
   
-  // --- NOVOS CAMPOS PARA EQUIPE ---
   phone             String?
   avatarUrl         String?
-  status            String   @default("ACTIVE") // 'ACTIVE', 'BLOCKED'
+  status            String   @default("ACTIVE")
   
-  // --- CAMPOS PARA RECUPERAÇÃO DE SENHA ---
   resetToken        String?
   resetTokenExpires DateTime?
-  // ----------------------------------------
 
   tenantId          String
   tenant            Tenant   @relation(fields: [tenantId], references: [id])
@@ -75,7 +73,7 @@ model Driver {
   
   routes          Route[]
   deliveries      Delivery[]
-  occurrences Occurrence[] // <--- Adicione esta linha
+  occurrences     Occurrence[]
 }
 
 model Vehicle {
@@ -91,12 +89,28 @@ model Vehicle {
   lastMaintenance DateTime?
   nextMaintenance DateTime?
   imageUrl        String?
-  
+
   tenantId        String
   tenant          Tenant   @relation(fields: [tenantId], references: [id])
   
   drivers         Driver[] 
   routes          Route[]
+}
+
+// --- NOVO MODELO: SELLER (VENDEDOR) ---
+model Seller {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String?
+  email     String?
+  status    String   @default("ACTIVE")
+  
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  
+  customers Customer[] // Vendedor tem vários clientes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Customer {
@@ -108,12 +122,18 @@ model Customer {
   email             String
   phone             String
   whatsapp          String?
-  salesperson       String?
+  salesperson       String? // Mantido como legado (texto simples)
+  
   status            String   
   creditLimit       Float?
-  location          Json?    // { lat: number, lng: number, address: string }
-  addressDetails    Json?    // { street, number, neighborhood, city, state, zipCode }
+  location          Json?
+  addressDetails    Json?
   
+  // --- VÍNCULO COM VENDEDOR ---
+  sellerId          String?  // <--- ESTA LINHA ESTAVA FALTANDO
+  seller            Seller?  @relation(fields: [sellerId], references: [id])
+  // ----------------------------
+
   tenantId          String
   tenant            Tenant   @relation(fields: [tenantId], references: [id])
   
@@ -129,7 +149,7 @@ model Route {
   endTime           String?
   estimatedDistance Float?
   estimatedTime     Int?
-  
+
   tenantId          String
   tenant            Tenant   @relation(fields: [tenantId], references: [id])
   
@@ -142,7 +162,7 @@ model Route {
   deliveries        Delivery[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-  occurrences Occurrence[] // <--- Adicione esta linha
+  occurrences       Occurrence[]
 }
 
 model Delivery {
@@ -154,14 +174,12 @@ model Delivery {
   priority        String   
   status          String   
   
-  // --- NOVOS CAMPOS PARA SUPORTAR O PDF ---
-  product         String?  // Ex: "S10 COMUM"
-  salesperson     String?  // Ex: "HELMO GOMES..."
-  // ----------------------------------------
+  product         String?
+  salesperson     String?
 
   proofOfDelivery String?
   failureReason   String?
-  
+
   customerId      String
   customer        Customer @relation(fields: [customerId], references: [id])
   
@@ -174,7 +192,7 @@ model Delivery {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
-// --- TABELA DE INTELIGÊNCIA (Não apague!) ---
+
 model AiLearning {
   id        String   @id @default(uuid())
   phrase    String
@@ -183,7 +201,6 @@ model AiLearning {
   createdAt DateTime @default(now())
 }
 
-// --- TABELA DE OCORRÊNCIAS (Nova) ---
 model Occurrence {
   id          String   @id @default(uuid())
   type        String   

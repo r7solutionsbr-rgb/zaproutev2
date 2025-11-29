@@ -170,12 +170,17 @@ export class WebhookService {
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
     const activeRoute = await (this.prisma as any).route.findFirst({
-        where: { 
-          driverId: driver.id, 
-          date: { gte: today, lt: tomorrow }
-        },
+        where: { driverId: driver.id, date: { gte: today, lt: tomorrow } },
         orderBy: { createdAt: 'desc' },
-        include: { deliveries: { include: { customer: true } } }
+        include: { 
+            deliveries: { 
+                include: { 
+                    customer: { 
+                        include: { seller: true } // <--- ADICIONE ISTO: Carrega dados do vendedor
+                    } 
+                } 
+            } 
+        }
     });
 
     if (!activeRoute) {
@@ -315,7 +320,88 @@ export class WebhookService {
          }
          return { status: 'missing_identifier' };
     }
+if (action === 'VENDEDOR') {
+        let target = identifier 
+            ? activeRoute.deliveries.find((d: any) => d.invoiceNumber.includes(identifier) || d.customer.tradeName.toLowerCase().includes(identifier.toLowerCase()))
+            : activeRoute.deliveries.find((d: any) => d.status === 'IN_TRANSIT' || d.status === 'PENDING');
 
+        if (target) {
+            const cliente = target.customer;
+            const vendedorNome = cliente.seller?.name || cliente.salesperson || 'Não informado';
+            
+            let msg = `👤 *Vendedor Responsável*\n\nCliente: ${cliente.tradeName}\nVendedor: *${vendedorNome}*`;
+            
+            // Se tivermos o telefone no cadastro novo, enviamos o link!
+            if (cliente.seller?.phone) {
+                const phoneClean = cliente.seller.phone.replace(/\D/g, '');
+                msg += `\n📞 WhatsApp: https://wa.me/55${phoneClean}`;
+            } else {
+                msg += `\n(Sem telefone cadastrado no sistema)`;
+            }
+
+            await this.whatsapp.sendText(replyPhone, msg);
+        } else {
+            await this.whatsapp.sendText(replyPhone, "De qual cliente você quer saber o vendedor?");
+        }
+        return { status: 'salesperson_info' };
+    }
+
+    // --- BLOCO 2: SUPERVISOR ---
+    if (action === 'SUPERVISOR') {
+        // Busca um admin/dispatcher da mesma empresa que tenha telefone
+        const supervisor = await (this.prisma as any).user.findFirst({
+            where: { 
+                tenantId: driver.tenantId,
+                role: { in: ['ADMIN', 'DISPATCHER'] },
+                phone: { not: null }
+            }
+        });
+
+        if (supervisor && supervisor.phone) {
+            const supPhone = supervisor.phone.replace(/\D/g, '');
+            await this.whatsapp.sendText(replyPhone, `👮‍♂️ *Contato da Base*\n\nFale com: ${supervisor.name}\n📞 Link: https://wa.me/55${supPhone}`);
+        } else {
+            await this.whatsapp.sendText(replyPhone, "🏢 Não encontrei um número de supervisor cadastrado. Por favor, ligue na central.");
+        }
+        return { status: 'supervisor_sent' };
+    }
+
+    // --- BLOCO 3: LISTAR CLIENTES ---
+    if (action === 'LISTAR') {
+        const pendingList = activeRoute.deliveries
+            .filter((d: any) => d.status === 'PENDING' || d.status === 'IN_TRANSIT')
+            .map((d: any, index: number) => `${index + 1}. ${d.customer.tradeName} (NF ${d.invoiceNumber})`)
+            .join('\n');
+
+        if (pendingList) {
+            await this.whatsapp.sendText(replyPhone, `📋 *Próximos Clientes:*\n\n${pendingList}`);
+        } else {
+            await this.whatsapp.sendText(replyPhone, "🎉 A lista está vazia! Você já entregou tudo.");
+        }
+        return { status: 'list_sent' };
+    }
+
+    // --- BLOCO 4: SINISTRO (Grave) ---
+    if (action === 'SINISTRO') {
+        // 1. Registra no banco como Ocorrência
+        await (this.prisma as any).occurrence.create({
+            data: {
+                type: 'SINISTER', // Tipo crítico
+                description: reason || 'Sinistro reportado via WhatsApp (Acidente/Quebra/Roubo)',
+                driverId: driver.id,
+                routeId: activeRoute.id,
+                tenantId: driver.tenantId
+            }
+        });
+
+        // 2. Avisa o motorista
+        await this.whatsapp.sendText(replyPhone, `🚨 *SINISTRO REGISTRADO!* 🚨\n\nMantenha a calma. Já notifiquei a base sobre o ocorrido.\nSe houver vítimas, ligue 192/193 imediatamente.\n\nAguarde contato do supervisor.`);
+
+        // 3. (Opcional) Poderíamos mandar msg pro Supervisor aqui também se tivesse a integração ativa
+        
+        return { status: 'sinister_alert' };
+    }
+    // --- BLOCO 5: SAUDAÇÃO E OUTROS ---
     if (action === 'OUTRO') {
         await this.whatsapp.sendText(replyPhone, "🤖 Sou o assistente ZapRoute.\nFale sobre sua rota ou digite *'Ajuda'*.");
         return { status: 'outro_replied' };

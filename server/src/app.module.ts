@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { WebhookModule } from './webhook/webhook.module';
 import { AiModule } from './ai/ai.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
+import { SellersModule } from './sellers/sellers.module'; // <--- Importe do SellersModule
 
 // --- CONTROLADORES (Rotas da API) ---
 import { RoutesController } from './routes/routes.controller';
@@ -18,6 +19,7 @@ import { VehiclesController } from './vehicles/vehicles.controller';
 import { CustomersController } from './customers/customers.controller';
 import { TenantsController } from './tenants/tenants.controller';
 import { UsersController } from './users/users.controller';
+import { SellersController } from './sellers/sellers.controller'; // <--- Importe do SellersController 
 
 // --- SERVIÇOS (Lógica de Negócio) ---
 import { RoutesService } from './routes/routes.service';
@@ -26,6 +28,7 @@ import { VehiclesService } from './vehicles/vehicles.service';
 import { CustomersService } from './customers/customers.service';
 import { TenantsService } from './tenants/tenants.service';
 import { UsersService } from './users/users.service';
+import { SellersService } from './sellers/sellers.service'; // <--- Importe do SellersService
 
 @Module({
   imports: [
@@ -39,6 +42,7 @@ import { UsersService } from './users/users.service';
     WebhookModule,
     AiModule,
     WhatsappModule,
+    SellersModule, // <--- Adição do SellersModule
   ],
   controllers: [
     // Endpoints
@@ -50,6 +54,7 @@ import { UsersService } from './users/users.service';
     CustomersController,
     TenantsController,
     UsersController
+    
   ],
   providers: [
     // Serviços Globais e de Entidades
@@ -59,7 +64,8 @@ import { UsersService } from './users/users.service';
     VehiclesService, 
     CustomersService,
     TenantsService,
-    UsersService
+    UsersService,
+    SellersService
   ],
 })
 export class AppModule {}

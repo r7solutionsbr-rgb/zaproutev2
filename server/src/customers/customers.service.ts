@@ -95,7 +95,31 @@ export class CustomersService {
     for (const c of customers) {
       if (!c.cnpj && !c.tradeName) continue;
 
-      // 1. Tenta achar cliente existente
+      // 1. Lógica de Vendedor (NOVO)
+      let sellerId = null;
+      if (c.salesperson) {
+          // Tenta achar o vendedor pelo nome
+          let seller = await (this.prisma as any).seller.findFirst({
+              where: { 
+                  tenantId, 
+                  name: { equals: c.salesperson, mode: 'insensitive' } // Busca sem diferenciar maiúscula/minúscula
+              }
+          });
+
+          // Se não existir, cria automaticamente
+          if (!seller) {
+              seller = await (this.prisma as any).seller.create({
+                  data: {
+                      name: c.salesperson,
+                      tenant: { connect: { id: tenantId } },
+                      status: 'ACTIVE'
+                  }
+              });
+          }
+          sellerId = seller.id;
+      }
+
+      // 2. Tenta achar cliente existente
       const existingCustomer = await (this.prisma as any).customer.findFirst({
         where: { 
             tenantId: tenantId,
@@ -106,7 +130,7 @@ export class CustomersService {
         }
       });
 
-      // Monta objeto bruto
+      // Monta objeto (Atualizado com sellerId)
       const rawData = {
           legalName: c.legalName || c.tradeName,
           tradeName: c.tradeName,
@@ -115,25 +139,23 @@ export class CustomersService {
           email: c.email,
           phone: c.phone,
           whatsapp: c.whatsapp,
-          salesperson: c.salesperson,
+          salesperson: c.salesperson, // Mantém legado
+          sellerId: sellerId,         // <--- VÍNCULO REAL
           location: c.location || { lat: 0, lng: 0, address: 'Não informado' },
           addressDetails: c.addressDetails || {},
           creditLimit: c.creditLimit,
           status: 'ACTIVE'
       };
 
-      // Passa pelo prepareData para garantir tipos corretos
       const customerData = this.prepareData(rawData);
 
       if (existingCustomer) {
-        // ATUALIZA
         const updated = await (this.prisma as any).customer.update({
           where: { id: existingCustomer.id },
           data: customerData
         });
         results.push(updated);
       } else {
-        // CRIA
         const created = await (this.prisma as any).customer.create({
           data: {
               ...customerData,
