@@ -4,20 +4,11 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import * as XLSX from 'xlsx';
 
-// Importação segura do PDF.js
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Configuração do Worker (Essencial para não travar a tela)
-if (typeof window !== 'undefined') {
-    // Usa o worker da versão instalada via unpkg para garantir compatibilidade
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-}
-
 import { Delivery, Route, Driver, Vehicle, DeliveryStatus } from '../types';
 import { 
   FileSpreadsheet, Truck, Calendar, Package, Navigation, 
   Download, Loader2, Filter, Check, Edit, Trash2, 
-  AlertTriangle, CheckCircle, X, Info, Save, Lock, User, XCircle, Map as MapIcon, MapPin, FileText
+  AlertTriangle, CheckCircle, X, Info, Save, Lock, User, XCircle, Map as MapIcon, MapPin, FileText, RotateCcw
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -38,99 +29,19 @@ const icons = {
     grey: createIcon('grey')
 };
 
-// --- PARSER PDF (DIÁRIO DE VIAGEM) ---
-const parseTetraOilPdf = async (arrayBuffer: ArrayBuffer) => {
-    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
-    let fullText = "";
+// --- DICIONÁRIOS DE TRADUÇÃO (NOVO) ---
+const ROUTE_STATUS_LABELS: Record<string, string> = {
+    'PLANNED': 'Planejada',
+    'ACTIVE': 'Em Rota',
+    'COMPLETED': 'Finalizada'
+};
 
-    for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        // Une sem espaço para manter o formato "CSV" intacto (ex: "A","B")
-        const strings = textContent.items.map((item: any) => item.str);
-        fullText += strings.join("") + "\n"; 
-    }
-
-    // 1. Cabeçalho
-    const driverMatch = fullText.match(/Motorista:\s*([A-Z\s]+)/i);
-    const vehicleMatch = fullText.match(/Veículo:\s*([A-Z0-9]+)/i);
-    
-    const driverName = driverMatch ? driverMatch[1].trim() : "";
-    const vehiclePlate = vehicleMatch ? vehicleMatch[1].trim() : "";
-    const routeDate = new Date().toISOString(); 
-    
-    const routeData = {
-        name: `Rota PDF - ${vehiclePlate} - ${driverName.split(' ')[0] || 'Diário'}`,
-        date: routeDate,
-        vehiclePlate,
-        driverName
-    };
-
-    const deliveries: any[] = [];
-
-    // 2. Regex para o Padrão "CSV Visual" do seu PDF
-    // Procura: "123456", "CLIENTE...", "CIDADE", "VENDEDOR", "PRODUTO", ... "QTD"
-    // [\s\S]*? permite capturar quebras de linha dentro das aspas
-    const rowRegex = /"(\d+)"\s*,\s*"([\s\S]*?)"\s*,\s*"([\s\S]*?)"\s*,\s*"([\s\S]*?)"\s*,\s*"([\s\S]*?)"[\s\S]*?"([\d\.]+,\d{2})/g;
-
-    let match;
-    while ((match = rowRegex.exec(fullText)) !== null) {
-        const invoice = match[1];          
-        const rawClient = match[2] || "";  
-        const city = match[3].replace(/[\r\n]+/g, ' ').trim();       
-        const salesperson = match[4].replace(/[\r\n]+/g, ' ').trim(); 
-        const product = match[5].replace(/[\r\n]+/g, ' ').trim();     
-        const qtdStr = match[6];           
-
-        // Separação Nome/Endereço (Baseado na quebra de linha dentro das aspas)
-        let customerName = "Cliente Desconhecido";
-        let customerAddress = "Endereço não informado";
-
-        if (rawClient.trim() !== "") {
-            const cleanClient = rawClient.replace(/\r\n/g, '\n').trim();
-            const parts = cleanClient.split('\n');
-
-            if (parts.length > 1) {
-                customerName = parts[0].trim(); // 1ª Linha = Nome
-                customerAddress = parts.slice(1).join(" ").trim(); // Resto = Endereço
-            } else {
-                // Se não tiver quebra de linha, tenta ver se tem vírgula
-                if(cleanClient.includes(',')) {
-                   const commaParts = cleanClient.split(',');
-                   customerName = commaParts[0];
-                   customerAddress = cleanClient;
-                } else {
-                   customerName = cleanClient;
-                   customerAddress = cleanClient;
-                }
-            }
-        }
-
-        const fullAddress = `${customerAddress} - ${city}`;
-
-        deliveries.push({
-            invoiceNumber: invoice,
-            customerName: customerName,
-            customerCnpj: "", 
-            customerAddress: fullAddress, 
-            volume: parseFloat(qtdStr.replace('.', '').replace(',', '.')),
-            weight: 0,
-            value: 0,
-            priority: 'NORMAL',
-            product: product,
-            salesperson: salesperson
-        });
-    }
-
-    if (deliveries.length === 0) {
-        // Fallback: Tenta buscar sem as aspas caso o PDF mude (formato texto simples)
-        if (fullText.includes("Pedido") && fullText.includes("Cliente")) {
-             throw new Error("Layout detectado, mas a leitura falhou. O PDF pode ter caracteres especiais não reconhecidos.");
-        }
-        throw new Error("Nenhum pedido identificado.");
-    }
-
-    return { routeData, deliveries };
+const DELIVERY_STATUS_LABELS: Record<string, string> = {
+    'PENDING': 'Pendente',
+    'IN_TRANSIT': 'Em Rota',
+    'DELIVERED': 'Entregue',
+    'FAILED': 'Falha',
+    'RETURNED': 'Devolvida'
 };
 
 // --- COMPONENTE RECENTER ---
@@ -311,7 +222,8 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, routeName }: any) => {
 export const RoutePlanner: React.FC<any> = ({ routes, setRoutes, deliveries, setDeliveries, drivers, vehicles = [] }) => {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(routes[0]?.id || null);
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false); // Mantém para o EXCEL
+  const [isRefreshing, setIsRefreshing] = useState(false); // Exclusivo para o Refresh
   
   const [statusFilters, setStatusFilters] = useState<string[]>(['PLANNED', 'ACTIVE', 'COMPLETED']);
   const [stopFilters, setStopFilters] = useState<string[]>(['PENDING', 'DELIVERED', 'FAILED']);
@@ -327,11 +239,7 @@ export const RoutePlanner: React.FC<any> = ({ routes, setRoutes, deliveries, set
   const [deliveryToAction, setDeliveryToAction] = useState<{ delivery: Delivery, type: 'DELIVER' | 'FAIL' } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pdfInputRef = useRef<HTMLInputElement>(null);
   const itemRefs = useRef<{[key: string]: HTMLDivElement | null}>({});
-
-  const user = JSON.parse(localStorage.getItem('zaproute_user') || '{}');
-  const isTetraOilClient = user.tenantName?.toUpperCase().includes('TETRA') || true;
 
   const toggleStatusFilter = (s: string) => setStatusFilters(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
   const toggleStopFilter = (s: string) => setStopFilters(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
@@ -360,6 +268,51 @@ export const RoutePlanner: React.FC<any> = ({ routes, setRoutes, deliveries, set
           itemRefs.current[selectedDeliveryId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
   }, [selectedDeliveryId]);
+
+  // --- FUNÇÃO DE ATUALIZAÇÃO (CORRIGIDA E MANTIDA) ---
+  const handleRefresh = async () => {
+    const userStr = localStorage.getItem('zaproute_user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    if (!user?.tenantId) return;
+    
+    setIsRefreshing(true); 
+    try {
+        const routesData = await api.routes.getAll(user.tenantId);
+        
+        // 1. Extrair todas as entregas para o estado global 'deliveries'
+        const allDeliveries: any[] = [];
+        routesData.forEach((r: any) => {
+            if (r.deliveries) {
+                r.deliveries.forEach((d: any) => {
+                    if(d.customer) {
+                         allDeliveries.push({
+                            ...d,
+                            customer: {
+                                ...d.customer,
+                                location: d.customer.location || { lat: 0, lng: 0, address: d.customer.addressDetails?.street || '' },
+                                addressDetails: d.customer.addressDetails || { street: '', number: '', neighborhood: '', city: '', state: '', zipCode: '' }
+                            }
+                        });
+                    }
+                });
+            }
+        });
+        setDeliveries(allDeliveries);
+
+        // 2. Formatar as rotas para salvar apenas os IDs das entregas
+        const formattedRoutes = routesData.map((r: any) => ({
+            ...r,
+            deliveries: r.deliveries ? r.deliveries.map((d: any) => d.id) : [] 
+        }));
+        
+        setRoutes(formattedRoutes);
+        
+    } catch(e) {
+        console.error("Erro ao atualizar dados", e);
+    } finally {
+        setIsRefreshing(false);
+    }
+  };
 
   const handleSaveEdit = async (data: any) => {
     if (!routeToEdit) return;
@@ -465,37 +418,8 @@ export const RoutePlanner: React.FC<any> = ({ routes, setRoutes, deliveries, set
     reader.readAsBinaryString(file);
   };
 
-  // --- PDF IMPORT (TETRAOIL) ---
-  const handlePdfImport = async (e: any) => {
-      const f = e.target.files?.[0];
-      if(!f) return;
-      setIsImporting(true);
-      try {
-          const buff = await f.arrayBuffer();
-          const { routeData, deliveries: dels } = await parseTetraOilPdf(buff);
-          await api.routes.import({ 
-              tenantId: user.tenantId, 
-              name: routeData.name, 
-              date: routeData.date, 
-              driverCpf: "", 
-              vehiclePlate: routeData.vehiclePlate, 
-              deliveries: dels.map(d => ({ ...d, customerCnpj: "" })) 
-          });
-          
-          setImportResults({ success: 1, errors: [] });
-          setImportModalOpen(true);
-
-      } catch (err:any) { 
-          setImportResults({ success: 0, errors: [{ route: 'PDF', message: err.message }] }); 
-          setImportModalOpen(true); 
-      } finally { 
-          setIsImporting(false); 
-          if(pdfInputRef.current) pdfInputRef.current.value=''; 
-      }
-  };
-
-  const getDriverInfo = (id: string) => drivers.find(x=>x.id===id)?.name || 'Sem Motorista';
-  const getVehicleInfo = (id: string) => vehicles.find(x=>x.id===id)?.plate || 'Sem Veículo';
+  const getDriverInfo = (id: string) => drivers.find((x:any)=>x.id===id)?.name || 'Sem Motorista';
+  const getVehicleInfo = (id: string) => vehicles.find((x:any)=>x.id===id)?.plate || 'Sem Veículo';
 
   const validPoints = routeDeliveries.filter((d:any) => {
       const l = d.customer?.location;
@@ -526,7 +450,7 @@ export const RoutePlanner: React.FC<any> = ({ routes, setRoutes, deliveries, set
   return (
     <div className="p-6 h-[calc(100vh-4rem)] flex flex-col">
         {/* MODAIS */}
-        <ImportResultModal isOpen={importModalOpen} onClose={() => window.location.reload()} results={importResults} />
+        <ImportResultModal isOpen={importModalOpen} onClose={() => { setImportModalOpen(false); handleRefresh(); }} results={importResults} />
         <EditRouteModal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} onSave={handleSaveEdit} route={routeToEdit} drivers={drivers} vehicles={vehicles} />
         <DeleteConfirmModal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} onConfirm={confirmDeleteRoute} routeName={routeToDelete?.name} />
         {deliveryToAction && <DeliveryActionModal isOpen={deliveryActionModalOpen} onClose={() => setDeliveryActionModalOpen(false)} onConfirm={handleConfirmDeliveryAction} type={deliveryToAction.type} delivery={deliveryToAction.delivery} />}
@@ -534,15 +458,17 @@ export const RoutePlanner: React.FC<any> = ({ routes, setRoutes, deliveries, set
         <header className="flex justify-between items-center mb-6">
             <div><h1 className="text-3xl font-bold text-slate-800">Gestão de Rotas</h1><p className="text-slate-500">Monitoramento e Rastreamento</p></div>
             <div className="flex gap-3">
+                {/* BOTÃO ATUALIZAR DADOS (Traduzido e Separado) */}
+                <button onClick={handleRefresh} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg border border-transparent hover:border-slate-200 transition-colors" title="Atualizar Dados">
+                    <RotateCcw size={20} className={`${isRefreshing ? 'animate-spin' : ''}`} />
+                </button>
+
                 <button onClick={handleDownloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-white border rounded-lg"><Download size={18}/> Modelo</button>
-                {/* INPUTS OCULTOS COM ACCEPT CORRIGIDO */}
+                {/* INPUTS OCULTOS */}
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".xlsx, .xls" />
-                <input type="file" ref={pdfInputRef} onChange={handlePdfImport} className="hidden" accept=".pdf" />
                 
-                <div className="flex rounded-lg shadow-sm overflow-hidden">
-                    <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white hover:bg-green-700 font-medium border-r border-green-700">{isImporting ? <Loader2 className="animate-spin" size={18}/> : <FileSpreadsheet size={18}/>} Excel</button>
-                    {isTetraOilClient && <button onClick={() => pdfInputRef.current?.click()} disabled={isImporting} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white hover:bg-red-700 font-medium">{isImporting ? <Loader2 className="animate-spin" size={18}/> : <FileText size={18}/>} PDF</button>}
-                </div>
+                {/* BOTÃO IMPORTAR EXCEL (Traduzido) */}
+                <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white hover:bg-green-700 font-medium rounded-lg shadow-sm">{isImporting ? <Loader2 className="animate-spin" size={18}/> : <FileSpreadsheet size={18}/>} Importar Excel</button>
             </div>
         </header>
 
@@ -550,7 +476,14 @@ export const RoutePlanner: React.FC<any> = ({ routes, setRoutes, deliveries, set
             <div className="w-1/4 flex flex-col gap-4 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b bg-slate-50 space-y-3">
                     <div className="flex items-center justify-between mb-3"><h3 className="font-bold text-slate-700 flex items-center gap-2"><Calendar size={16} /> Rotas</h3><div className="flex items-center gap-1 text-slate-400 text-xs"><Filter size={12} /> Filtrar</div></div>
-                    <div className="flex gap-2 flex-wrap">{['PLANNED', 'ACTIVE', 'COMPLETED'].map(s => <button key={s} onClick={() => toggleStatusFilter(s)} className={`text-[10px] font-bold px-2 py-1 rounded-full border ${statusFilters.includes(s) ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-400'}`}>{s}</button>)}</div>
+                    {/* FILTROS DE ROTA TRADUZIDOS */}
+                    <div className="flex gap-2 flex-wrap">
+                      {['PLANNED', 'ACTIVE', 'COMPLETED'].map(s => (
+                        <button key={s} onClick={() => toggleStatusFilter(s)} className={`text-[10px] font-bold px-2 py-1 rounded-full border ${statusFilters.includes(s) ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-400'}`}>
+                          {ROUTE_STATUS_LABELS[s]}
+                        </button>
+                      ))}
+                    </div>
                 </div>
                 <div className="overflow-y-auto flex-1 p-2 space-y-2">
                     {filteredRoutes.map((r:any) => {
@@ -561,7 +494,11 @@ export const RoutePlanner: React.FC<any> = ({ routes, setRoutes, deliveries, set
                         const pF = t > 0 ? (f/t)*100 : 0;
                         return (
                             <div key={r.id} onClick={() => setSelectedRouteId(r.id)} className={`p-3 rounded border cursor-pointer ${r.id === selectedRouteId ? 'bg-blue-50 border-blue-500' : 'bg-white hover:border-blue-300'}`}>
-                                <div className="flex justify-between mb-1"><span className="font-bold text-sm truncate">{r.name}</span><span className="text-[10px] bg-slate-200 px-1 rounded">{r.status}</span></div>
+                                <div className="flex justify-between mb-1">
+                                  <span className="font-bold text-sm truncate">{r.name}</span>
+                                  {/* STATUS DA ROTA TRADUZIDO */}
+                                  <span className="text-[10px] bg-slate-200 px-1 rounded">{ROUTE_STATUS_LABELS[r.status] || r.status}</span>
+                                </div>
                                 <div className="text-xs text-slate-500 space-y-1">
                                     <div className="flex gap-2"><User size={12}/> {getDriverInfo(r.driverId)}</div>
                                     <div className="flex gap-2"><Truck size={12}/> {getVehicleInfo(r.vehicleId)}</div>
@@ -603,7 +540,14 @@ export const RoutePlanner: React.FC<any> = ({ routes, setRoutes, deliveries, set
             <div className="w-1/4 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
                 <div className="p-4 border-b bg-slate-50 space-y-3">
                     <div className="flex justify-between"><h3 className="font-bold text-slate-700">Paradas</h3><span className="text-xs bg-slate-200 px-2 rounded">{routeDeliveries.length}</span></div>
-                    <div className="flex gap-1">{['PENDING', 'DELIVERED', 'FAILED'].map(s => <button key={s} onClick={() => toggleStopFilter(s)} className={`flex-1 text-[9px] py-1 border rounded font-bold ${stopFilters.includes(s) ? 'bg-blue-100 text-blue-700' : 'bg-white'}`}>{s.substr(0,4)}</button>)}</div>
+                    {/* FILTROS DE ENTREGA TRADUZIDOS */}
+                    <div className="flex gap-1">
+                      {['PENDING', 'DELIVERED', 'FAILED'].map(s => (
+                        <button key={s} onClick={() => toggleStopFilter(s)} className={`flex-1 text-[9px] py-1 border rounded font-bold ${stopFilters.includes(s) ? 'bg-blue-100 text-blue-700' : 'bg-white'}`}>
+                          {DELIVERY_STATUS_LABELS[s]}
+                        </button>
+                      ))}
+                    </div>
                 </div>
                 <div className="overflow-y-auto flex-1 p-2 space-y-2">
                     {routeDeliveries.map((d:any, i:number) => (
