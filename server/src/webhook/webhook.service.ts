@@ -13,17 +13,35 @@ export class WebhookService {
     private whatsapp: WhatsappService
   ) {}
 
-  private formatToDbPattern(ddd: string, number: string): string | null {
-      if (number.length === 9) return `+55 (${ddd}) ${number.slice(0,5)}-${number.slice(5)}`;
-      if (number.length === 8) return `+55 (${ddd}) ${number.slice(0,4)}-${number.slice(4)}`;
-      return null;
+  // ===========================================================================
+  // BLOCO 1: UTILITÁRIOS
+  // ===========================================================================
+
+  /**
+   * Recria a formatação visual (máscara) que geralmente é salva via Frontend/Excel.
+   * Ex: Transforma '85999998888' em '+55 (85) 99999-8888'
+   */
+  private formatPhoneVisual(ddd: string, number: string): string {
+    const part1 = number.length === 9 ? number.slice(0, 5) : number.slice(0, 4);
+    const part2 = number.length === 9 ? number.slice(5) : number.slice(4);
+    return `+55 (${ddd}) ${part1}-${part2}`;
   }
+  private getGreeting(): string {
+    const hour = parseInt(new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false }));
+    if (hour < 12) return 'Bom dia';
+    if (hour < 18) return 'Boa tarde';
+    return 'Boa noite';
+  }
+
+  // ===========================================================================
+  // BLOCO 2: PROCESSAMENTO DO WEBHOOK
+  // ===========================================================================
 
   async processMessage(payload: any) {
     let rawPhone = '';
     let messageContent: { type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'LOCATION', value: any, caption?: string } | null = null;
 
-    // 1. Parse Básico (Sem botões)
+    // 2.1 - Extração dos dados (Suporta Z-API e WhatsApp Cloud API)
     if (payload.phone) {
         rawPhone = payload.phone;
         if (payload.text?.message) messageContent = { type: 'TEXT', value: payload.text.message };
@@ -42,219 +60,198 @@ export class WebhookService {
 
     this.logger.log(`📱 Webhook recebido de: ${rawPhone} | Tipo: ${messageContent.type}`);
 
-    // 2. Identificar Motorista
-    let clean = rawPhone.replace(/\D/g, '');
-    if (clean.startsWith('55') && clean.length > 11) clean = clean.slice(2);
-    const ddd = clean.slice(0, 2);
-    const rest = clean.slice(2);
-    
-    const searchPhones: string[] = [];
-    const p1 = this.formatToDbPattern(ddd, rest); if(p1) searchPhones.push(p1);
-    if (rest.length === 8) { const p2 = this.formatToDbPattern(ddd, '9'+rest); if(p2) searchPhones.push(p2); }
-    else if (rest.length === 9 && rest.startsWith('9')) { const p3 = this.formatToDbPattern(ddd, rest.slice(1)); if(p3) searchPhones.push(p3); }
+    // ===========================================================================
+    // BLOCO 3: IDENTIFICAÇÃO DO MOTORISTA (CORREÇÃO CRÍTICA)
+    // ===========================================================================
 
+    // 1. Limpeza total (apenas números)
+    let cleanPhone = rawPhone.replace(/\D/g, '');
+    
+    // 2. Remove código do país (55) se existir, para isolar DDD+Número
+    // Isso é vital porque às vezes o banco salva sem o 55.
+    if (cleanPhone.startsWith('55') && cleanPhone.length > 10) {
+        cleanPhone = cleanPhone.slice(2);
+    }
+
+    const ddd = cleanPhone.slice(0, 2);
+    const number = cleanPhone.slice(2);
+
+    // 3. Gera lista de possibilidades para buscar no banco
+    const possibleNumbers = new Set<string>();
+
+    // Variação A: Apenas dígitos (Ex: 85999998888 e 5585999998888)
+    possibleNumbers.add(cleanPhone);       
+    possibleNumbers.add(`55${cleanPhone}`); 
+
+    // Variação B: Formatado visualmente (Ex: +55 (85) 99999-8888)
+    possibleNumbers.add(this.formatPhoneVisual(ddd, number));
+
+    // Variação C: Nono Dígito (Tenta adicionar ou remover o 9 para garantir match em bases antigas/novas)
+    if (number.length === 8) {
+        // Se veio 8 dígitos, tenta versão com 9
+        const with9 = '9' + number;
+        possibleNumbers.add(with9);
+        possibleNumbers.add(`55${ddd}${with9}`);
+        possibleNumbers.add(this.formatPhoneVisual(ddd, with9));
+    } else if (number.length === 9 && number.startsWith('9')) {
+        // Se veio 9 dígitos, tenta versão sem 9
+        const without9 = number.slice(1);
+        possibleNumbers.add(without9);
+        possibleNumbers.add(`55${ddd}${without9}`);
+        possibleNumbers.add(this.formatPhoneVisual(ddd, without9));
+    }
+
+    const searchList = Array.from(possibleNumbers);
+    this.logger.log(`🔍 Buscando motorista por: ${searchList.join(' | ')}`);
+
+    // 4. Consulta ao Banco
     const driver = await (this.prisma as any).driver.findFirst({
-        where: { phone: { in: searchPhones } },
+        where: { phone: { in: searchList } },
         include: { vehicle: true }
     });
 
     if (!driver) {
-      this.logger.warn(`⚠️ Motorista não encontrado para phones: ${searchPhones.join(', ')}`);
+      this.logger.warn(`⚠️ Motorista não encontrado.`);
       return { status: 'driver_not_found' };
     }
 
-    const replyPhone = driver.phone;
-    this.logger.log(`👤 Motorista: ${driver.name}`);
+    this.logger.log(`✅ Motorista identificado: ${driver.name} (ID: ${driver.id})`);
+    const replyPhone = driver.phone; // Responde no número exato que está no cadastro
 
-    // 3. Atualização de GPS (Independente de IA)
+    // ===========================================================================
+    // BLOCO 4: INTERPRETAÇÃO (INTELIGÊNCIA ARTIFICIAL)
+    // ===========================================================================
+
+    // Se for localização, atualiza e encerra
     if (messageContent.type === 'LOCATION') {
          const loc = messageContent.value;
-         await (this.prisma as any).driver.update({
-            where: { id: driver.id },
-            data: { lastLocation: { lat: loc.latitude, lng: loc.longitude }, lastSeenAt: new Date() }
-         });
-         await this.whatsapp.sendText(replyPhone, "📍 Localização atualizada.");
+         // await (this.prisma as any).driver.update(...) // Descomente se tiver campo location
+         await this.whatsapp.sendText(replyPhone, "📍 Localização recebida.");
          return { status: 'location_updated' };
     }
 
-    // 4. Inteligência Artificial
+    // Chama o Gemini para entender o texto/áudio/imagem
     let aiResult;
     if (messageContent.type === 'TEXT') aiResult = await this.aiService.interpretText(messageContent.value);
     else if (messageContent.type === 'AUDIO') aiResult = await this.aiService.interpretAudio(messageContent.value);
     else if (messageContent.type === 'IMAGE') aiResult = await this.aiService.interpretImage(messageContent.value, messageContent.caption);
 
-    // Captura de Aprendizado (UNKNOWN)
+    // Se a IA não entendeu ou falhou
     if (!aiResult || aiResult.action === 'UNKNOWN') {
         try {
+            // Salva para aprendizado (curadoria humana depois)
             await (this.prisma as any).aiLearning.create({
                 data: {
-                    phrase: typeof messageContent.value === 'string' ? messageContent.value : 'Mídia',
+                    phrase: typeof messageContent.value === 'string' ? messageContent.value : 'Arquivo de mídia',
                     intent: 'REVISAR',
                     isActive: false
                 }
             });
-        } catch (e) { this.logger.error('Erro ao salvar aprendizado', e); }
+        } catch (e) { this.logger.error('Erro ao salvar learning', e); }
 
-        await this.whatsapp.sendText(replyPhone, "🤔 Não entendi. Tente falar de forma mais direta.");
-        return { status: 'ignored', reason: 'ai_unknown' };
+        await this.whatsapp.sendText(replyPhone, "🤔 Não entendi. Tente comandos como 'Iniciar rota', 'Entreguei a nota X' ou 'Ajuda'.");
+        return { status: 'learning_queued' };
     }
 
-    // Captura de Conversa (OUTRO)
-    if (aiResult.action === 'OUTRO') {
-        try {
-            await (this.prisma as any).aiLearning.create({
-                data: {
-                    phrase: typeof messageContent.value === 'string' ? messageContent.value : 'Mídia',
-                    intent: 'OUTRO_CHECK',
-                    isActive: false
-                }
-            });
-        } catch (e) {}
-        
-        await this.whatsapp.sendText(replyPhone, "🤖 Sou o ZapRoute.\nFale sobre entregas, ocorrências ou digite *'Ajuda'*.");
-        return { status: 'outro_replied' };
+    if (aiResult.action === 'AJUDA') {
+        const helpMsg = `🤖 *Comandos ZapRoute*\n\n▶️ Iniciar\n⏸️ Pausa\n📦 Entreguei a nota X\n❌ Falha na nota X\n📊 Resumo`;
+        await this.whatsapp.sendText(replyPhone, helpMsg);
+        return { status: 'help_sent' };
     }
 
-    // 5. Execução na Rota Ativa
-    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
-    const tomorrow = new Date(today); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    // ===========================================================================
+    // BLOCO 5: LÓGICA DE ROTA E AÇÕES
+    // ===========================================================================
+
+    // Busca a rota de HOJE para este motorista
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
     const activeRoute = await (this.prisma as any).route.findFirst({
-        where: { driverId: driver.id, date: { gte: today, lt: tomorrow } },
+        where: { 
+          driverId: driver.id, 
+          date: { gte: today, lt: tomorrow }
+        },
         orderBy: { createdAt: 'desc' },
         include: { deliveries: { include: { customer: true } } }
     });
 
     if (!activeRoute) {
-        await this.whatsapp.sendText(replyPhone, "🚫 Nenhuma rota encontrada para hoje.");
-        return { status: 'error', message: 'Sem rota.' };
+        // --- ALTERAÇÃO AQUI ---
+        const greeting = this.getGreeting();
+        
+        // Se for só um "Bom dia" ou conversa, responde educadamente
+        if (aiResult.action === 'SAUDACAO' || aiResult.action === 'OUTRO') {
+            await this.whatsapp.sendText(replyPhone, `${greeting}, ${driver.name}! 👋\nNo momento, não encontrei nenhuma rota vinculada a você para hoje.`);
+        } 
+        // Se ele tentou um comando (Ex: "Iniciar"), bloqueia e avisa
+        else {
+            await this.whatsapp.sendText(replyPhone, `🚫 ${greeting}, ${driver.name}. Você não tem rota ativa hoje para realizar essa ação.`);
+        }
+        return { status: 'no_route' };
     }
 
     const { action, identifier, reason } = aiResult;
 
-    // --- COMANDOS SIMPLES ---
-
-    if (action === 'AJUDA') {
-        const helpMsg = `🤖 *Ajuda ZapRoute*\n\n1️⃣ *Rota:* 'Iniciar', 'Pausar'\n2️⃣ *Entregas:* 'Entreguei a nota X', Foto\n3️⃣ *Problemas:* 'Cliente fechado', 'Quebrei'\n4️⃣ *Consultas:* 'Resumo', 'Me leva lá', 'Contato'`;
-        await this.whatsapp.sendText(replyPhone, helpMsg);
-        return { status: 'help_sent' };
-    }
-
-    if (action === 'SAUDACAO') {
-        const hour = new Date().getHours() - 3; 
-        let greeting = 'Bom dia';
-        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
-        if (hour >= 18 || hour < 5) greeting = 'Boa noite';
-        const firstName = driver.name.split(' ')[0];
-
-        let msg = '';
-        if (activeRoute.status === 'PLANNED') {
-            msg = `${greeting}, ${firstName}! 🚚\nSua rota tem *${activeRoute.deliveries.length} entregas*.\nQuando estiver pronto, fale *"Iniciar"* ou *"Saindo"*.`;
-        } else if (activeRoute.status === 'ACTIVE') {
-            const pendentes = activeRoute.deliveries.filter((d: any) => d.status === 'PENDING' || d.status === 'IN_TRANSIT').length;
-            msg = `${greeting}, ${firstName}! Seguindo firme?\nAinda faltam *${pendentes} entregas*.`;
-        } else {
-            msg = `${greeting}, ${firstName}! Sua rota já foi finalizada. Bom descanso!`;
-        }
-        await this.whatsapp.sendText(replyPhone, msg);
-        return { status: 'greeting_sent' };
-    }
+    // --- COMANDOS INFORMATIVOS ---
 
     if (action === 'RESUMO') {
         const total = activeRoute.deliveries.length;
         const done = activeRoute.deliveries.filter((d: any) => d.status === 'DELIVERED').length;
         const pending = activeRoute.deliveries.filter((d: any) => d.status === 'PENDING' || d.status === 'IN_TRANSIT');
-        const next = pending[0];
         
-        let msg = `📊 *Resumo*\n✅ Feitas: *${done}/${total}*\n📦 Pendentes: *${pending.length}*\n`;
-        if (next) msg += `\n👉 *Próxima:* ${next.customer.tradeName}\n📄 NF: ${next.invoiceNumber}`;
-        else msg += `\n🎉 *Tudo finalizado!*`;
+        let msg = `📊 *Resumo*\n✅ Feitas: *${done}/${total}*\n📦 Pendentes: *${pending.length}*`;
+        if (pending.length > 0) {
+            msg += `\n👉 Próxima: ${pending[0].customer.tradeName}`;
+        }
         
         await this.whatsapp.sendText(replyPhone, msg);
         return { status: 'summary_sent' };
     }
 
     if (action === 'PAUSA') {
-        await this.whatsapp.sendText(replyPhone, `🍽️ *Pausa Registrada.*\nBom descanso! Avise quando voltar.`);
+        await this.whatsapp.sendText(replyPhone, `🍽️ *Pausa Registrada.*\nBom descanso!`);
         return { status: 'paused' };
     }
 
     if (action === 'RETOMADA') {
-        await this.whatsapp.sendText(replyPhone, `▶️ *Retomando!*\nBora para a próxima entrega.`);
+        await this.whatsapp.sendText(replyPhone, `▶️ *Retomando!*\nBora para a próxima.`);
         return { status: 'resumed' };
     }
 
-    // --- OCORRÊNCIAS E PROBLEMAS ---
-
     if (action === 'ATRASO') {
-        const delayInfo = reason || 'Motivo não informado';
-        try {
-            await (this.prisma as any).occurrence.create({
-                data: {
-                    type: 'DELAY',
-                    description: delayInfo,
-                    driverId: driver.id,
-                    routeId: activeRoute.id,
-                    tenantId: driver.tenantId
-                }
-            });
-            await this.whatsapp.sendText(replyPhone, `⚠️ *Ocorrência Registrada.*\nMotivo: ${delayInfo}.`);
-        } catch (e) { this.logger.error(e); }
-        return { status: 'delay_recorded' };
+        await this.whatsapp.sendText(replyPhone, `⚠️ *Atraso reportado.*\nMotivo: ${reason || 'Não informado'}.`);
+        return { status: 'delay_reported' };
     }
 
-    // --- COMANDOS AVANÇADOS ---
+    if (action === 'NAVEGACAO') {
+        // Tenta achar entrega específica ou a próxima pendente
+        let target = identifier 
+            ? activeRoute.deliveries.find((d: any) => d.invoiceNumber.includes(identifier) || d.customer.tradeName.toLowerCase().includes(identifier.toLowerCase()))
+            : activeRoute.deliveries.find((d: any) => d.status === 'IN_TRANSIT' || d.status === 'PENDING');
 
-    if (action === 'NAVEGACAO' || action === 'CONTATO' || action === 'DETALHES') {
-        let targetDelivery;
-        if (identifier) {
-            targetDelivery = activeRoute.deliveries.find((d: any) => d.invoiceNumber.includes(identifier) || d.customer.tradeName.toLowerCase().includes(identifier.toLowerCase()));
-        } else {
-            targetDelivery = activeRoute.deliveries.find((d: any) => d.status === 'IN_TRANSIT') || activeRoute.deliveries.find((d: any) => d.status === 'PENDING');
+        if (!target) {
+            await this.whatsapp.sendText(replyPhone, "📍 Nenhuma entrega localizada para navegação.");
+            return { status: 'no_target_nav' };
         }
 
-        if (!targetDelivery) {
-            await this.whatsapp.sendText(replyPhone, "❓ Não encontrei a entrega solicitada.");
-            return { status: 'not_found' };
+        const address = target.customer.addressDetails?.street 
+            ? `${target.customer.addressDetails.street}, ${target.customer.addressDetails.number} - ${target.customer.addressDetails.city}`
+            : target.customer.location?.address;
+
+        if (!address) {
+             await this.whatsapp.sendText(replyPhone, `📍 Endereço não cadastrado para ${target.customer.tradeName}.`);
+             return { status: 'no_address' };
         }
 
-        if (action === 'NAVEGACAO') {
-             const addr = targetDelivery.customer.addressDetails?.street || targetDelivery.customer.location?.address;
-             if (addr) {
-                 const encoded = encodeURIComponent(addr);
-                 await this.whatsapp.sendText(replyPhone, `🗺️ *Navegação*\n🚙 Waze: https://waze.com/ul?q=${encoded}\n🌎 Maps: https://www.google.com/maps/dir/?api=1&destination=LAT,LNG{encoded}`);
-             } else {
-                 await this.whatsapp.sendText(replyPhone, "📍 Cliente sem endereço cadastrado.");
-             }
-        } else if (action === 'CONTATO') {
-             const phone = targetDelivery.customer.phone ? targetDelivery.customer.phone.replace(/\D/g, '') : null;
-             const link = phone ? `https://wa.me/55${phone}` : 'N/A';
-             await this.whatsapp.sendText(replyPhone, `📞 *Contato*\nCliente: ${targetDelivery.customer.tradeName}\nTel: ${targetDelivery.customer.phone}\n💬: ${link}`);
-        } else if (action === 'DETALHES') {
-             const val = targetDelivery.value ? `R$ ${targetDelivery.value.toFixed(2)}` : 'R$ 0,00';
-             await this.whatsapp.sendText(replyPhone, `📋 *Detalhes*\nNF: ${targetDelivery.invoiceNumber}\nProd: ${targetDelivery.product || 'Diversos'}\nValor: ${val}`);
-        }
-        return { status: 'info_sent' };
+        const encoded = encodeURIComponent(address);
+        await this.whatsapp.sendText(replyPhone, `🗺️ *Navegar para ${target.customer.tradeName}*\n🚙 Waze: https://waze.com/ul?q=${encoded}\n🌎 Maps: http://maps.google.com/?q=${encoded}`);
+        return { status: 'nav_sent' };
     }
 
-    if (action === 'DESFAZER') {
-         const lastDone = activeRoute.deliveries
-            .filter((d: any) => d.status === 'DELIVERED' || d.status === 'FAILED')
-            .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-
-        if (lastDone) {
-            await (this.prisma as any).delivery.update({
-                where: { id: lastDone.id },
-                data: { status: 'PENDING', failureReason: null, proofOfDelivery: null }
-            });
-            await this.whatsapp.sendText(replyPhone, `↩️ *Desfeito!* A entrega da NF *${lastDone.invoiceNumber}* voltou para PENDENTE.`);
-        } else {
-            await this.whatsapp.sendText(replyPhone, "❌ Nada para desfazer.");
-        }
-        return { status: 'undone' };
-    }
-
-    // --- AÇÕES DE ENTREGA (Volta ao modelo clássico sem botão) ---
+    // --- COMANDOS OPERACIONAIS ---
 
     if (action === 'INICIO') {
         await (this.prisma as any).route.update({
@@ -265,53 +262,65 @@ export class WebhookService {
             where: { routeId: activeRoute.id, status: 'PENDING' },
             data: { status: 'IN_TRANSIT' }
         });
-        await this.whatsapp.sendText(replyPhone, `🚀 *Rota Iniciada!*\nBom trabalho!`);
-        return { status: 'started' };
+        await this.whatsapp.sendText(replyPhone, `🚀 *Rota Iniciada!*\n📦 ${activeRoute.deliveries.length} entregas.`);
+        return { status: 'route_started' };
     }
 
-    if (action === 'ENTREGA' || messageContent.type === 'IMAGE') {
-        let targetDelivery = null;
-        
-        // Se tem identificador, busca direto
-        if (aiResult?.identifier) {
-             targetDelivery = activeRoute.deliveries.find((d: any) => d.invoiceNumber.includes(aiResult.identifier));
-        }
-        
-        // Se é só imagem ou não achou, assume a próxima da fila
-        if (!targetDelivery) {
-            targetDelivery = activeRoute.deliveries.find((d: any) => d.status === 'IN_TRANSIT' || d.status === 'PENDING');
+    if ((action === 'ENTREGA' || action === 'FALHA') && identifier) {
+        const delivery = activeRoute.deliveries.find((d: any) => 
+            d.invoiceNumber.toLowerCase().includes(identifier.toLowerCase()) ||
+            d.customer.tradeName.toLowerCase().includes(identifier.toLowerCase()) ||
+            d.customer.cnpj.includes(identifier)
+        );
+
+        if (!delivery) {
+            await this.whatsapp.sendText(replyPhone, `❌ Não encontrei a nota ou cliente *"${identifier}"*.`);
+            return { status: 'not_found' };
         }
 
-        if (targetDelivery) {
-            const proofUrl = messageContent.type === 'IMAGE' ? messageContent.value : undefined;
-            
-            await (this.prisma as any).delivery.update({
-                where: { id: targetDelivery.id },
-                data: { 
-                    status: 'DELIVERED', 
-                    proofOfDelivery: proofUrl,
-                    updatedAt: new Date() 
-                }
+        const newStatus = action === 'ENTREGA' ? 'DELIVERED' : 'FAILED';
+        const failReason = action === 'FALHA' ? (reason || 'Via WhatsApp') : null;
+        const proofUrl = messageContent.type === 'IMAGE' ? messageContent.value : undefined;
+
+        await (this.prisma as any).delivery.update({
+            where: { id: delivery.id },
+            data: { status: newStatus, failureReason: failReason, proofOfDelivery: proofUrl, updatedAt: new Date() }
+        });
+
+        // Contagem regressiva
+        const pendingCount = await (this.prisma as any).delivery.count({
+            where: { routeId: activeRoute.id, status: { in: ['PENDING', 'IN_TRANSIT'] } }
+        });
+
+        if (pendingCount === 0) {
+            await (this.prisma as any).route.update({
+                where: { id: activeRoute.id },
+                data: { status: 'COMPLETED', endTime: new Date().toLocaleTimeString('pt-BR') }
             });
-
-            await this.whatsapp.sendText(replyPhone, `✅ *Entrega Confirmada*\nNF: ${targetDelivery.invoiceNumber}\nCliente: ${targetDelivery.customer.tradeName}`);
+            await this.whatsapp.sendText(replyPhone, `🎉 *Rota Finalizada!* Todas as entregas concluídas.`);
         } else {
-            await this.whatsapp.sendText(replyPhone, "🤔 Não achei entrega pendente para baixar.");
+            const emoji = action === 'ENTREGA' ? '✅' : '⚠️';
+            await this.whatsapp.sendText(replyPhone, `${emoji} *Registrado*\nNF: ${delivery.invoiceNumber}\nFaltam: ${pendingCount}.`);
         }
-        return { status: 'delivered' };
+        
+        return { status: 'success', action: newStatus };
     }
 
-    if (action === 'FALHA' && identifier) {
-        const delivery = activeRoute.deliveries.find((d: any) => d.invoiceNumber.includes(identifier));
-        if (delivery) {
-            await (this.prisma as any).delivery.update({
-                where: { id: delivery.id },
-                data: { status: 'FAILED', failureReason: reason || 'Informado via WhatsApp' }
-            });
-            await this.whatsapp.sendText(replyPhone, `⚠️ *Ocorrência Registrada* na NF ${delivery.invoiceNumber}.`);
-        }
+    // Se tentou entregar mas não disse qual nota
+    if ((action === 'ENTREGA' || action === 'FALHA') && !identifier) {
+         if (messageContent.type === 'IMAGE') {
+             await this.whatsapp.sendText(replyPhone, "📷 Recebi a foto. Qual é o número da nota para eu baixar?");
+         } else {
+             await this.whatsapp.sendText(replyPhone, `🤔 Entendi que é uma ${action}, mas qual é o número da nota?`);
+         }
+         return { status: 'missing_identifier' };
     }
 
-    return { status: 'processed' };
+    if (action === 'OUTRO') {
+        await this.whatsapp.sendText(replyPhone, "🤖 Sou o assistente ZapRoute.\nFale sobre sua rota ou digite *'Ajuda'*.");
+        return { status: 'outro_replied' };
+    }
+
+    return { status: 'processed_no_action' };
   }
 }
