@@ -53,6 +53,7 @@ export interface Delivery {
   proofOfDelivery?: string; // base64 image
   signature?: string; // base64 signature
   timestamp?: string;
+  updatedAt?: string; // <--- ADICIONE ESTA LINHA
   failureReason?: string;
 }
 

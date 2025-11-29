@@ -1,5 +1,8 @@
-import React from 'react';
-import { LayoutDashboard, Map, Package, AlertTriangle, Users, UserCircle, Truck, FileText, Settings, LogOut, X, Waypoints } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  LayoutDashboard, Map, Package, AlertTriangle, Users, UserCircle, 
+  Truck, FileText, Settings, LogOut, X, Waypoints, ChevronLeft, ChevronRight 
+} from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
@@ -17,7 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userRole, userName, tenantName, logout 
 }) => {
   
-  // --- CONTROLE DE VERSÃO ---
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const appVersion = '1.0.0';
 
   const menuItems = [
@@ -45,22 +48,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar */}
       <aside className={`
-        fixed top-0 left-0 z-30 h-screen w-64 bg-slate-900 text-white transition-transform duration-300 ease-in-out
+        fixed top-0 left-0 z-30 h-screen bg-slate-900 text-white transition-all duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         md:translate-x-0 md:static md:block flex flex-col
+        ${isCollapsed ? 'md:w-20' : 'md:w-64'} 
       `}>
-        <div className="flex items-center justify-between p-6 border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl">Z</div>
-            <span className="text-xl font-bold tracking-tight">ZapRoute</span>
+        {/* HEADER DO MENU */}
+        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} p-6 border-b border-slate-800 shrink-0 relative transition-all`}>
+          
+          {/* LOGO (Apenas Imagem, centralizada) */}
+          <div className="flex items-center justify-center w-full overflow-hidden">
+            <img 
+              src="/logo.png" 
+              alt="ZapRoute" 
+              className="h-12 w-auto object-contain shrink-0 transition-all duration-300" 
+            />
           </div>
-          <button onClick={() => setIsOpen(false)} className="md:hidden text-slate-400 hover:text-white">
+          
+          {/* Botão Fechar Mobile (Posicionado Absolutamente para não quebrar o layout) */}
+          <button onClick={() => setIsOpen(false)} className="md:hidden text-slate-400 hover:text-white absolute right-4">
             <X size={24} />
+          </button>
+
+          {/* Botão Recolher Desktop */}
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden md:flex absolute -right-3 top-7 w-6 h-6 bg-slate-800 border border-slate-700 rounded-full items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors z-40"
+          >
+            {isCollapsed ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}
           </button>
         </div>
 
+        {/* LISTA DE ITENS */}
         <div className="p-4 flex-1 overflow-y-auto no-scrollbar">
-          <div className="text-xs font-semibold text-slate-500 uppercase mb-2 tracking-wider">Menu</div>
+          {!isCollapsed && <div className="text-xs font-semibold text-slate-500 uppercase mb-2 tracking-wider fade-in">Menu</div>}
+          
           <nav className="space-y-1">
             {menuItems.map((item) => (
               <button
@@ -69,49 +91,55 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   setPage(item.id);
                   setIsOpen(false);
                 }}
+                title={isCollapsed ? item.label : ''} 
                 className={`
-                  w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
-                  ${currentPage === item.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+                  w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
+                  ${currentPage === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+                  ${isCollapsed ? 'justify-center px-2' : ''}
                 `}
               >
-                {item.icon}
-                <span className="font-medium">{item.label}</span>
+                <div className="shrink-0">{item.icon}</div>
+                {!isCollapsed && <span className="font-medium whitespace-nowrap overflow-hidden">{item.label}</span>}
               </button>
             ))}
           </nav>
         </div>
 
+        {/* FOOTER */}
         <div className="p-4 border-t border-slate-800 shrink-0 bg-slate-900">
-          <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center shrink-0 font-bold text-slate-300">
-              {/* Inicial do nome ou icone */}
+          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} mb-4 px-2 transition-all`}>
+            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center shrink-0 font-bold text-slate-300 cursor-default" title={userName}>
               {userName ? userName.charAt(0).toUpperCase() : <UserCircle />}
             </div>
-            <div className="flex-1 min-w-0">
-              {/* Nome do Usuário com Truncate */}
-              <p className="text-sm font-bold text-white truncate" title={userName}>
-                {userName || 'Usuário'}
-              </p>
-              {/* Nome da Empresa com Truncate */}
-              <p className="text-xs text-slate-500 truncate" title={tenantName}>
-                {tenantName || 'Empresa'}
-              </p>
-            </div>
+            
+            {!isCollapsed && (
+                <div className="flex-1 min-w-0 overflow-hidden">
+                <p className="text-sm font-bold text-white truncate">
+                    {userName || 'Usuário'}
+                </p>
+                <p className="text-xs text-slate-500 truncate">
+                    {tenantName || 'Empresa'}
+                </p>
+                </div>
+            )}
           </div>
+          
           <button 
             onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            title={isCollapsed ? "Sair" : ""}
+            className={`w-full flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
           >
             <LogOut size={20} />
-            <span>Sair</span>
+            {!isCollapsed && <span>Sair</span>}
           </button>
 
-          {/* --- VERSÃO DO SISTEMA --- */}
-          <div className="text-center pt-2 border-t border-slate-800/50 mt-2">
-            <p className="text-[10px] text-slate-600 font-mono">
-              ZapRoute v{appVersion}
-            </p>
-          </div>
+          {!isCollapsed && (
+              <div className="text-center pt-2 border-t border-slate-800/50 mt-2">
+                <p className="text-[10px] text-slate-600 font-mono">
+                v{appVersion}
+                </p>
+              </div>
+          )}
         </div>
       </aside>
     </>

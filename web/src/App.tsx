@@ -21,6 +21,7 @@ import { LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { api } from './services/api';
 
 // --- COMPONENTE DE LOGIN ---
+// --- COMPONENTE DE LOGIN ---
 const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,10 +50,18 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
     <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-8">
         <div className="flex justify-center mb-6">
-           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-3xl font-bold">Z</div>
+           {/* LOGO AUMENTADA E CENTRALIZADA */}
+           <img 
+             src="/logo.png" 
+             alt="ZapRoute" 
+             className="w-64 h-auto object-contain" 
+           />
         </div>
-        <h1 className="text-2xl font-bold text-center text-slate-800 mb-2">ZapRoute Login</h1>
-        <p className="text-center text-slate-500 mb-8">Acesso Seguro</p>
+        
+        {/* TÍTULO "ZapRoute Login" REMOVIDO DAQUI */}
+        
+        {/* APENAS O SUBTÍTULO */}
+        <p className="text-center text-slate-500 mb-8 font-medium">Acesso Seguro</p>
         
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
