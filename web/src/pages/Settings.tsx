@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Building, Users, Bell, Save, Shield, Mail, Plus, Trash2, Check, X, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Building, Users, Bell, Save, Shield, Plus, Trash2, Check, X, Loader2, CheckCircle, AlertCircle, Upload, Image as ImageIcon } from 'lucide-react';
 import { api } from '../services/api';
 
 export const Settings: React.FC = () => {
@@ -8,6 +8,7 @@ export const Settings: React.FC = () => {
 
   // --- DADOS DA EMPRESA (TENANT) ---
   const [tenant, setTenant] = useState<any>({});
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // --- DADOS DA EQUIPE (USERS) ---
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -33,17 +34,43 @@ export const Settings: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-        // Carrega Empresa
         const tenantData = await api.tenants.getMe();
         setTenant(tenantData);
-
-        // Carrega Equipe
         const usersData = await api.users.getAll();
         setTeamMembers(usersData);
     } catch (error) {
         console.error("Erro ao carregar configurações", error);
     } finally {
         setIsLoading(false);
+    }
+  };
+
+  // --- MÁSCARA CNPJ ---
+  const maskCNPJ = (value: string) => {
+    if (!value) return "";
+    const v = value.replace(/\D/g, '').slice(0, 14);
+    if (v.length > 12) return `${v.slice(0,2)}.${v.slice(2,5)}.${v.slice(5,8)}/${v.slice(8,12)}-${v.slice(12)}`;
+    if (v.length > 8) return `${v.slice(0,2)}.${v.slice(2,5)}.${v.slice(5,8)}/${v.slice(8)}`;
+    if (v.length > 5) return `${v.slice(0,2)}.${v.slice(2,5)}.${v.slice(5)}`;
+    if (v.length > 2) return `${v.slice(0,2)}.${v.slice(2)}`;
+    return v;
+  };
+
+  // --- HANDLER UPLOAD LOGO ---
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // Limite 2MB
+        setNotification({ type: 'ERROR', message: 'A imagem é muito grande. Máximo 2MB.' });
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // Salva como Base64 direto no estado do tenant
+        setTenant((prev: any) => ({ ...prev, logoUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -65,7 +92,7 @@ export const Settings: React.FC = () => {
           setNotification({ type: 'SUCCESS', message: 'Usuário adicionado à equipe com sucesso!' });
           setIsUserModalOpen(false);
           setNewUser({ name: '', email: '', password: '', role: 'DISPATCHER' });
-          loadData(); // Recarrega lista
+          loadData(); 
       } catch (error) {
           setNotification({ type: 'ERROR', message: 'Erro ao criar usuário. Verifique se o e-mail já existe.' });
       }
@@ -144,19 +171,41 @@ export const Settings: React.FC = () => {
                 <h2 className="text-xl font-bold text-slate-800 mb-6 pb-4 border-b border-slate-100">Dados da Organização</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* UPLOAD DE LOGO */}
                   <div className="col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Logo da Empresa (URL)</label>
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 border border-slate-200 overflow-hidden">
-                        {tenant.logoUrl ? <img src={tenant.logoUrl} alt="Logo" className="w-full h-full object-contain"/> : <Building size={32} />}
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Logotipo</label>
+                    <div className="flex items-center gap-6">
+                      <div className="w-24 h-24 bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 overflow-hidden relative group">
+                        {tenant.logoUrl ? (
+                            <img src={tenant.logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
+                        ) : (
+                            <ImageIcon size={32} />
+                        )}
+                        {/* Overlay para remover */}
+                        {tenant.logoUrl && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => setTenant({...tenant, logoUrl: ''})} className="text-white p-1 bg-red-600 rounded-full"><X size={16}/></button>
+                            </div>
+                        )}
                       </div>
-                      <input 
-                        type="text" 
-                        placeholder="https://exemplo.com/logo.png"
-                        value={tenant.logoUrl || ''}
-                        onChange={(e) => setTenant({...tenant, logoUrl: e.target.value})}
-                        className="flex-1 px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500"
-                      />
+                      
+                      <div>
+                          <input 
+                            type="file" 
+                            ref={logoInputRef} 
+                            onChange={handleLogoChange} 
+                            accept="image/png, image/jpeg, image/svg+xml" 
+                            className="hidden" 
+                          />
+                          <button 
+                            onClick={() => logoInputRef.current?.click()}
+                            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors flex items-center gap-2"
+                          >
+                            <Upload size={18} /> Alterar Imagem
+                          </button>
+                          <p className="text-xs text-slate-500 mt-2">Recomendado: PNG ou SVG (Max 2MB).</p>
+                      </div>
                     </div>
                   </div>
 
@@ -175,7 +224,8 @@ export const Settings: React.FC = () => {
                     <input 
                       type="text" 
                       value={tenant.cnpj || ''}
-                      onChange={(e) => setTenant({...tenant, cnpj: e.target.value})}
+                      onChange={(e) => setTenant({...tenant, cnpj: maskCNPJ(e.target.value)})}
+                      maxLength={18}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" 
                       placeholder="00.000.000/0000-00"
                     />
@@ -190,6 +240,20 @@ export const Settings: React.FC = () => {
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" 
                       placeholder="Av. Principal, 1000 - Cidade - UF"
                     />
+                  </div>
+                  
+                  {/* COR PRIMÁRIA (Opcional se quiser usar no futuro) */}
+                  <div className="col-span-2 md:col-span-1">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Cor do Sistema</label>
+                    <div className="flex items-center gap-2">
+                        <input 
+                          type="color" 
+                          value={tenant.primaryColor || '#2563eb'}
+                          onChange={(e) => setTenant({...tenant, primaryColor: e.target.value})}
+                          className="w-10 h-10 p-1 rounded cursor-pointer border border-slate-300"
+                        />
+                        <span className="text-sm text-slate-500 font-mono">{tenant.primaryColor || '#2563eb'}</span>
+                    </div>
                   </div>
                 </div>
 
