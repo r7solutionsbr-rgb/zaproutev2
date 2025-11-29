@@ -22,7 +22,7 @@ import { api } from './services/api';
 
 // --- COMPONENTE DE LOGIN ---
 const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
-  const [email, setEmail] = useState('admin@mvp.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
