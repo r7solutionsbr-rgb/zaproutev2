@@ -57,7 +57,7 @@ export const api = {
           return response.data;
       }
   },
-  // --- EQUIPA (USERS) ---
+  // --- EQUIPE (USERS) ---
   users: {
       getAll: async () => {
           const response = await client.get('/users');
@@ -67,28 +67,25 @@ export const api = {
           const response = await client.post('/users', data);
           return response.data;
       },
-      // --- ADICIONE ESTE MÉTODO ---
-      update: async (id: string, data: any) => {
+      update: async (id: string, data: any) => { // <--- ADICIONADO AGORA
           const response = await client.patch(`/users/${id}`, data);
           return response.data;
       },
-      // ----------------------------
       delete: async (id: string) => {
           const response = await client.delete(`/users/${id}`);
           return response.data;
       }
   },
+  // --- ROTAS ---
   routes: {
-    getAll: async (tenantId: string) => {
-      const response = await client.get(`/routes?tenantId=${tenantId}`);
+    getAll: async (tenantId: string, days = 30) => { // <--- COM FILTRO DE DIAS
+      const response = await client.get(`/routes?tenantId=${tenantId}&days=${days}`);
       return response.data;
     },
-    // --- CORREÇÃO: Método genérico para receber o objeto da rota montado ---
     import: async (data: any) => {
       const response = await client.post('/routes/import', data);
       return response.data;
     },
-    // --------------------------------------------------------------------
     updateDeliveryStatus: async (id: string, status: DeliveryStatus, proofUrl?: string, failureReason?: string) => {
         const response = await client.patch(`/routes/deliveries/${id}/status`, {
             status,
@@ -97,7 +94,6 @@ export const api = {
         });
         return response.data;
     },
-    // --- NOVOS MÉTODOS (Edição e Exclusão) ---
     update: async (id: string, data: any) => {
         const response = await client.patch(`/routes/${id}`, data);
         return response.data;
@@ -107,6 +103,7 @@ export const api = {
         return response.data;
     }
   },
+  // --- MOTORISTAS ---
   drivers: {
       getAll: async (tenantId: string) => {
           const response = await client.get(`/drivers?tenantId=${tenantId}`);
@@ -125,6 +122,7 @@ export const api = {
           return response.data;
       }
   },
+  // --- VEÍCULOS ---
   vehicles: {
       getAll: async (tenantId: string) => {
           const response = await client.get(`/vehicles?tenantId=${tenantId}`);
@@ -143,9 +141,13 @@ export const api = {
           return response.data;
       }
   },
-customers: {
-      getAll: async (tenantId: string) => {
-          const response = await client.get(`/customers?tenantId=${tenantId}`);
+  // --- CLIENTES ---
+  customers: {
+      // AGORA COM PAGINAÇÃO
+      getAll: async (tenantId: string, page = 1, limit = 10, search = '') => {
+          const response = await client.get(`/customers`, {
+              params: { tenantId, page, limit, search }
+          });
           return response.data;
       },
       create: async (data: any) => {
@@ -156,12 +158,10 @@ customers: {
           const response = await client.patch(`/customers/${id}`, data);
           return response.data;
       },
-      // --- NOVO MÉTODO ---
       geocode: async (id: string) => {
           const response = await client.post(`/customers/${id}/geocode`);
           return response.data;
       },
-      // ------------------
       import: async (tenantId: string, customers: any[]) => {
           const response = await client.post('/customers/import', { tenantId, customers });
           return response.data;

@@ -8,29 +8,25 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Get()
-  async findAll(@Query('tenantId') tenantId: string) {
-    return this.customersService.findAll(tenantId);
+  async findAll(
+      @Query('tenantId') tenantId: string,
+      @Query('page') page: string = '1',
+      @Query('limit') limit: string = '10',
+      @Query('search') search: string = ''
+  ) {
+    return this.customersService.findAll(tenantId, Number(page), Number(limit), search);
   }
-
+  
+  // ... (outros métodos: create, update, geocode, import mantêm-se iguais)
   @Post()
-  async create(@Body() data: any) {
-    return this.customersService.create(data);
-  }
+  async create(@Body() data: any) { return this.customersService.create(data); }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() data: any) {
-    return this.customersService.update(id, data);
-  }
+  async update(@Param('id') id: string, @Body() data: any) { return this.customersService.update(id, data); }
 
-  // Endpoint para o botão "Localizar"
   @Post(':id/geocode')
-  async geocode(@Param('id') id: string) {
-    return this.customersService.geocodeCustomer(id);
-  }
+  async geocode(@Param('id') id: string) { return this.customersService.geocodeCustomer(id); }
 
-  // Endpoint para Importação via Excel/CSV
   @Post('import')
-  async import(@Body() body: { tenantId: string; customers: any[] }) {
-    return this.customersService.importMassive(body.tenantId, body.customers);
-  }
+  async import(@Body() body: { tenantId: string; customers: any[] }) { return this.customersService.importMassive(body.tenantId, body.customers); }
 }

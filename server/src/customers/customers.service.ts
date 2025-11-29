@@ -8,19 +8,44 @@ export class CustomersService {
 
   constructor(private prisma: PrismaService) {}
 
-  async findAll(tenantId: string) {
-    if (!tenantId) return [];
-    return (this.prisma as any).customer.findMany({
-      where: { tenantId },
-      orderBy: { tradeName: 'asc' }
-    });
+  // --- BUSCA COM PAGINAÇÃO E FILTRO ---
+  async findAll(tenantId: string, page: number, limit: number, search: string) {
+    if (!tenantId) return { data: [], total: 0, pages: 0 };
+
+    const skip = (page - 1) * limit;
+
+    const whereClause: any = {
+        tenantId,
+        OR: search ? [
+            { tradeName: { contains: search, mode: 'insensitive' } },
+            { legalName: { contains: search, mode: 'insensitive' } },
+            { cnpj: { contains: search } }
+        ] : undefined
+    };
+
+    const [total, data] = await Promise.all([
+        (this.prisma as any).customer.count({ where: whereClause }),
+        (this.prisma as any).customer.findMany({
+            where: whereClause,
+            skip,
+            take: limit,
+            orderBy: { tradeName: 'asc' },
+            include: { seller: true }
+        })
+    ]);
+
+    return {
+        data,
+        meta: {
+            total,
+            page,
+            lastPage: Math.ceil(total / limit)
+        }
+    };
   }
 
-  // --- CRIAÇÃO ---
   async create(data: any) {
     const { tenantId, id, ...rest } = data;
-    
-    // Limpa dados (converte string vazia em null, etc)
     const cleanData = this.prepareData(rest);
 
     return (this.prisma as any).customer.create({
@@ -32,11 +57,8 @@ export class CustomersService {
     });
   }
 
-  // --- ATUALIZAÇÃO ---
   async update(id: string, data: any) {
     const { id: _id, tenantId, tenant, deliveries, ...rest } = data;
-
-    // Limpa dados
     const cleanData = this.prepareData(rest);
 
     return (this.prisma as any).customer.update({
@@ -45,7 +67,6 @@ export class CustomersService {
     });
   }
 
-  // --- GEOCODIFICAÇÃO (Botão Localizar) ---
   async geocodeCustomer(id: string) {
     const customer = await (this.prisma as any).customer.findUnique({ where: { id } });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
@@ -88,35 +109,60 @@ export class CustomersService {
     }
   }
 
-  // --- IMPORTAÇÃO MASSIVA (Restaurada e Integrada) ---
+  // --- IMPORTAÇÃO MASSIVA (Com Contadores e Resumo) ---
   async importMassive(tenantId: string, customers: any[]) {
-    const operations = [];
-
-    // 1. Preparar cache de vendedores para não buscar no banco a cada linha
-    // (Otimização avançada: carregar todos os vendedores do tenant antes do loop)
-    const sellers = await (this.prisma as any).seller.findMany({ where: { tenantId } });
-    const sellerMap = new Map(sellers.map(s => [s.name.toLowerCase(), s.id]));
+    // Contadores
+    let createdCount = 0;
+    let updatedCount = 0;
+    
+    // 1. OTIMIZAÇÃO: Carrega todos os vendedores em memória (Cache)
+    const existingSellers = await (this.prisma as any).seller.findMany({ 
+        where: { tenantId } 
+    });
+    
+    const sellerMap = new Map<string, string>();
+    existingSellers.forEach((s: any) => sellerMap.set(s.name.toUpperCase().trim(), s.id));
 
     for (const c of customers) {
       if (!c.cnpj && !c.tradeName) continue;
 
-      // Resolve Vendedor em memória ou prepara criação
+      // 2. Resolve Vendedor
       let sellerId = null;
       if (c.salesperson) {
-          const sName = c.salesperson.toLowerCase();
+          const sName = c.salesperson.toUpperCase().trim();
+          
           if (sellerMap.has(sName)) {
               sellerId = sellerMap.get(sName);
           } else {
-              // Se não existe, cria agora e atualiza o mapa (custa 1 query, mas só na primeira vez)
-              const newSeller = await (this.prisma as any).seller.create({
-                  data: { name: c.salesperson, tenant: { connect: { id: tenantId } } }
-              });
-              sellerId = newSeller.id;
-              sellerMap.set(sName, sellerId);
+              try {
+                  const newSeller = await (this.prisma as any).seller.create({
+                      data: {
+                          name: c.salesperson,
+                          tenant: { connect: { id: tenantId } },
+                          status: 'ACTIVE'
+                      }
+                  });
+                  sellerId = newSeller.id;
+                  sellerMap.set(sName, sellerId);
+              } catch (e) {
+                  this.logger.warn(`Erro ao criar vendedor automático: ${sName}`);
+              }
           }
       }
 
-      const customerData = this.prepareData({
+      // 3. Verifica Existência
+      const existingCustomer = await (this.prisma as any).customer.findFirst({
+        where: { 
+            tenantId: tenantId,
+            OR: [
+                { cnpj: c.cnpj },
+                { tradeName: c.tradeName } 
+            ]
+        }
+      });
+
+      // 4. Prepara Dados
+      const rawData = {
           legalName: c.legalName || c.tradeName,
           tradeName: c.tradeName,
           cnpj: c.cnpj,
@@ -129,39 +175,47 @@ export class CustomersService {
           location: c.location || { lat: 0, lng: 0, address: 'Não informado' },
           addressDetails: c.addressDetails || {},
           creditLimit: c.creditLimit,
-          status: 'ACTIVE',
-          tenantId: tenantId // Passamos ID direto para o upsert
-      });
+          status: 'ACTIVE'
+      };
 
-      // UPSERT: Tenta criar, se existir (pelo CNPJ), atualiza.
-      // Requer @unique no CNPJ no schema. Se não tiver unique, mantemos a lógica manual,
-      // mas agrupada.
-      
-      // Como CNPJ não é unique global (pode repetir entre tenants), mantemos a lógica manual,
-      // mas otimizada: Não vamos mudar tudo agora para não quebrar, mas a dica de ouro é:
-      // Use Promise.all para rodar em paralelo se o banco aguentar.
+      const customerData = this.prepareData(rawData);
+
+      // 5. Salva e Incrementa Contadores
+      if (existingCustomer) {
+        await (this.prisma as any).customer.update({
+          where: { id: existingCustomer.id },
+          data: customerData
+        });
+        updatedCount++;
+      } else {
+        await (this.prisma as any).customer.create({
+          data: {
+              ...customerData,
+              tenant: { connect: { id: tenantId } }
+          }
+        });
+        createdCount++;
+      }
     }
-    
-    // Se quiser manter a lógica atual por segurança, a melhoria do SellerMap acima
-    // já reduz as queries pela metade.
-    
-    return { message: "Importação processada" };
+
+    // RETORNO PERSONALIZADO
+    return { 
+        message: `Processamento finalizado! ${createdCount} clientes adicionados e ${updatedCount} atualizados.`,
+        created: createdCount,
+        updated: updatedCount
+    };
   }
 
-  // --- HELPER: Limpeza e Tipagem de Dados ---
   private prepareData(data: any) {
     const clean: any = { ...data };
 
-    // 1. Corrige Credit Limit (String vazia vira null)
     if (clean.creditLimit === '' || clean.creditLimit === null || clean.creditLimit === undefined) {
         clean.creditLimit = null;
     } else {
-        // Converte para float se for string numérica, ou mantém se já for número
         const floatVal = parseFloat(clean.creditLimit);
         clean.creditLimit = isNaN(floatVal) ? null : floatVal;
     }
 
-    // 2. Garante Lat/Lng numéricos
     if (clean.location) {
         clean.location = {
             ...clean.location,
