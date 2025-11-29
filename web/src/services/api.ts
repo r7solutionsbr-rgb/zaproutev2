@@ -67,6 +67,10 @@ export const api = {
           const response = await client.post('/users', data);
           return response.data;
       },
+      update: async (id: string, data: any) => {
+          const response = await client.patch(`/users/${id}`, data);
+          return response.data;
+      },
       delete: async (id: string) => {
           const response = await client.delete(`/users/${id}`);
           return response.data;
@@ -77,12 +81,10 @@ export const api = {
       const response = await client.get(`/routes?tenantId=${tenantId}`);
       return response.data;
     },
-    // --- CORREÇÃO: Método genérico para receber o objeto da rota montado ---
     import: async (data: any) => {
       const response = await client.post('/routes/import', data);
       return response.data;
     },
-    // --------------------------------------------------------------------
     updateDeliveryStatus: async (id: string, status: DeliveryStatus, proofUrl?: string, failureReason?: string) => {
         const response = await client.patch(`/routes/deliveries/${id}/status`, {
             status,
@@ -91,7 +93,6 @@ export const api = {
         });
         return response.data;
     },
-    // --- NOVOS MÉTODOS (Edição e Exclusão) ---
     update: async (id: string, data: any) => {
         const response = await client.patch(`/routes/${id}`, data);
         return response.data;
@@ -150,12 +151,10 @@ customers: {
           const response = await client.patch(`/customers/${id}`, data);
           return response.data;
       },
-      // --- NOVO MÉTODO ---
       geocode: async (id: string) => {
           const response = await client.post(`/customers/${id}/geocode`);
           return response.data;
       },
-      // ------------------
       import: async (tenantId: string, customers: any[]) => {
           const response = await client.post('/customers/import', { tenantId, customers });
           return response.data;
