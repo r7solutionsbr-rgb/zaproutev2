@@ -23,6 +23,7 @@ export class WebhookService {
     let rawPhone = '';
     let messageContent: { type: 'TEXT' | 'AUDIO' | 'IMAGE' | 'LOCATION', value: any, caption?: string } | null = null;
 
+    // 1. Parse Básico (Sem botões)
     if (payload.phone) {
         rawPhone = payload.phone;
         if (payload.text?.message) messageContent = { type: 'TEXT', value: payload.text.message };
@@ -41,7 +42,7 @@ export class WebhookService {
 
     this.logger.log(`📱 Webhook recebido de: ${rawPhone} | Tipo: ${messageContent.type}`);
 
-    // Identificar Motorista
+    // 2. Identificar Motorista
     let clean = rawPhone.replace(/\D/g, '');
     if (clean.startsWith('55') && clean.length > 11) clean = clean.slice(2);
     const ddd = clean.slice(0, 2);
@@ -65,6 +66,7 @@ export class WebhookService {
     const replyPhone = driver.phone;
     this.logger.log(`👤 Motorista: ${driver.name}`);
 
+    // 3. Atualização de GPS (Independente de IA)
     if (messageContent.type === 'LOCATION') {
          const loc = messageContent.value;
          await (this.prisma as any).driver.update({
@@ -75,11 +77,13 @@ export class WebhookService {
          return { status: 'location_updated' };
     }
 
+    // 4. Inteligência Artificial
     let aiResult;
     if (messageContent.type === 'TEXT') aiResult = await this.aiService.interpretText(messageContent.value);
     else if (messageContent.type === 'AUDIO') aiResult = await this.aiService.interpretAudio(messageContent.value);
     else if (messageContent.type === 'IMAGE') aiResult = await this.aiService.interpretImage(messageContent.value, messageContent.caption);
 
+    // Captura de Aprendizado (UNKNOWN)
     if (!aiResult || aiResult.action === 'UNKNOWN') {
         try {
             await (this.prisma as any).aiLearning.create({
@@ -89,11 +93,13 @@ export class WebhookService {
                     isActive: false
                 }
             });
-        } catch (e) {}
+        } catch (e) { this.logger.error('Erro ao salvar aprendizado', e); }
+
         await this.whatsapp.sendText(replyPhone, "🤔 Não entendi. Tente falar de forma mais direta.");
         return { status: 'ignored', reason: 'ai_unknown' };
     }
 
+    // Captura de Conversa (OUTRO)
     if (aiResult.action === 'OUTRO') {
         try {
             await (this.prisma as any).aiLearning.create({
@@ -104,11 +110,12 @@ export class WebhookService {
                 }
             });
         } catch (e) {}
+        
         await this.whatsapp.sendText(replyPhone, "🤖 Sou o ZapRoute.\nFale sobre entregas, ocorrências ou digite *'Ajuda'*.");
         return { status: 'outro_replied' };
     }
 
-    // Execução na Rota
+    // 5. Execução na Rota Ativa
     const today = new Date(); today.setUTCHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
@@ -125,7 +132,14 @@ export class WebhookService {
 
     const { action, identifier, reason } = aiResult;
 
-    // SAUDAÇÃO
+    // --- COMANDOS SIMPLES ---
+
+    if (action === 'AJUDA') {
+        const helpMsg = `🤖 *Ajuda ZapRoute*\n\n1️⃣ *Rota:* 'Iniciar', 'Pausar'\n2️⃣ *Entregas:* 'Entreguei a nota X', Foto\n3️⃣ *Problemas:* 'Cliente fechado', 'Quebrei'\n4️⃣ *Consultas:* 'Resumo', 'Me leva lá', 'Contato'`;
+        await this.whatsapp.sendText(replyPhone, helpMsg);
+        return { status: 'help_sent' };
+    }
+
     if (action === 'SAUDACAO') {
         const hour = new Date().getHours() - 3; 
         let greeting = 'Bom dia';
@@ -144,12 +158,6 @@ export class WebhookService {
         }
         await this.whatsapp.sendText(replyPhone, msg);
         return { status: 'greeting_sent' };
-    }
-
-    if (action === 'AJUDA') {
-        const helpMsg = `🤖 *Ajuda ZapRoute*\n\n1️⃣ *Rota:* 'Iniciar', 'Pausar'\n2️⃣ *Entregas:* 'Entreguei a nota X', Foto\n3️⃣ *Problemas:* 'Cliente fechado', 'Quebrei'\n4️⃣ *Consultas:* 'Resumo', 'Me leva lá', 'Contato'`;
-        await this.whatsapp.sendText(replyPhone, helpMsg);
-        return { status: 'help_sent' };
     }
 
     if (action === 'RESUMO') {
@@ -176,6 +184,8 @@ export class WebhookService {
         return { status: 'resumed' };
     }
 
+    // --- OCORRÊNCIAS E PROBLEMAS ---
+
     if (action === 'ATRASO') {
         const delayInfo = reason || 'Motivo não informado';
         try {
@@ -192,6 +202,8 @@ export class WebhookService {
         } catch (e) { this.logger.error(e); }
         return { status: 'delay_recorded' };
     }
+
+    // --- COMANDOS AVANÇADOS ---
 
     if (action === 'NAVEGACAO' || action === 'CONTATO' || action === 'DETALHES') {
         let targetDelivery;
@@ -224,9 +236,9 @@ export class WebhookService {
         }
         return { status: 'info_sent' };
     }
-    
+
     if (action === 'DESFAZER') {
-        const lastDone = activeRoute.deliveries
+         const lastDone = activeRoute.deliveries
             .filter((d: any) => d.status === 'DELIVERED' || d.status === 'FAILED')
             .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
 
@@ -242,6 +254,8 @@ export class WebhookService {
         return { status: 'undone' };
     }
 
+    // --- AÇÕES DE ENTREGA (Volta ao modelo clássico sem botão) ---
+
     if (action === 'INICIO') {
         await (this.prisma as any).route.update({
             where: { id: activeRoute.id },
@@ -251,18 +265,19 @@ export class WebhookService {
             where: { routeId: activeRoute.id, status: 'PENDING' },
             data: { status: 'IN_TRANSIT' }
         });
-        await this.whatsapp.sendText(replyPhone, `🚀 *Rota Iniciada!*\nBom trabalho, ${driver.name.split(' ')[0]}!`);
+        await this.whatsapp.sendText(replyPhone, `🚀 *Rota Iniciada!*\nBom trabalho!`);
         return { status: 'started' };
     }
 
-    // --- BAIXA DIRETA (SEM BOTÃO) ---
     if (action === 'ENTREGA' || messageContent.type === 'IMAGE') {
         let targetDelivery = null;
         
+        // Se tem identificador, busca direto
         if (aiResult?.identifier) {
              targetDelivery = activeRoute.deliveries.find((d: any) => d.invoiceNumber.includes(aiResult.identifier));
         }
         
+        // Se é só imagem ou não achou, assume a próxima da fila
         if (!targetDelivery) {
             targetDelivery = activeRoute.deliveries.find((d: any) => d.status === 'IN_TRANSIT' || d.status === 'PENDING');
         }
