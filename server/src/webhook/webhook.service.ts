@@ -308,28 +308,63 @@ export class WebhookService {
         return { status: 'route_started' };
     }
 
-    if ((action === 'ENTREGA' || action === 'FALHA') && identifier) {
-        const delivery = activeRoute.deliveries.find((d: any) => 
-            d.invoiceNumber.toLowerCase().includes(identifier.toLowerCase()) ||
-            d.customer.tradeName.toLowerCase().includes(identifier.toLowerCase()) ||
-            d.customer.cnpj.includes(identifier)
+if ((action === 'ENTREGA' || action === 'FALHA') && identifier) {
+        // 1. Busca Inteligente (Prioriza Exata > Contém)
+        let delivery = activeRoute.deliveries.find((d: any) => 
+            d.invoiceNumber === identifier || d.customer.tradeName.toLowerCase() === identifier.toLowerCase()
         );
+
+        // Se não achou exato, tenta parcial (fallback)
+        if (!delivery) {
+            delivery = activeRoute.deliveries.find((d: any) => 
+                d.invoiceNumber.includes(identifier) || d.customer.tradeName.toLowerCase().includes(identifier.toLowerCase())
+            );
+        }
 
         if (!delivery) {
             await this.whatsapp.sendText(replyPhone, `❌ Não encontrei a nota ou cliente *"${identifier}"*.`);
             return { status: 'not_found' };
         }
 
+        // 2. Trava de Rota Não Iniciada
+        if (activeRoute.status === 'PLANNED') {
+            await this.whatsapp.sendText(replyPhone, `🚫 *Atenção:* Sua rota ainda não foi iniciada.\n\nPor favor, digite *'Iniciar'* antes de começar.`);
+            return { status: 'route_not_started_block' };
+        }
+
+        // 3. Preparação dos Dados
         const newStatus = action === 'ENTREGA' ? 'DELIVERED' : 'FAILED';
         const failReason = action === 'FALHA' ? (reason || 'Via WhatsApp') : null;
         const proofUrl = messageContent.type === 'IMAGE' ? messageContent.value : undefined;
 
-        await (this.prisma as any).delivery.update({
-            where: { id: delivery.id },
-            data: { status: newStatus, failureReason: failReason, proofOfDelivery: proofUrl, updatedAt: new Date() }
+        // 4. ATUALIZAÇÃO ATÔMICA (A Correção Definitiva)
+        // Tenta atualizar SOMENTE se o status atual permitir (Pendentes).
+        // Isso impede duplicidade mesmo se o motorista clicar 10 vezes.
+        const updateResult = await (this.prisma as any).delivery.updateMany({
+            where: {
+                id: delivery.id,
+                status: { in: ['PENDING', 'IN_TRANSIT'] } // Só atualiza se não estiver finalizada
+            },
+            data: { 
+                status: newStatus, 
+                failureReason: failReason, 
+                proofOfDelivery: proofUrl, 
+                updatedAt: new Date() 
+            }
         });
 
-        // Contagem regressiva
+        // 5. Verifica se atualizou de verdade
+        if (updateResult.count === 0) {
+            // Se count é 0, significa que a entrega JÁ ESTAVA finalizada no banco
+            // Buscamos o status atual só para responder a mensagem correta
+            const currentDelivery = await (this.prisma as any).delivery.findUnique({ where: { id: delivery.id } });
+            const statusPt = currentDelivery?.status === 'DELIVERED' ? 'Entregue' : 'Com Ocorrência';
+            
+            await this.whatsapp.sendText(replyPhone, `⚠️ A nota *${delivery.invoiceNumber}* já consta como *${statusPt}*.\n\nSe baixou errado e quer corrigir, digite *'Desfazer'*.`);
+            return { status: 'delivery_already_done_block' };
+        }
+
+        // 6. Lógica de Sucesso (Segue normal)
         const pendingCount = await (this.prisma as any).delivery.count({
             where: { routeId: activeRoute.id, status: { in: ['PENDING', 'IN_TRANSIT'] } }
         });
@@ -347,16 +382,7 @@ export class WebhookService {
         
         return { status: 'success', action: newStatus };
     }
-
-    // Se tentou entregar mas não disse qual nota
-    if ((action === 'ENTREGA' || action === 'FALHA') && !identifier) {
-         if (messageContent.type === 'IMAGE') {
-             await this.whatsapp.sendText(replyPhone, "📷 Recebi a foto. Qual é o número da nota para eu baixar?");
-         } else {
-             await this.whatsapp.sendText(replyPhone, `🤔 Entendi que é uma ${action}, mas qual é o número da nota?`);
-         }
-         return { status: 'missing_identifier' };
-    }
+        // ... (resto do código igual)
     if (action === 'VENDEDOR') {
         let target = identifier 
             ? activeRoute.deliveries.find((d: any) => d.invoiceNumber.includes(identifier) || d.customer.tradeName.toLowerCase().includes(identifier.toLowerCase()))
