@@ -164,42 +164,69 @@ export class WebhookService {
     // ===========================================================================
 
     // Busca a rota de HOJE para este motorista
+// 4. Tratamento de Rotas Inteligente
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
-    const activeRoute = await (this.prisma as any).route.findFirst({
-        where: { driverId: driver.id, date: { gte: today, lt: tomorrow } },
-        orderBy: { createdAt: 'desc' },
+    // PASSO 1: Prioridade absoluta para rotas ABERTAS (Planejada ou Ativa)
+    // Ordenamos por 'asc' para pegar a primeira do dia que ainda não foi feita
+    let activeRoute = await (this.prisma as any).route.findFirst({
+        where: { 
+            driverId: driver.id, 
+            date: { gte: today, lt: tomorrow },
+            status: { in: ['PLANNED', 'ACTIVE'] } // <--- O filtro mágico
+        },
+        orderBy: { createdAt: 'asc' },
         include: { 
             deliveries: { 
                 include: { 
-                    customer: { 
-                        include: { seller: true } // <--- ADICIONE ISTO: Carrega dados do vendedor
-                    } 
+                    customer: { include: { seller: true } } 
                 } 
             } 
         }
     });
 
+    // PASSO 2: Se não achou nada aberto, verificamos se o dia já foi ENCERRADO
     if (!activeRoute) {
-        // --- ALTERAÇÃO AQUI ---
+        const completedRoute = await (this.prisma as any).route.findFirst({
+            where: { 
+                driverId: driver.id, 
+                date: { gte: today, lt: tomorrow },
+                status: 'COMPLETED'
+            }
+        });
+
         const greeting = this.getGreeting();
-        
-        // Se for só um "Bom dia" ou conversa, responde educadamente
-        if (aiResult.action === 'SAUDACAO' || aiResult.action === 'OUTRO') {
-            await this.whatsapp.sendText(replyPhone, `${greeting}, ${driver.name}! 👋\nNo momento, não encontrei nenhuma rota vinculada a você para hoje.`);
-        } 
-        // Se ele tentou um comando (Ex: "Iniciar"), bloqueia e avisa
-        else {
-            await this.whatsapp.sendText(replyPhone, `🚫 ${greeting}, ${driver.name}. Você não tem rota ativa hoje para realizar essa ação.`);
+
+        if (completedRoute) {
+            // Caso A: O motorista trabalhou e já acabou tudo
+            await this.whatsapp.sendText(replyPhone, `🏁 ${greeting}, ${driver.name}!\n\nVerifiquei aqui e *todas as suas rotas de hoje já foram finalizadas*.\n\nBom descanso! Se houver alguma mudança, eu te aviso.`);
+        } else {
+            // Caso B: Realmente não tinha nada para hoje
+            if (aiResult.action === 'SAUDACAO' || aiResult.action === 'OUTRO' || aiResult.action === 'RESUMO') {
+                await this.whatsapp.sendText(replyPhone, `${greeting}, ${driver.name}! 👋\nNo momento, não encontrei nenhuma rota agendada para você hoje.`);
+            } else {
+                await this.whatsapp.sendText(replyPhone, `🚫 ${greeting}, ${driver.name}. Você não tem rota ativa para realizar essa ação.`);
+            }
         }
-        return { status: 'no_route' };
+        // Retorna status especial para encerrar a execução aqui
+        return { status: 'no_active_route' };
     }
 
+    // Se chegou aqui, existe uma 'activeRoute' válida (PLANNED ou ACTIVE)
     const { action, identifier, reason } = aiResult;
 
+    // --- ADICIONE ESTE BLOCO AQUI ---
+    if (action === 'SAUDACAO') {
+        const greeting = this.getGreeting();
+        const pending = activeRoute.deliveries.filter((d: any) => d.status === 'PENDING' || d.status === 'IN_TRANSIT').length;
+        
+        await this.whatsapp.sendText(replyPhone, `${greeting}, ${driver.name}! 🚚\n\nSua rota *${activeRoute.name}* está ativa.\n📦 Entregas pendentes: *${pending}*.\n\nDigite *'Iniciar'* para começar ou *'Resumo'* para detalhes.`);
+        return { status: 'greeting_sent' };
+    }
+    
     // --- COMANDOS INFORMATIVOS ---
 
     if (action === 'RESUMO') {
@@ -257,17 +284,27 @@ export class WebhookService {
     }
 
     // --- COMANDOS OPERACIONAIS ---
-
+// --- BLOCO: INICIAR ROTA (COM PROTEÇÃO) ---
     if (action === 'INICIO') {
+        // 1. Verificação de Estado: Já está rodando?
+        if (activeRoute.status === 'ACTIVE') {
+            await this.whatsapp.sendText(replyPhone, `⚠️ A rota *${activeRoute.name}* já foi iniciada anteriormente.\n\nVocê pode seguir com as entregas normalmente!`);
+            return { status: 'already_started' };
+        }
+
+        // 2. Se não estava ativa (estava PLANNED), então inicia
         await (this.prisma as any).route.update({
             where: { id: activeRoute.id },
             data: { status: 'ACTIVE', startTime: new Date().toLocaleTimeString('pt-BR') }
         });
+
+        // Atualiza status das entregas
         await (this.prisma as any).delivery.updateMany({
             where: { routeId: activeRoute.id, status: 'PENDING' },
             data: { status: 'IN_TRANSIT' }
         });
-        await this.whatsapp.sendText(replyPhone, `🚀 *Rota Iniciada!*\n📦 ${activeRoute.deliveries.length} entregas.`);
+
+        await this.whatsapp.sendText(replyPhone, `🚀 *Rota Iniciada!*\n\nBom trabalho, ${driver.name}!\n📦 Total de entregas: *${activeRoute.deliveries.length}*.`);
         return { status: 'route_started' };
     }
 
@@ -320,7 +357,7 @@ export class WebhookService {
          }
          return { status: 'missing_identifier' };
     }
-if (action === 'VENDEDOR') {
+    if (action === 'VENDEDOR') {
         let target = identifier 
             ? activeRoute.deliveries.find((d: any) => d.invoiceNumber.includes(identifier) || d.customer.tradeName.toLowerCase().includes(identifier.toLowerCase()))
             : activeRoute.deliveries.find((d: any) => d.status === 'IN_TRANSIT' || d.status === 'PENDING');
@@ -400,6 +437,24 @@ if (action === 'VENDEDOR') {
         // 3. (Opcional) Poderíamos mandar msg pro Supervisor aqui também se tivesse a integração ativa
         
         return { status: 'sinister_alert' };
+    }
+   // --- NOVO BLOCO: FINALIZAR ROTA MANUALMENTE ---
+    if (action === 'FINALIZAR') {
+        const pending = activeRoute.deliveries.filter((d: any) => d.status === 'PENDING' || d.status === 'IN_TRANSIT');
+        
+        if (pending.length > 0) {
+            // Cenário A: Tem pendência. Avisa e bloqueia.
+            await this.whatsapp.sendText(replyPhone, `⚠️ Você ainda tem *${pending.length} entregas pendentes*.\n\nSe não foram feitas, registre como FALHA antes de encerrar (Ex: "Cliente fechado nota X").`);
+            return { status: 'finish_blocked' };
+        } else {
+            // Cenário B: Tudo feito, encerra.
+            await (this.prisma as any).route.update({
+                where: { id: activeRoute.id },
+                data: { status: 'COMPLETED', endTime: new Date().toLocaleTimeString('pt-BR') }
+            });
+            await this.whatsapp.sendText(replyPhone, `✅ *Rota Encerrada!*\n\nMaravilha, ${driver.name}. Bom descanso!`);
+            return { status: 'route_force_completed' };
+        }
     }
     // --- BLOCO 5: SAUDAÇÃO E OUTROS ---
     if (action === 'OUTRO') {
