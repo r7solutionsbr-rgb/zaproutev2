@@ -197,7 +197,7 @@ const ProtectedLayout = ({ user, logout }: any) => {
          {currentPage === 'route-list' && <RouteList routes={routes} deliveries={deliveries} drivers={drivers} vehicles={vehicles}/>}
          {currentPage === 'deliveries' && <DeliveryList deliveries={deliveries} drivers={drivers} />}
          {currentPage === 'occurrences' && <OccurrenceList deliveries={deliveries} routes={routes} drivers={drivers} />}
-         {currentPage === 'customers' && <CustomerList deliveries={deliveries} />}
+         {currentPage === 'customers' && <CustomerList />}
          {currentPage === 'drivers' && <DriverList drivers={drivers} vehicles={vehicles} />}
          {currentPage === 'vehicles' && <VehicleList vehicles={vehicles} drivers={drivers} />}
          {currentPage === 'reports' && <Reports />}
