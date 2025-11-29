@@ -6,7 +6,7 @@ export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
   private instanceId = process.env.ZAPI_INSTANCE_ID;
   private token = process.env.ZAPI_TOKEN;
-  private clientToken = process.env.ZAPI_CLIENT_TOKEN; // <--- NOVO
+  private clientToken = process.env.ZAPI_CLIENT_TOKEN;
   private baseUrl = 'https://api.z-api.io/instances';
 
   async sendText(phone: string, message: string) {
@@ -21,12 +21,7 @@ export class WhatsappService {
       
       this.logger.log(`📡 Enviando Z-API para ${cleanPhone}...`);
 
-      // Configuração do Header de Segurança
-      const config: any = {
-          headers: {}
-      };
-      
-      // Só adiciona se existir no .env
+      const config: any = { headers: {} };
       if (this.clientToken) {
           config.headers['Client-Token'] = this.clientToken;
       }
@@ -34,7 +29,7 @@ export class WhatsappService {
       const response = await axios.post(url, {
         phone: cleanPhone,
         message: message
-      }, config); // <--- Passa o config aqui
+      }, config);
 
       this.logger.log(`✅ Resposta Z-API: ${JSON.stringify(response.data)}`);
 

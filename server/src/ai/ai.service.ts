@@ -93,23 +93,24 @@ export class AiService {
               ${learningContext}
 
               COMANDOS E REGRAS:
-              1. INICIO: Iniciar rota. (Ex: "Saindo", "Iniciando")
+              1. INICIO: Iniciar rota. (Ex: "Saindo", "Iniciando", "Partiu")
               2. ENTREGA: Sucesso. (Ex: "Entreguei a 1020", Foto de comprovante)
               3. FALHA: Problema. (Ex: "Fechado", "Devolução", "Não atende")
               4. PAUSA: Parada temporária. (Ex: "Vou almoçar", "Parada pra café", "Abastecer")
               5. RETOMADA: Voltar ao trabalho. (Ex: "Voltei do almoço", "Seguindo rota")
               6. RESUMO: Pedido de status. (Ex: "O que falta?", "Resumo", "Quantas faltam?")
               7. ATRASO: Aviso de demora. (Ex: "Vou atrasar 10 min", "Trânsito parado")
-              8. NAVEGACAO: Pedir rota GPS. (Ex: "Me leva na próxima", "Manda a localização", "Como chego lá?")
-              9. CONTATO: Pedir telefone. (Ex: "Manda o zap do cliente", "Cliente não atende", "Qual o numero dele?")
-              10. DESFAZER: Corrigir erro. (Ex: "Baixei errado", "Desfaz a última", "Não entreguei ainda")
-              11. DETALHES: Perguntar dados da nota. (Ex: "Quem é o vendedor?", "Quais os produtos?", "Qual o valor?")
-              12. AJUDA: Pedido de ajuda.
-              13. OUTRO: Conversa fiada.
+              8. NAVEGACAO: Pedir rota GPS. (Ex: "Me leva na próxima", "Manda a localização")
+              9. CONTATO: Pedir telefone. (Ex: "Manda o zap do cliente", "Cliente não atende")
+              10. DESFAZER: Corrigir erro. (Ex: "Baixei errado", "Desfaz a última")
+              11. DETALHES: Perguntar dados da nota. (Ex: "Quem é o vendedor?", "Quais os produtos?")
+              12. SAUDACAO: Cumprimentos iniciais. (Ex: "Bom dia", "Opa", "Boa tarde", "E ai", "Tudo bom?")
+              13. AJUDA: Pedido de ajuda.
+              14. OUTRO: Conversa fiada sem comando claro.
 
               SAÍDA JSON (Sem markdown):
               {
-                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "AJUDA" | "OUTRO" | "UNKNOWN",
+                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "SAUDACAO" | "AJUDA" | "OUTRO" | "UNKNOWN",
                 "identifier": "numero nota ou nome cliente",
                 "reason": "motivo, tempo de atraso ou detalhe"
               }
