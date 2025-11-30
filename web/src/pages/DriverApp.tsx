@@ -91,9 +91,27 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
   };
 
   // Simulação de Câmera
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
   const handleCamera = () => {
-    // Num PWA real, acederíamos ao navigator.mediaDevices
-    setProofImage('https://picsum.photos/400/300'); // Imagem mockada
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      const { url } = await api.storage.upload(file);
+      setProofImage(url);
+    } catch (error) {
+      console.error("Upload failed", error);
+      alert("Falha no upload da imagem. Tente novamente.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   // --- RENDER JOURNEY CONTROLS ---
@@ -207,7 +225,21 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
           <div className="border-t pt-4">
             <h2 className="text-slate-500 text-sm uppercase font-bold mb-4">Comprovante de Entrega</h2>
 
-            {!proofImage ? (
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            {uploading ? (
+              <div className="w-full py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                <span>Enviando foto...</span>
+              </div>
+            ) : !proofImage ? (
               <button onClick={handleCamera} className="w-full py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-blue-400 transition-colors">
                 <Camera size={32} className="mb-2" />
                 <span>Toque para tirar foto</span>

@@ -202,5 +202,17 @@ export const api = {
             const response = await client.patch(`/backoffice/tenants/${id}/status`, { status });
             return response.data;
         }
+    },
+    storage: {
+        upload: async (file: File) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            const response = await client.post('/storage/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+            return response.data; // { url: string }
+        }
     }
 };

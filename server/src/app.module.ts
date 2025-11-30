@@ -11,6 +11,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { SellersModule } from './sellers/sellers.module'; // <--- Importe do SellersModule
 import { JourneyModule } from './journey/journey.module';
 import { BackofficeModule } from './backoffice/backoffice.module';
+import { StorageModule } from './storage/storage.module';
 
 // --- CONTROLADORES (Rotas da API) ---
 import { RoutesController } from './routes/routes.controller';
@@ -47,6 +48,7 @@ import { SellersService } from './sellers/sellers.service'; // <--- Importe do S
     SellersModule, // <--- Adição do SellersModule
     JourneyModule,
     BackofficeModule,
+    StorageModule,
   ],
   controllers: [
     // Endpoints
