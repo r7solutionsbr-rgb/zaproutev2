@@ -13,29 +13,29 @@ export class MailService {
   private async initTransport() {
     // Verifica se temos credenciais reais ou usamos Ethereal (Teste)
     if (process.env.SMTP_HOST) {
-        this.transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: Number(process.env.SMTP_PORT) || 587,
-            secure: process.env.SMTP_SECURE === 'true',
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-            },
-        });
+      this.transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT) || 587,
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
     } else {
-        // Cria conta de teste (Ethereal) automaticamente para DEV
-        const testAccount = await nodemailer.createTestAccount();
-        this.transporter = nodemailer.createTransport({
-            host: 'smtp.ethereal.email',
-            port: 587,
-            secure: false,
-            auth: {
-                user: testAccount.user,
-                pass: testAccount.pass,
-            },
-        });
-        this.logger.warn('⚠️ Usando E-mail de Teste (Ethereal). As mensagens não serão enviadas de verdade.');
-        this.logger.log(`🔗 Preview URL: As URLs aparecerão no console.`);
+      // Cria conta de teste (Ethereal) automaticamente para DEV
+      const testAccount = await nodemailer.createTestAccount();
+      this.transporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+      this.logger.warn('⚠️ Usando E-mail de Teste (Ethereal). As mensagens não serão enviadas de verdade.');
+      this.logger.log(`🔗 Preview URL: As URLs aparecerão no console.`);
     }
   }
 
@@ -60,10 +60,44 @@ export class MailService {
     });
 
     this.logger.log(`📧 E-mail enviado para ${to} | ID: ${info.messageId}`);
-    
+
     // Se for Ethereal, mostra o link para visualizar o email no navegador
     if (nodemailer.getTestMessageUrl(info)) {
-        this.logger.log(`📬 [PREVIEW] Veja o e-mail aqui: ${nodemailer.getTestMessageUrl(info)}`);
+      this.logger.log(`📬 [PREVIEW] Veja o e-mail aqui: ${nodemailer.getTestMessageUrl(info)}`);
+    }
+  }
+  async sendWelcomeEmail(to: string, name: string, pass: string) {
+    const loginLink = `http://localhost:5173/login`;
+
+    const info = await this.transporter.sendMail({
+      from: process.env.EMAIL_FROM || '"ZapRoute Team" <noreply@zaproute.com>',
+      to,
+      subject: 'Bem-vindo ao ZapRoute! 🚀',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="color: #2563eb;">Bem-vindo ao ZapRoute, ${name}!</h2>
+            <p>Sua conta foi criada com sucesso. Abaixo estão suas credenciais de acesso:</p>
+            
+            <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 5px 0;"><strong>E-mail:</strong> ${to}</p>
+                <p style="margin: 5px 0;"><strong>Senha Temporária:</strong> ${pass}</p>
+            </div>
+
+            <p>Recomendamos que você altere sua senha após o primeiro acesso.</p>
+
+            <a href="${loginLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Acessar Plataforma</a>
+            
+            <p style="margin-top: 30px; font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px;">
+                Se tiver dúvidas, entre em contato com nosso suporte.
+            </p>
+        </div>
+      `,
+    });
+
+    this.logger.log(`📧 Welcome E-mail enviado para ${to} | ID: ${info.messageId}`);
+
+    if (nodemailer.getTestMessageUrl(info)) {
+      this.logger.log(`📬 [PREVIEW] Veja o e-mail aqui: ${nodemailer.getTestMessageUrl(info)}`);
     }
   }
 }

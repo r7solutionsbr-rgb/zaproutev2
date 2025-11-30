@@ -1,10 +1,14 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class BackofficeService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private mailService: MailService
+    ) { }
 
     async getAllTenants() {
         const tenants = await this.prisma.tenant.findMany({
@@ -32,7 +36,7 @@ export class BackofficeService {
         const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
         // Transaction to create Tenant and Admin User
-        return this.prisma.$transaction(async (tx) => {
+        const result = await this.prisma.$transaction(async (tx) => {
             const tenant = await tx.tenant.create({
                 data: {
                     name,
@@ -54,12 +58,38 @@ export class BackofficeService {
 
             return { tenant, user };
         });
+
+        // Send Welcome Email (Async, don't block)
+        this.mailService.sendWelcomeEmail(adminEmail, adminName, adminPassword)
+            .catch(err => console.error('Erro ao enviar email de boas-vindas:', err));
+
+        return result;
     }
 
     async updateTenantStatus(id: string, status: string) {
         return this.prisma.tenant.update({
             where: { id },
             data: { status }
+        });
+    }
+
+    async updateTenant(id: string, data: any) {
+        const { name, slug, plan } = data;
+
+        if (slug) {
+            const existing = await this.prisma.tenant.findUnique({ where: { slug } });
+            if (existing && existing.id !== id) {
+                throw new BadRequestException('Slug já está em uso por outra empresa.');
+            }
+        }
+
+        return this.prisma.tenant.update({
+            where: { id },
+            data: {
+                name,
+                slug,
+                plan
+            }
         });
     }
 }

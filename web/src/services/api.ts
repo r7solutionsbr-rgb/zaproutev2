@@ -201,6 +201,10 @@ export const api = {
         updateTenantStatus: async (id: string, status: string) => {
             const response = await client.patch(`/backoffice/tenants/${id}/status`, { status });
             return response.data;
+        },
+        updateTenant: async (id: string, data: any) => {
+            const response = await client.patch(`/backoffice/tenants/${id}`, data);
+            return response.data;
         }
     },
     storage: {

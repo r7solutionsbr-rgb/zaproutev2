@@ -22,4 +22,9 @@ export class BackofficeController {
     async updateTenantStatus(@Param('id') id: string, @Body('status') status: string) {
         return this.backofficeService.updateTenantStatus(id, status);
     }
+
+    @Patch('tenants/:id')
+    async updateTenant(@Param('id') id: string, @Body() data: any) {
+        return this.backofficeService.updateTenant(id, data);
+    }
 }

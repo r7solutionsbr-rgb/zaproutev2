@@ -140,6 +140,13 @@ const ProtectedLayout = (props: any) => (
   </DataProvider>
 );
 
+// --- ROTA PROTEGIDA SUPER ADMIN ---
+const SuperAdminRoute = ({ user, children }: { user: any, children: JSX.Element }) => {
+  if (!user) return <Navigate to="/login" />;
+  if (user.role !== 'SUPER_ADMIN') return <Navigate to="/" />;
+  return children;
+};
+
 // --- APP ROOT ---
 const App = () => {
   const [user, setUser] = useState<any>(null);
@@ -169,8 +176,13 @@ const App = () => {
         <Route path="/login" element={!user ? <LoginScreen onLogin={refreshUser} /> : <Navigate to="/" />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/driver-app" element={<DriverApp />} />
-        <Route path="/admin" element={<AdminDashboard />} />
+        {/* <Route path="/driver-app" element={<DriverApp />} /> */}
+
+        <Route path="/admin" element={
+          <SuperAdminRoute user={user}>
+            <AdminDashboard onLogout={handleLogout} />
+          </SuperAdminRoute>
+        } />
 
         {/* Rota Protegida (Dashboard) */}
         <Route path="/*" element={<ProtectedLayout user={user} logout={handleLogout} />} />
