@@ -16,7 +16,11 @@ async function bootstrap() {
   app.use(urlencoded({ extended: true, limit: '50mb' }));
 
   // 2. Configurações Básicas
-  app.enableCors();
+  app.enableCors({
+    origin: '*', // Em produção, idealmente seria [process.env.FRONTEND_URL], mas * resolve agora
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    allowedHeaders: 'Content-Type, Accept, Authorization, x-admin-key',
+  });
   app.useGlobalPipes(new ValidationPipe());
 
   // 3. Filtro Global de Exceções
