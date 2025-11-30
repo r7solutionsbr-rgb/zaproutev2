@@ -36,6 +36,19 @@ async function bootstrap() {
 
   logger.log(`🚀 Servidor rodando em: http://localhost:${port}/${globalPrefix}`);
 
+  // --- DEBUG DEPLOY ---
+  const fs = require('fs');
+  const path = require('path');
+  const staticPath = path.join(process.cwd(), 'dist', 'client');
+  logger.log(`📂 Verificando arquivos estáticos em: ${staticPath}`);
+  if (fs.existsSync(staticPath)) {
+    logger.log(`✅ Pasta encontrada! Conteúdo: ${fs.readdirSync(staticPath).join(', ')}`);
+  } else {
+    logger.error(`❌ Pasta NÃO encontrada! O Frontend não foi copiado corretamente.`);
+    logger.log(`Conteúdo de dist: ${fs.readdirSync(path.join(process.cwd(), 'dist')).join(', ')}`);
+  }
+  // --------------------
+
   if (router._router && router._router.stack) {
     // logger.log('👇 LISTA DE ROTAS REGISTRADAS 👇'); // Comentei para não poluir o log com 1200 linhas se fosse verbose
     // ... (código de log opcional mantido ou removido, o importante é o limite acima)
