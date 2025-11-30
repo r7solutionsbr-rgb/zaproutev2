@@ -34,6 +34,7 @@ model Tenant {
   journeyEvents DriverJourneyEvent[]
   currentJourneyStatus JourneyEventType?
   lastJourneyEvent     DateTime?
+  @@index([status])
 }
 
 model User {
@@ -154,6 +155,7 @@ model Customer {
   @@index([tenantId])
   @@index([cnpj])
   @@index([tradeName]) // Para busca no import
+  @@index([legalName]) // Para busca no import
 }
 
 model Route {

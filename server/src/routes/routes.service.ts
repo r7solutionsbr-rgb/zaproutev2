@@ -10,34 +10,34 @@ export class RoutesService {
   constructor(
     private prisma: PrismaService,
     private whatsapp: WhatsappService
-  ) {}
+  ) { }
 
   private fixDate(dateInput: string | Date): Date {
     if (!dateInput) {
-        throw new BadRequestException('A data da rota é obrigatória.');
+      throw new BadRequestException('A data da rota é obrigatória.');
     }
 
     let d = new Date(dateInput);
 
     // Se a conversão padrão falhou (Invalid Date) e é uma string
     if (isNaN(d.getTime()) && typeof dateInput === 'string') {
-        // Tenta salvar se o formato for brasileiro (DD/MM/YYYY)
-        if (dateInput.includes('/')) {
-            const parts = dateInput.split('/');
-            if (parts.length === 3) {
-                // Converte para ISO (YYYY-MM-DD) que o JavaScript entende
-                // parts[2] = ano, parts[1] = mês, parts[0] = dia
-                d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-            }
+      // Tenta salvar se o formato for brasileiro (DD/MM/YYYY)
+      if (dateInput.includes('/')) {
+        const parts = dateInput.split('/');
+        if (parts.length === 3) {
+          // Converte para ISO (YYYY-MM-DD) que o JavaScript entende
+          // parts[2] = ano, parts[1] = mês, parts[0] = dia
+          d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
         }
+      }
     }
 
     // Se ainda assim for inválida, para tudo e avisa
     if (isNaN(d.getTime())) {
-        this.logger.error(`Data inválida recebida: ${dateInput}`);
-        throw new BadRequestException(
-            `Data inválida: "${dateInput}". Certifique-se de que está no formato YYYY-MM-DD ou DD/MM/YYYY.`
-        );
+      this.logger.error(`Data inválida recebida: ${dateInput}`);
+      throw new BadRequestException(
+        `Data inválida: "${dateInput}". Certifique-se de que está no formato YYYY-MM-DD ou DD/MM/YYYY.`
+      );
     }
 
     // Fixa meio-dia UTC para evitar problemas de fuso horário (-3h)
@@ -50,10 +50,19 @@ export class RoutesService {
     return str.replace(/[^a-zA-Z0-9]/g, '');
   }
 
-  async findAll(tenantId: string) {
+  async findAll(tenantId: string, days?: number) {
     if (!tenantId) return [];
+
+    const where: any = { tenantId };
+
+    if (days) {
+      const date = new Date();
+      date.setDate(date.getDate() - days);
+      where.date = { gte: date };
+    }
+
     return (this.prisma as any).route.findMany({
-      where: { tenantId },
+      where,
       include: {
         driver: true,
         vehicle: true,
@@ -99,104 +108,117 @@ export class RoutesService {
     this.logger.log(`🔒 Iniciando importação estrita: ${data.name}`);
 
     return (this.prisma as any).$transaction(async (tx: any) => {
-      
+
       // 1. Validação do Motorista (Obrigatório existir)
       let finalDriverId = data.driverId;
-      
+
       if (!finalDriverId && data.driverCpf) {
         const cleanCpf = this.cleanString(data.driverCpf);
         const driver = await tx.driver.findFirst({
-            where: { 
-              tenantId: data.tenantId, 
-              OR: [{ cpf: cleanCpf }, { cpf: data.driverCpf }] 
-            }
+          where: {
+            tenantId: data.tenantId,
+            OR: [{ cpf: cleanCpf }, { cpf: data.driverCpf }]
+          }
         });
-        
+
         if (!driver) {
-            throw new NotFoundException(`Motorista não encontrado! CPF: ${data.driverCpf}. Cadastre-o antes de importar.`);
+          throw new NotFoundException(`Motorista não encontrado! CPF: ${data.driverCpf}. Cadastre-o antes de importar.`);
         }
         finalDriverId = driver.id;
       } else if (finalDriverId) {
-         // Se veio ID, valida se existe
-         const exists = await tx.driver.findUnique({ where: { id: finalDriverId } });
-         if (!exists) throw new NotFoundException(`Motorista ID ${finalDriverId} inválido.`);
+        // Se veio ID, valida se existe
+        const exists = await tx.driver.findUnique({ where: { id: finalDriverId } });
+        if (!exists) throw new NotFoundException(`Motorista ID ${finalDriverId} inválido.`);
       }
 
       // 2. Validação do Veículo (Obrigatório existir)
       let finalVehicleId = data.vehicleId;
-      
+
       if (!finalVehicleId && data.vehiclePlate) {
         const cleanPlate = this.cleanString(data.vehiclePlate).toUpperCase();
         const vehicle = await tx.vehicle.findFirst({
-            where: { 
-              tenantId: data.tenantId, 
-              OR: [{ plate: cleanPlate }, { plate: data.vehiclePlate }] 
-            }
+          where: {
+            tenantId: data.tenantId,
+            OR: [{ plate: cleanPlate }, { plate: data.vehiclePlate }]
+          }
         });
 
         if (!vehicle) {
-            throw new NotFoundException(`Veículo não encontrado! Placa: ${data.vehiclePlate}. Cadastre-o antes de importar.`);
+          throw new NotFoundException(`Veículo não encontrado! Placa: ${data.vehiclePlate}. Cadastre-o antes de importar.`);
         }
         finalVehicleId = vehicle.id;
       }
 
-      // 3. Validação dos Clientes (Todos devem existir)
+      // 3. Validação dos Clientes (Todos devem existir) - OTIMIZADO (BATCH)
       const deliveriesToCreate = [];
       const missingCustomers = [];
 
+      // Coletar todos os CNPJs e Nomes para buscar de uma vez
+      const cnpjs = data.deliveries.map(d => d.customerCnpj ? this.cleanString(d.customerCnpj) : null).filter(Boolean);
+      const names = data.deliveries.map(d => d.customerName).filter(Boolean);
+
+      // Busca em lote
+      const existingCustomers = await tx.customer.findMany({
+        where: {
+          tenantId: data.tenantId,
+          OR: [
+            { cnpj: { in: cnpjs } },
+            { tradeName: { in: names, mode: 'insensitive' } },
+            { legalName: { in: names, mode: 'insensitive' } }
+          ]
+        }
+      });
+
+      // Criar Mapas para busca rápida em memória
+      const customerByCnpj = new Map();
+      const customerByName = new Map();
+
+      existingCustomers.forEach((c: any) => {
+        if (c.cnpj) customerByCnpj.set(this.cleanString(c.cnpj), c);
+        if (c.tradeName) customerByName.set(c.tradeName.toUpperCase(), c);
+        if (c.legalName) customerByName.set(c.legalName.toUpperCase(), c);
+      });
+
       for (const del of data.deliveries) {
         let customer = null;
-        
-        // Tenta achar por CNPJ
+
+        // Tenta achar por CNPJ no Map
         if (del.customerCnpj) {
-            const cleanCnpj = this.cleanString(del.customerCnpj);
-            customer = await tx.customer.findFirst({
-                where: { 
-                    tenantId: data.tenantId,
-                    OR: [{ cnpj: del.customerCnpj }, { cnpj: cleanCnpj }]
-                }
-            });
+          const cleanCnpj = this.cleanString(del.customerCnpj);
+          customer = customerByCnpj.get(cleanCnpj);
         }
 
-        // Se não achou por CNPJ, tenta por Nome (Razão ou Fantasia)
-        if (!customer) {
-            customer = await tx.customer.findFirst({
-                where: { 
-                    tenantId: data.tenantId, 
-                    OR: [
-                        { tradeName: { equals: del.customerName, mode: 'insensitive' } }, 
-                        { legalName: { equals: del.customerName, mode: 'insensitive' } }
-                    ] 
-                }
-            });
+        // Se não achou por CNPJ, tenta por Nome no Map
+        if (!customer && del.customerName) {
+          customer = customerByName.get(del.customerName.toUpperCase());
         }
 
         if (!customer) {
-            missingCustomers.push(`${del.customerName} (${del.customerCnpj || 'S/CNPJ'})`);
+          missingCustomers.push(`${del.customerName} (${del.customerCnpj || 'S/CNPJ'})`);
         } else {
-            // Prepara o objeto para criar depois (apenas se todos passarem)
-            deliveriesToCreate.push({
-                invoiceNumber: del.invoiceNumber,
-                volume: Number(del.volume), 
-                weight: Number(del.weight), 
-                value: del.value ? Number(del.value) : 0,
-                product: del.product,
-                salesperson: del.salesperson,
-                priority: del.priority, 
-                status: 'PENDING',
-                customerId: customer.id,
-                driverId: finalDriverId // Vincula o motorista da entrega ao da rota
-            });
+          // Prepara o objeto para criar depois (apenas se todos passarem)
+          deliveriesToCreate.push({
+            invoiceNumber: del.invoiceNumber,
+            volume: Number(del.volume),
+            weight: Number(del.weight),
+            value: del.value ? Number(del.value) : 0,
+            product: del.product,
+            salesperson: del.salesperson,
+            priority: del.priority,
+            status: 'PENDING',
+            customerId: customer.id,
+            driverId: finalDriverId // Vincula o motorista da entrega ao da rota
+          });
         }
       }
 
       // SE HOUVER CLIENTES FALTANDO -> ABORTA TUDO
       if (missingCustomers.length > 0) {
-          const list = missingCustomers.slice(0, 5).join(', ');
-          const more = missingCustomers.length > 5 ? `... e mais ${missingCustomers.length - 5}` : '';
-          throw new BadRequestException(
-              `Importação cancelada! Clientes não cadastrados encontrados: ${list}${more}. Cadastre-os primeiro.`
-          );
+        const list = missingCustomers.slice(0, 5).join(', ');
+        const more = missingCustomers.length > 5 ? `... e mais ${missingCustomers.length - 5}` : '';
+        throw new BadRequestException(
+          `Importação cancelada! Clientes não cadastrados encontrados: ${list}${more}. Cadastre-os primeiro.`
+        );
       }
 
       // 4. Criar Rota (Tudo validado)
@@ -212,20 +234,19 @@ export class RoutesService {
       });
 
       // 5. Criar Entregas (Bulk Insert se possível, ou loop)
+      // Otimização: createMany não suporta relations em alguns casos, mas aqui estamos conectando.
+      // Vamos manter o loop mas agora é só INSERT, sem SELECTs no meio.
       for (const delData of deliveriesToCreate) {
-          // Extraímos os IDs para não enviar duplicado no 'data'
-          const { customerId, driverId, ...restOfDelivery } = delData;
+        const { customerId, driverId, ...restOfDelivery } = delData;
 
-          await tx.delivery.create({
-              data: {
-                  ...restOfDelivery, // Espalha apenas: invoiceNumber, volume, weight, status, etc.
-                  
-                  // Faz as conexões usando os IDs extraídos
-                  route: { connect: { id: route.id } },
-                  customer: { connect: { id: customerId } },
-                  driver: driverId ? { connect: { id: driverId } } : undefined
-              }
-          });
+        await tx.delivery.create({
+          data: {
+            ...restOfDelivery,
+            route: { connect: { id: route.id } },
+            customer: { connect: { id: customerId } },
+            driver: driverId ? { connect: { id: driverId } } : undefined
+          }
+        });
       }
 
       // Notificar motorista
@@ -239,9 +260,9 @@ export class RoutesService {
 
       this.logger.log(`✅ Importação estrita concluída: Rota ${route.id}`);
       return route;
-    }, { 
-        maxWait: 5000, 
-        timeout: 20000 
+    }, {
+      maxWait: 5000,
+      timeout: 20000
     });
   }
 

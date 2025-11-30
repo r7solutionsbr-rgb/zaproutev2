@@ -6,11 +6,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 @Controller('routes')
 @UseGuards(JwtAuthGuard)
 export class RoutesController {
-  constructor(private readonly routesService: RoutesService) {}
+  constructor(private readonly routesService: RoutesService) { }
 
   @Get()
-  async findAll(@Query('tenantId') tenantId: string) {
-    return this.routesService.findAll(tenantId);
+  async findAll(@Query('tenantId') tenantId: string, @Query('days') days?: string) {
+    return this.routesService.findAll(tenantId, days ? parseInt(days) : undefined);
   }
 
   @Post('import')

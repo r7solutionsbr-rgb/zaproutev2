@@ -32,8 +32,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setLoading(true);
         try {
-            // 1. Rotas e Entregas
-            const routesData = await api.routes.getAll(user.tenantId);
+            // 1. Rotas e Entregas (Últimos 30 dias por padrão)
+            const routesData = await api.routes.getAll(user.tenantId, 30);
             const allDeliveries: Delivery[] = [];
 
             routesData.forEach((r: any) => {
