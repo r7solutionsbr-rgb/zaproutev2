@@ -8,9 +8,7 @@ export class SetupController {
   constructor(private readonly prisma: PrismaService) { }
 
   private checkAuth(headers: any) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new HttpException('Endpoint desativado em produção', HttpStatus.FORBIDDEN);
-    }
+    // Em produção, exigimos a chave de administração
     const adminKey = headers['x-admin-key'];
     if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
       throw new HttpException('Acesso negado: Chave de administração inválida', HttpStatus.FORBIDDEN);
