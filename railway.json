@@ -3,7 +3,7 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile",
-    "rootDirectory": "/server"
+    "rootDirectory": "server"
   },
   "deploy": {
     "runtime": "V2",
