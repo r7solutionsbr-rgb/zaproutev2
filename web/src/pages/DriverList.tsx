@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Driver, Vehicle } from '../types';
-import { Edit2, Plus, Search, Upload, FileText, CheckCircle, X, AlertCircle, ArrowLeft, UserCircle, Clock, Download, Loader2, FileSpreadsheet, Star, CreditCard, Phone, Truck, Save } from 'lucide-react';
+import { Edit2, Plus, Search, Upload, FileText, CheckCircle, X, AlertCircle, ArrowLeft, UserCircle, Clock, Download, Loader2, FileSpreadsheet, Star, CreditCard, Phone, Truck, Save, Bot, MessageSquare, Calendar, Link } from 'lucide-react';
 import { JourneyHistoryModal } from '../components/JourneyHistoryModal';
 import { api } from '../services/api';
 import * as XLSX from 'xlsx';
@@ -26,6 +26,12 @@ export const DriverList: React.FC = () => {
     // Estado de Importação
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isImporting, setIsImporting] = useState(false);
+
+    // Estado do Leônidas (IA)
+    const [isLeonidasOpen, setIsLeonidasOpen] = useState(false);
+    const [leonidasAnalysis, setLeonidasAnalysis] = useState('');
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analyzingDriver, setAnalyzingDriver] = useState<Driver | null>(null);
 
     // useEffect(() => { setDrivers(initialDrivers); }, [initialDrivers]); // REMOVIDO: Usando Contexto direto
 
@@ -53,10 +59,19 @@ export const DriverList: React.FC = () => {
         if (!dateString) return false;
         const expiration = new Date(dateString);
         const today = new Date();
-        // Zera as horas para comparar apenas as datas
         today.setHours(0, 0, 0, 0);
         expiration.setHours(0, 0, 0, 0);
         return expiration < today;
+    };
+
+    const getDaysUntilExpiration = (dateString: string | Date) => {
+        if (!dateString) return -1;
+        const expiration = new Date(dateString);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        expiration.setHours(0, 0, 0, 0);
+        const diffTime = expiration.getTime() - today.getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     };
 
     // --- HELPER: CATEGORIAS CNH ---
@@ -229,6 +244,25 @@ export const DriverList: React.FC = () => {
         reader.readAsBinaryString(file);
     };
 
+    // --- LEÔNIDAS (IA) ---
+    const handleConsultLeonidas = async (driver: Driver) => {
+        setAnalyzingDriver(driver);
+        setIsLeonidasOpen(true);
+        setIsAnalyzing(true);
+        setLeonidasAnalysis('');
+
+        try {
+            // Chamada real para o backend
+            const data = await api.drivers.getAiAnalysis(driver.id);
+            setLeonidasAnalysis(data.analysis);
+        } catch (error) {
+            console.error(error);
+            setLeonidasAnalysis("Desculpe, não consegui analisar este motorista no momento. Tente novamente.");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
     // --- VIEW: DETALHE ---
     if (selectedDriver) {
         const expired = isCnhExpired(selectedDriver.cnhExpiration);
@@ -340,11 +374,12 @@ export const DriverList: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <table className="w-full text-left text-sm text-slate-600">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
-                        <tr><th className="p-4">Nome</th><th className="p-4">CNH / Cat</th><th className="p-4">Veículo</th><th className="p-4">Validade CNH</th><th className="p-4">Status</th><th className="p-4 text-right">Ações</th></tr>
+                        <tr><th className="p-4">Nome</th><th className="p-4">CNH / Cat</th><th className="p-4">Veículo</th><th className="p-4">Performance</th><th className="p-4">Validade CNH</th><th className="p-4 text-center">Status</th><th className="p-4 text-center">Ações</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {filteredDrivers.map(d => {
                             const expired = isCnhExpired(d.cnhExpiration);
+                            const daysUntil = getDaysUntilExpiration(d.cnhExpiration);
                             return (
                                 <tr key={d.id} className="hover:bg-slate-50 group">
                                     <td className="p-4 flex items-center gap-3">
@@ -352,18 +387,47 @@ export const DriverList: React.FC = () => {
                                         <div><div className="font-bold text-slate-800">{d.name}</div><div className="text-xs text-slate-400">{d.cpf}</div></div>
                                     </td>
                                     <td className="p-4">{d.cnh} <span className="text-xs bg-slate-100 px-1 rounded font-bold">{d.cnhCategory}</span></td>
-                                    <td className="p-4"><span className="text-slate-600">{getVehicleInfo(d.vehicleId)}</span></td>
                                     <td className="p-4">
-                                        <div className={`flex items-center gap-2 ${expired ? 'text-red-600 font-bold' : ''}`}>
-                                            {new Date(d.cnhExpiration).toLocaleDateString('pt-BR')}
-                                            {expired && <span title="CNH Vencida"><AlertCircle size={16} /></span>}
+                                        {d.vehicleId ? (
+                                            <span className="text-slate-600">{getVehicleInfo(d.vehicleId)}</span>
+                                        ) : (
+                                            <button className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors">
+                                                <Link size={14} /> Vincular
+                                            </button>
+                                        )}
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex text-yellow-400">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <Star key={i} size={14} className={i < Math.round(d.rating || 0) ? "fill-current" : "text-slate-200 fill-slate-200"} />
+                                                ))}
+                                            </div>
+                                            <span className="text-xs text-slate-400 font-medium">({d.totalDeliveries || 0} viagens)</span>
                                         </div>
                                     </td>
-                                    <td className="p-4"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${d.status === 'ON_ROUTE' ? 'bg-blue-100 text-blue-700' : d.status === 'IDLE' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{d.status === 'ON_ROUTE' ? 'EM ROTA' : d.status === 'IDLE' ? 'DISPONÍVEL' : 'OFFLINE'}</span></td>
-                                    <td className="p-4 text-right flex justify-end gap-2">
-                                        <button onClick={() => setSelectedDriverForJourney(d)} className="text-orange-600 hover:bg-orange-50 p-2 rounded transition-colors" title="Ver Jornada"><Clock size={18} /></button>
-                                        <button onClick={() => openEditModal(d)} className="text-blue-600 hover:bg-blue-50 p-2 rounded transition-colors"><Edit2 size={18} /></button>
-                                        <button onClick={() => setSelectedDriver(d)} className="text-slate-400 hover:bg-slate-50 p-2 rounded transition-colors"><ArrowLeft size={18} className="rotate-180" /></button>
+                                    <td className="p-4">
+                                        <div className={`flex items-center gap-2 font-medium`}>
+                                            {expired ? (
+                                                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full flex items-center gap-1 font-bold">
+                                                    <AlertCircle size={12} /> VENCIDA
+                                                </span>
+                                            ) : daysUntil < 30 ? (
+                                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full flex items-center gap-1 font-bold">
+                                                    <AlertCircle size={12} /> VENCE EM {daysUntil} DIAS
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-600">{new Date(d.cnhExpiration).toLocaleDateString('pt-BR')}</span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="p-4 text-center"><span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${d.status === 'ON_ROUTE' ? 'bg-blue-100 text-blue-700' : d.status === 'IDLE' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{d.status === 'ON_ROUTE' ? 'EM ROTA' : d.status === 'IDLE' ? 'DISPONÍVEL' : 'OFFLINE'}</span></td>
+                                    <td className="p-4 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <button onClick={() => setSelectedDriverForJourney(d)} className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-full transition-colors" title="Ver Jornada"><Clock size={18} /></button>
+                                            <button onClick={() => openEditModal(d)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="Editar"><Edit2 size={18} /></button>
+                                            <button onClick={() => setSelectedDriver(d)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="Detalhes"><ArrowLeft size={18} className="rotate-180" /></button>
+                                        </div>
                                     </td>
                                 </tr>
                             );
@@ -380,7 +444,73 @@ export const DriverList: React.FC = () => {
                 />
             )}
 
-            {/* MODAL DE EDIÇÃO/CRIAÇÃO */}
+            {/* MODAL DO LEÔNIDAS */}
+            {isLeonidasOpen && analyzingDriver && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-white flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md border border-white/30">
+                                    <Bot size={28} className="text-white" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold">Leônidas</h2>
+                                    <p className="text-purple-100 text-sm">Seu Gestor de Frota Virtual</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsLeonidasOpen(false)} className="text-white/70 hover:text-white hover:bg-white/10 p-1 rounded-full transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 overflow-y-auto custom-scrollbar">
+                            {isAnalyzing ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <Loader2 size={48} className="text-purple-600 animate-spin mb-4" />
+                                    <h3 className="text-lg font-bold text-slate-700">Analisando Prontuário...</h3>
+                                    <p className="text-slate-500 max-w-xs mt-2">Estou verificando o histórico de entregas e ocorrências de <strong>{analyzingDriver.name}</strong>.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+                                    <div className="flex items-center gap-2 text-sm text-slate-500 mb-2">
+                                        <UserCircle size={16} />
+                                        <span>Análise para: <strong>{analyzingDriver.name}</strong></span>
+                                    </div>
+
+                                    <div className="prose prose-slate prose-p:text-slate-600 prose-p:leading-relaxed">
+                                        {leonidasAnalysis.split('\n').map((paragraph, idx) => (
+                                            paragraph.trim() && <p key={idx} className="mb-3 last:mb-0">{paragraph}</p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        {!isAnalyzing && (
+                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        const text = encodeURIComponent(`Olá ${analyzingDriver.name}, aqui é da gestão. Segue um feedback sobre seu desempenho recente:\n\n${leonidasAnalysis}`);
+                                        window.open(`https://wa.me/${analyzingDriver.phone.replace(/\D/g, '')}?text=${text}`, '_blank');
+                                    }}
+                                    className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-sm flex items-center justify-center gap-2 transition-colors"
+                                >
+                                    <MessageSquare size={18} /> Enviar no WhatsApp
+                                </button>
+                                <button
+                                    onClick={() => setIsLeonidasOpen(false)}
+                                    className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg font-bold transition-colors"
+                                >
+                                    Fechar
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">

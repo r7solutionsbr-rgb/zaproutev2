@@ -120,6 +120,10 @@ export const api = {
         import: async (tenantId: string, drivers: any[]) => {
             const response = await client.post('/drivers/import', { tenantId, drivers });
             return response.data;
+        },
+        getAiAnalysis: async (id: string) => {
+            const response = await client.get(`/drivers/${id}/ai-analysis`);
+            return response.data;
         }
     },
     // --- VEÍCULOS ---
@@ -138,6 +142,25 @@ export const api = {
         },
         import: async (tenantId: string, vehicles: any[]) => {
             const response = await client.post('/vehicles/import', { tenantId, vehicles });
+            return response.data;
+        }
+    },
+    // --- VENDEDORES ---
+    sellers: {
+        getAll: async (tenantId: string) => {
+            const response = await client.get(`/sellers?tenantId=${tenantId}`);
+            return response.data;
+        },
+        create: async (data: any) => {
+            const response = await client.post('/sellers', data);
+            return response.data;
+        },
+        update: async (id: string, data: any) => {
+            const response = await client.patch(`/sellers/${id}`, data);
+            return response.data;
+        },
+        remove: async (id: string) => {
+            const response = await client.delete(`/sellers/${id}`);
             return response.data;
         }
     },
@@ -217,6 +240,12 @@ export const api = {
                 },
             });
             return response.data; // { url: string }
+        },
+    },
+    ai: {
+        chat: async (message: string, context?: string) => {
+            const response = await client.post('/ai/chat', { message, context });
+            return response.data;
         }
     }
 };

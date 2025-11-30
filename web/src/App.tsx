@@ -9,6 +9,7 @@ import { OccurrenceList } from './pages/OccurrenceList';
 import { CustomerList } from './pages/CustomerList';
 import { DriverList } from './pages/DriverList';
 import { VehicleList } from './pages/VehicleList';
+import { SellerList } from './pages/SellerList';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { DriverApp } from './pages/DriverApp';
@@ -19,6 +20,7 @@ import { ResetPassword } from './pages/ResetPassword';
 import { LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { api } from './services/api';
 import { DataProvider, useData } from './contexts/DataContext';
+import { AiChatWidget } from './components/AiChatWidget';
 
 // --- COMPONENTE DE LOGIN ---
 const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
@@ -126,9 +128,14 @@ const ProtectedLayoutContent = ({ user, logout }: any) => {
         {currentPage === 'customers' && <CustomerList />}
         {currentPage === 'drivers' && <DriverList />}
         {currentPage === 'vehicles' && <VehicleList />}
+        {currentPage === 'sellers' && <SellerList />}
         {currentPage === 'reports' && <Reports />}
         {currentPage === 'settings' && <Settings />}
         {currentPage === 'cep-search' && <CepSearch />}
+        {currentPage === 'cep-search' && <CepSearch />}
+
+        {/* WIDGET FLUTUANTE DO LEÔNIDAS */}
+        <AiChatWidget />
       </main>
     </div>
   );

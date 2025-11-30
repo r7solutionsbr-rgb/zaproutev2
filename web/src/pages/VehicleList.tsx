@@ -208,8 +208,8 @@ export const VehicleList: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                         <span className={`px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 ${selectedVehicle.status === 'IN_USE' ? 'bg-blue-100 text-blue-700' :
-                                selectedVehicle.status === 'AVAILABLE' ? 'bg-green-100 text-green-700' :
-                                    'bg-red-100 text-red-700'
+                            selectedVehicle.status === 'AVAILABLE' ? 'bg-green-100 text-green-700' :
+                                'bg-red-100 text-red-700'
                             }`}>
                             {selectedVehicle.status === 'IN_USE' ? 'EM OPERAÇÃO' : selectedVehicle.status === 'AVAILABLE' ? 'DISPONÍVEL' : 'MANUTENÇÃO'}
                         </span>
@@ -384,20 +384,30 @@ export const VehicleList: React.FC = () => {
                                         <span className="text-slate-700">{getCurrentDriver(v.id)}</span>
                                     </td>
                                     <td className="p-4 text-center">
-                                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${v.status === 'IN_USE' ? 'bg-blue-100 text-blue-700' :
-                                                v.status === 'AVAILABLE' ? 'bg-green-100 text-green-700' :
-                                                    'bg-red-100 text-red-700'
+                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${v.status === 'IN_USE' ? 'bg-blue-100 text-blue-700' :
+                                            v.status === 'AVAILABLE' ? 'bg-green-100 text-green-700' :
+                                                'bg-red-100 text-red-700'
                                             }`}>
                                             {v.status === 'IN_USE' ? 'EM USO' : v.status === 'AVAILABLE' ? 'DISPONÍVEL' : 'MANUTENÇÃO'}
                                         </span>
                                     </td>
-                                    <td className="p-4 text-right">
-                                        <button
-                                            onClick={() => setSelectedVehicle(v)}
-                                            className="text-blue-600 hover:text-blue-800 font-medium text-xs border border-blue-200 hover:bg-blue-50 px-3 py-1 rounded transition-colors"
-                                        >
-                                            Ver / Editar
-                                        </button>
+                                    <td className="p-4 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <button
+                                                onClick={() => setSelectedVehicle(v)}
+                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                                title="Ver Detalhes"
+                                            >
+                                                <ArrowLeft size={18} className="rotate-180" />
+                                            </button>
+                                            <button
+                                                onClick={() => openEditModal(v)}
+                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                                title="Editar"
+                                            >
+                                                <Settings size={18} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

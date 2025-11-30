@@ -12,6 +12,7 @@ import { SellersModule } from './sellers/sellers.module'; // <--- Importe do Sel
 import { JourneyModule } from './journey/journey.module';
 import { BackofficeModule } from './backoffice/backoffice.module';
 import { StorageModule } from './storage/storage.module';
+import { MailModule } from './mail/mail.module'; // <--- Importe do MailModule
 
 // --- CONTROLADORES (Rotas da API) ---
 import { RoutesController } from './routes/routes.controller';
@@ -33,8 +34,11 @@ import { TenantsService } from './tenants/tenants.service';
 import { UsersService } from './users/users.service';
 import { SellersService } from './sellers/sellers.service'; // <--- Importe do SellersService
 
+import { ConfigModule } from '@nestjs/config';
+
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }), // <--- Carrega o .env automaticamente
     // Serve o Frontend (React/Vite)
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'dist', 'client'),
@@ -49,6 +53,7 @@ import { SellersService } from './sellers/sellers.service'; // <--- Importe do S
     JourneyModule,
     BackofficeModule,
     StorageModule,
+    MailModule, // <--- Adicionado para disponibilizar MailService globalmente (ou para UsersService)
   ],
   controllers: [
     // Endpoints
