@@ -6,7 +6,7 @@ import axios from 'axios';
 export class CustomersService {
   private readonly logger = new Logger(CustomersService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // --- BUSCA COM PAGINAÇÃO E FILTRO ---
   async findAll(tenantId: string, page: number, limit: number, search: string) {
@@ -15,32 +15,32 @@ export class CustomersService {
     const skip = (page - 1) * limit;
 
     const whereClause: any = {
-        tenantId,
-        OR: search ? [
-            { tradeName: { contains: search, mode: 'insensitive' } },
-            { legalName: { contains: search, mode: 'insensitive' } },
-            { cnpj: { contains: search } }
-        ] : undefined
+      tenantId,
+      OR: search ? [
+        { tradeName: { contains: search, mode: 'insensitive' } },
+        { legalName: { contains: search, mode: 'insensitive' } },
+        { cnpj: { contains: search } }
+      ] : undefined
     };
 
     const [total, data] = await Promise.all([
-        (this.prisma as any).customer.count({ where: whereClause }),
-        (this.prisma as any).customer.findMany({
-            where: whereClause,
-            skip,
-            take: limit,
-            orderBy: { tradeName: 'asc' },
-            include: { seller: true }
-        })
+      (this.prisma as any).customer.count({ where: whereClause }),
+      (this.prisma as any).customer.findMany({
+        where: whereClause,
+        skip,
+        take: limit,
+        orderBy: { tradeName: 'asc' },
+        include: { seller: true }
+      })
     ]);
 
     return {
-        data,
-        meta: {
-            total,
-            page,
-            lastPage: Math.ceil(total / limit)
-        }
+      data,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit)
+      }
     };
   }
 
@@ -73,39 +73,39 @@ export class CustomersService {
 
     const details = customer.addressDetails || {};
     const addressStr = [
-        details.street, 
-        details.number, 
-        details.city, 
-        details.state, 
-        "Brasil"
+      details.street,
+      details.number,
+      details.city,
+      details.state,
+      "Brasil"
     ].filter(Boolean).join(', ');
 
     if (addressStr.length < 10) throw new Error('Endereço incompleto para geocodificação.');
 
     try {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressStr)}&limit=1`;
-        const response = await axios.get(url, { headers: { 'User-Agent': 'ZapRoute/1.0' } });
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressStr)}&limit=1`;
+      const response = await axios.get(url, { headers: { 'User-Agent': 'ZapRoute/1.0' } });
 
-        if (response.data && response.data.length > 0) {
-            const lat = parseFloat(response.data[0].lat);
-            const lng = parseFloat(response.data[0].lon);
+      if (response.data && response.data.length > 0) {
+        const lat = parseFloat(response.data[0].lat);
+        const lng = parseFloat(response.data[0].lon);
 
-            return (this.prisma as any).customer.update({
-                where: { id },
-                data: {
-                    location: {
-                        lat,
-                        lng,
-                        address: customer.location?.address || addressStr
-                    }
-                }
-            });
-        } else {
-            throw new Error('Endereço não localizado no mapa.');
-        }
+        return (this.prisma as any).customer.update({
+          where: { id },
+          data: {
+            location: {
+              lat,
+              lng,
+              address: customer.location?.address || addressStr
+            }
+          }
+        });
+      } else {
+        throw new Error('Endereço não localizado no mapa.');
+      }
     } catch (error: any) {
-        this.logger.error(`Erro ao geocodificar: ${error.message}`);
-        throw new Error('Falha ao conectar serviço de mapas.');
+      this.logger.error(`Erro ao geocodificar: ${error.message}`);
+      throw new Error('Falha ao conectar serviço de mapas.');
     }
   }
 
@@ -114,12 +114,12 @@ export class CustomersService {
     // Contadores
     let createdCount = 0;
     let updatedCount = 0;
-    
+
     // 1. OTIMIZAÇÃO: Carrega todos os vendedores em memória (Cache)
-    const existingSellers = await (this.prisma as any).seller.findMany({ 
-        where: { tenantId } 
+    const existingSellers = await (this.prisma as any).seller.findMany({
+      where: { tenantId }
     });
-    
+
     const sellerMap = new Map<string, string>();
     existingSellers.forEach((s: any) => sellerMap.set(s.name.toUpperCase().trim(), s.id));
 
@@ -129,69 +129,78 @@ export class CustomersService {
       // 2. Resolve Vendedor
       let sellerId = null;
       if (c.salesperson) {
-          const sName = c.salesperson.toUpperCase().trim();
-          
-          if (sellerMap.has(sName)) {
-              sellerId = sellerMap.get(sName);
-          } else {
-              try {
-                  const newSeller = await (this.prisma as any).seller.create({
-                      data: {
-                          name: c.salesperson,
-                          tenant: { connect: { id: tenantId } },
-                          status: 'ACTIVE'
-                      }
-                  });
-                  sellerId = newSeller.id;
-                  sellerMap.set(sName, sellerId);
-              } catch (e) {
-                  this.logger.warn(`Erro ao criar vendedor automático: ${sName}`);
+        const sName = c.salesperson.toUpperCase().trim();
+
+        if (sellerMap.has(sName)) {
+          sellerId = sellerMap.get(sName);
+        } else {
+          try {
+            const newSeller = await (this.prisma as any).seller.create({
+              data: {
+                name: c.salesperson,
+                tenant: { connect: { id: tenantId } },
+                status: 'ACTIVE'
               }
+            });
+            sellerId = newSeller.id;
+            sellerMap.set(sName, sellerId);
+          } catch (e) {
+            this.logger.warn(`Erro ao criar vendedor automático: ${sName}`);
           }
+        }
       }
 
       // 3. Verifica Existência
       const existingCustomer = await (this.prisma as any).customer.findFirst({
-        where: { 
-            tenantId: tenantId,
-            OR: [
-                { cnpj: c.cnpj },
-                { tradeName: c.tradeName } 
-            ]
+        where: {
+          tenantId: tenantId,
+          OR: [
+            { cnpj: c.cnpj },
+            { tradeName: c.tradeName }
+          ]
         }
       });
 
       // 4. Prepara Dados
       const rawData = {
-          legalName: c.legalName || c.tradeName,
-          tradeName: c.tradeName,
-          cnpj: c.cnpj,
-          stateRegistration: c.stateRegistration,
-          email: c.email,
-          phone: c.phone,
-          whatsapp: c.whatsapp,
-          salesperson: c.salesperson,
-          sellerId: sellerId,
-          location: c.location || { lat: 0, lng: 0, address: 'Não informado' },
-          addressDetails: c.addressDetails || {},
-          creditLimit: c.creditLimit,
-          status: 'ACTIVE'
+        legalName: c.legalName || c.tradeName,
+        tradeName: c.tradeName,
+        cnpj: c.cnpj,
+        stateRegistration: c.stateRegistration,
+        email: c.email,
+        phone: c.phone,
+        whatsapp: c.whatsapp,
+        salesperson: c.salesperson,
+        location: c.location || { lat: 0, lng: 0, address: 'Não informado' },
+        addressDetails: c.addressDetails || {},
+        creditLimit: c.creditLimit,
+        status: 'ACTIVE'
       };
 
       const customerData = this.prepareData(rawData);
+
+      // Prepare relation object
+      const relationData: any = {};
+      if (sellerId) {
+        relationData.seller = { connect: { id: sellerId } };
+      }
 
       // 5. Salva e Incrementa Contadores
       if (existingCustomer) {
         await (this.prisma as any).customer.update({
           where: { id: existingCustomer.id },
-          data: customerData
+          data: {
+            ...customerData,
+            ...relationData
+          }
         });
         updatedCount++;
       } else {
         await (this.prisma as any).customer.create({
           data: {
-              ...customerData,
-              tenant: { connect: { id: tenantId } }
+            ...customerData,
+            ...relationData,
+            tenant: { connect: { id: tenantId } }
           }
         });
         createdCount++;
@@ -199,10 +208,10 @@ export class CustomersService {
     }
 
     // RETORNO PERSONALIZADO
-    return { 
-        message: `Processamento finalizado! ${createdCount} clientes adicionados e ${updatedCount} atualizados.`,
-        created: createdCount,
-        updated: updatedCount
+    return {
+      message: `Processamento finalizado! ${createdCount} clientes adicionados e ${updatedCount} atualizados.`,
+      created: createdCount,
+      updated: updatedCount
     };
   }
 
@@ -210,18 +219,18 @@ export class CustomersService {
     const clean: any = { ...data };
 
     if (clean.creditLimit === '' || clean.creditLimit === null || clean.creditLimit === undefined) {
-        clean.creditLimit = null;
+      clean.creditLimit = null;
     } else {
-        const floatVal = parseFloat(clean.creditLimit);
-        clean.creditLimit = isNaN(floatVal) ? null : floatVal;
+      const floatVal = parseFloat(clean.creditLimit);
+      clean.creditLimit = isNaN(floatVal) ? null : floatVal;
     }
 
     if (clean.location) {
-        clean.location = {
-            ...clean.location,
-            lat: parseFloat(clean.location.lat || 0),
-            lng: parseFloat(clean.location.lng || 0)
-        };
+      clean.location = {
+        ...clean.location,
+        lat: parseFloat(clean.location.lat || 0),
+        lng: parseFloat(clean.location.lng || 0)
+      };
     }
 
     return clean;

@@ -37,7 +37,11 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
       localStorage.setItem('zaproute_token', data.access_token);
       localStorage.setItem('zaproute_user', JSON.stringify(data.user));
       onLogin();
-      navigate('/');
+      if (data.user.role === 'SUPER_ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError('E-mail ou senha incorretos.');
     } finally {
@@ -90,6 +94,11 @@ const ProtectedLayoutContent = ({ user, logout }: any) => {
   // Se for Motorista, mostra App Simplificado
   if (user.role === 'DRIVER') {
     return <DriverApp driverId={user.id} deliveries={deliveries} updateDeliveryStatus={() => { }} />;
+  }
+
+  // Se for Super Admin, redireciona para o painel admin
+  if (user.role === 'SUPER_ADMIN') {
+    return <Navigate to="/admin" />;
   }
 
   return (
