@@ -44,4 +44,4 @@ COPY --from=builder /app/prisma ./prisma
 EXPOSE 8080
 
 # Comando único de inicialização
-CMD ["node", "dist/server/main.js"]
+CMD ["node", "dist/main.js"]

@@ -15,5 +15,18 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: zaproute_api
+    restart: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./server/.env
+    depends_on:
+      - postgres
+
 volumes:
   postgres_data:

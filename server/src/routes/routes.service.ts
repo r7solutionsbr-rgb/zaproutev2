@@ -55,9 +55,10 @@ export class RoutesService {
 
     const where: any = { tenantId };
 
-    if (days) {
+    if (days || days === undefined) {
+      const limit = days || 30; // Default 30 days
       const date = new Date();
-      date.setDate(date.getDate() - days);
+      date.setDate(date.getDate() - limit);
       where.date = { gte: date };
     }
 
