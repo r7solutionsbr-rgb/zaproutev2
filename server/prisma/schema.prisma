@@ -12,6 +12,8 @@ model Tenant {
   name         String
   slug         String   @unique
   plan         String
+  status       String   @default("ACTIVE") // ACTIVE, BLOCKED, TRIAL
+  subscriptionEndsAt DateTime?
   
   // --- CAMPOS DE CONFIGURAÇÃO ---
   cnpj         String?
@@ -29,6 +31,9 @@ model Tenant {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   occurrences  Occurrence[]
+  journeyEvents DriverJourneyEvent[]
+  currentJourneyStatus JourneyEventType?
+  lastJourneyEvent     DateTime?
 }
 
 model User {
@@ -74,6 +79,9 @@ model Driver {
   routes          Route[]
   deliveries      Delivery[]
   occurrences     Occurrence[]
+  journeyEvents   DriverJourneyEvent[]
+  currentJourneyStatus JourneyEventType?
+  lastJourneyEvent     DateTime?
   @@index([tenantId])
   @@index([phone]) // Crítico para o Webhook achar rápido
   @@index([cpf])
@@ -232,4 +240,34 @@ model Occurrence {
   tenant      Tenant   @relation(fields: [tenantId], references: [id])
   
   createdAt   DateTime @default(now())
+}
+
+enum JourneyEventType {
+  JOURNEY_START
+  JOURNEY_END
+  MEAL_START
+  MEAL_END
+  WAIT_START
+  WAIT_END
+  REST_START
+  REST_END
+}
+
+model DriverJourneyEvent {
+  id              String           @id @default(uuid())
+  driverId        String
+  driver          Driver           @relation(fields: [driverId], references: [id])
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  type            JourneyEventType
+  timestamp       DateTime         @default(now())
+  latitude        Float?
+  longitude       Float?
+  locationAddress String?
+  notes           String?
+
+  createdAt       DateTime         @default(now())
+
+  @@index([driverId])
+  @@index([tenantId])
 }

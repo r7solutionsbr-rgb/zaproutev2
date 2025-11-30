@@ -8,8 +8,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      // CORREÇÃO: Usar a mesma lógica do AuthModule
-      secretOrKey: process.env.JWT_SECRET || 'SEGREDO_SUPER_SECRETO_DO_MVP', 
+      // CORREÇÃO: Remover fallback inseguro. A aplicação deve falhar se não houver segredo.
+      secretOrKey: process.env.JWT_SECRET,
     });
   }
 

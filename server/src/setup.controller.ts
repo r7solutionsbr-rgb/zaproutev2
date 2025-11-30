@@ -1,14 +1,25 @@
-import { Controller, Post, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, HttpException, HttpStatus, Headers as RequestHeaders } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { exec } from 'child_process';
 import * as bcrypt from 'bcryptjs';
 
 @Controller('setup')
 export class SetupController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
+
+  private checkAuth(headers: any) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new HttpException('Endpoint desativado em produção', HttpStatus.FORBIDDEN);
+    }
+    const adminKey = headers['x-admin-key'];
+    if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
+      throw new HttpException('Acesso negado: Chave de administração inválida', HttpStatus.FORBIDDEN);
+    }
+  }
 
   @Post('db-push')
-  async dbPush() {
+  async dbPush(@RequestHeaders() headers: any) {
+    this.checkAuth(headers);
     return new Promise((resolve, reject) => {
       // --- MUDANÇA AQUI: Usando --force-reset para limpar o banco conflitante ---
       exec('npx prisma db push --force-reset', (error, stdout, stderr) => {
@@ -22,7 +33,8 @@ export class SetupController {
   }
 
   @Post('seed')
-  async seed() {
+  async seed(@RequestHeaders() headers: any) {
+    this.checkAuth(headers);
     try {
       console.log('🌱 Iniciando Seed via API...');
 
@@ -45,12 +57,12 @@ export class SetupController {
 
       // 3. Criar/Atualizar Admin
       const email = 'admin@zaproute.com';
-      
+
       // Nota: Como vamos resetar o banco, o 'upsert' vai agir como 'create' na prática
       const user = await (this.prisma as any).user.upsert({
         where: { email },
         update: {
-            password: hashedPassword
+          password: hashedPassword
         },
         create: {
           email,
@@ -61,10 +73,10 @@ export class SetupController {
         }
       });
 
-      return { 
-        success: true, 
-        message: 'Banco resetado e Admin recriado com senha "123456"', 
-        user: { email: user.email } 
+      return {
+        success: true,
+        message: 'Banco resetado e Admin recriado com senha "123456"',
+        user: { email: user.email }
       };
 
     } catch (error: any) {

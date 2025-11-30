@@ -9,6 +9,8 @@ import { WebhookModule } from './webhook/webhook.module';
 import { AiModule } from './ai/ai.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { SellersModule } from './sellers/sellers.module'; // <--- Importe do SellersModule
+import { JourneyModule } from './journey/journey.module';
+import { BackofficeModule } from './backoffice/backoffice.module';
 
 // --- CONTROLADORES (Rotas da API) ---
 import { RoutesController } from './routes/routes.controller';
@@ -43,29 +45,31 @@ import { SellersService } from './sellers/sellers.service'; // <--- Importe do S
     AiModule,
     WhatsappModule,
     SellersModule, // <--- Adição do SellersModule
+    JourneyModule,
+    BackofficeModule,
   ],
   controllers: [
     // Endpoints
-    RoutesController, 
-    SetupController, 
+    RoutesController,
+    SetupController,
     HealthController,
     DriversController,
     VehiclesController,
     CustomersController,
     TenantsController,
     UsersController
-    
+
   ],
   providers: [
     // Serviços Globais e de Entidades
-    PrismaService, 
-    RoutesService, 
-    DriversService, 
-    VehiclesService, 
+    PrismaService,
+    RoutesService,
+    DriversService,
+    VehiclesService,
     CustomersService,
     TenantsService,
     UsersService,
     SellersService
   ],
 })
-export class AppModule {}
+export class AppModule { }
