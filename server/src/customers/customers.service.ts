@@ -82,6 +82,9 @@ export class CustomersService {
 
     if (addressStr.length < 10) throw new Error('Endereço incompleto para geocodificação.');
 
+    // THROTTLE: Espera 1.5s antes de chamar a API
+    await new Promise(r => setTimeout(r, 1500));
+
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressStr)}&limit=1`;
       const response = await axios.get(url, { headers: { 'User-Agent': 'ZapRoute/1.0' } });
@@ -101,15 +104,27 @@ export class CustomersService {
           }
         });
       } else {
-        throw new Error('Endereço não localizado no mapa.');
+        // Salva sem coordenadas para não travar processos futuros
+        this.logger.warn(`Endereço não localizado: ${addressStr}`);
+        return (this.prisma as any).customer.update({
+          where: { id },
+          data: {
+            location: {
+              lat: 0,
+              lng: 0,
+              address: addressStr + " (Não localizado)"
+            }
+          }
+        });
       }
     } catch (error: any) {
       this.logger.error(`Erro ao geocodificar: ${error.message}`);
-      throw new Error('Falha ao conectar serviço de mapas.');
+      // Não lança erro para não quebrar importações em massa
+      return null;
     }
   }
 
-  // --- IMPORTAÇÃO MASSIVA (Com Contadores e Resumo) ---
+  // --- IMPORTAÇÃO MASSIVA COM BATCH ---
   async importMassive(tenantId: string, customers: any[]) {
     // Contadores
     let createdCount = 0;
@@ -123,87 +138,95 @@ export class CustomersService {
     const sellerMap = new Map<string, string>();
     existingSellers.forEach((s: any) => sellerMap.set(s.name.toUpperCase().trim(), s.id));
 
-    for (const c of customers) {
-      if (!c.cnpj && !c.tradeName) continue;
+    // PROCESSAMENTO EM LOTES (CHUNKS)
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < customers.length; i += BATCH_SIZE) {
+      const batch = customers.slice(i, i + BATCH_SIZE);
 
-      // 2. Resolve Vendedor
-      let sellerId = null;
-      if (c.salesperson) {
-        const sName = c.salesperson.toUpperCase().trim();
+      // Processa o lote em paralelo (mas cuidado com conexões do banco)
+      // Aqui faremos sequencial dentro do lote para garantir integridade
+      for (const c of batch) {
+        if (!c.cnpj && !c.tradeName) continue;
 
-        if (sellerMap.has(sName)) {
-          sellerId = sellerMap.get(sName);
+        // 2. Resolve Vendedor
+        let sellerId = null;
+        if (c.salesperson) {
+          const sName = c.salesperson.toUpperCase().trim();
+
+          if (sellerMap.has(sName)) {
+            sellerId = sellerMap.get(sName);
+          } else {
+            try {
+              const newSeller = await (this.prisma as any).seller.create({
+                data: {
+                  name: c.salesperson,
+                  tenant: { connect: { id: tenantId } },
+                  status: 'ACTIVE'
+                }
+              });
+              sellerId = newSeller.id;
+              sellerMap.set(sName, sellerId);
+            } catch (e) {
+              this.logger.warn(`Erro ao criar vendedor automático: ${sName}`);
+            }
+          }
+        }
+
+        // 3. Verifica Existência
+        const existingCustomer = await (this.prisma as any).customer.findFirst({
+          where: {
+            tenantId: tenantId,
+            OR: [
+              { cnpj: c.cnpj },
+              { tradeName: c.tradeName }
+            ]
+          }
+        });
+
+        // 4. Prepara Dados
+        const rawData = {
+          legalName: c.legalName || c.tradeName,
+          tradeName: c.tradeName,
+          cnpj: c.cnpj,
+          stateRegistration: c.stateRegistration,
+          email: c.email,
+          phone: c.phone,
+          whatsapp: c.whatsapp,
+          salesperson: c.salesperson,
+          location: c.location || { lat: 0, lng: 0, address: 'Não informado' },
+          addressDetails: c.addressDetails || {},
+          creditLimit: c.creditLimit,
+          status: 'ACTIVE'
+        };
+
+        const customerData = this.prepareData(rawData);
+
+        // Prepare relation object
+        const relationData: any = {};
+        if (sellerId) {
+          relationData.seller = { connect: { id: sellerId } };
+        }
+
+        // 5. Salva e Incrementa Contadores
+        if (existingCustomer) {
+          await (this.prisma as any).customer.update({
+            where: { id: existingCustomer.id },
+            data: {
+              ...customerData,
+              ...relationData
+            }
+          });
+          updatedCount++;
         } else {
-          try {
-            const newSeller = await (this.prisma as any).seller.create({
-              data: {
-                name: c.salesperson,
-                tenant: { connect: { id: tenantId } },
-                status: 'ACTIVE'
-              }
-            });
-            sellerId = newSeller.id;
-            sellerMap.set(sName, sellerId);
-          } catch (e) {
-            this.logger.warn(`Erro ao criar vendedor automático: ${sName}`);
-          }
+          await (this.prisma as any).customer.create({
+            data: {
+              ...customerData,
+              ...relationData,
+              tenant: { connect: { id: tenantId } }
+            }
+          });
+          createdCount++;
         }
-      }
-
-      // 3. Verifica Existência
-      const existingCustomer = await (this.prisma as any).customer.findFirst({
-        where: {
-          tenantId: tenantId,
-          OR: [
-            { cnpj: c.cnpj },
-            { tradeName: c.tradeName }
-          ]
-        }
-      });
-
-      // 4. Prepara Dados
-      const rawData = {
-        legalName: c.legalName || c.tradeName,
-        tradeName: c.tradeName,
-        cnpj: c.cnpj,
-        stateRegistration: c.stateRegistration,
-        email: c.email,
-        phone: c.phone,
-        whatsapp: c.whatsapp,
-        salesperson: c.salesperson,
-        location: c.location || { lat: 0, lng: 0, address: 'Não informado' },
-        addressDetails: c.addressDetails || {},
-        creditLimit: c.creditLimit,
-        status: 'ACTIVE'
-      };
-
-      const customerData = this.prepareData(rawData);
-
-      // Prepare relation object
-      const relationData: any = {};
-      if (sellerId) {
-        relationData.seller = { connect: { id: sellerId } };
-      }
-
-      // 5. Salva e Incrementa Contadores
-      if (existingCustomer) {
-        await (this.prisma as any).customer.update({
-          where: { id: existingCustomer.id },
-          data: {
-            ...customerData,
-            ...relationData
-          }
-        });
-        updatedCount++;
-      } else {
-        await (this.prisma as any).customer.create({
-          data: {
-            ...customerData,
-            ...relationData,
-            tenant: { connect: { id: tenantId } }
-          }
-        });
-        createdCount++;
       }
     }
 
