@@ -405,8 +405,16 @@ export const RoutePlanner: React.FC = () => {
             await api.routes.import(routesMap[key]);
             currentSuccess++;
           } catch (error: any) {
-            const msg = error.response?.data?.message || error.message || 'Erro';
-            currentErrors.push({ route: key, message: Array.isArray(msg) ? msg.join(', ') : msg });
+            let msg = error.response?.data?.message || error.message || 'Erro desconhecido';
+            
+            if (Array.isArray(msg)) {
+              msg = msg.join(', ');
+            } else if (typeof msg === 'object' && msg !== null) {
+              // Se for objeto (ex: { message, error, statusCode }), tenta extrair a mensagem ou converte para JSON
+              msg = msg.message || JSON.stringify(msg);
+            }
+            
+            currentErrors.push({ route: key, message: String(msg) });
           }
         }
         setImportResults({ success: currentSuccess, errors: currentErrors });
