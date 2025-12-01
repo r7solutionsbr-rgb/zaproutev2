@@ -377,15 +377,31 @@ export const RoutePlanner: React.FC = () => {
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+        const rows: any[] = XLSX.utils.sheet_to_json(sheet, { cellDates: true } as any);
         if (rows.length === 0) throw new Error("Arquivo vazio.");
         const routesMap: Record<string, any> = {};
+
+        // Helper para formatar data
+        const formatDateForBackend = (val: any) => {
+          if (!val) return new Date().toISOString();
+          if (val instanceof Date) return val.toISOString();
+          const d = new Date(val);
+          return !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
+        };
+
         rows.forEach((row: any) => {
           const routeName = row['Nome da Rota'] || 'Rota Importada';
           const driverCpf = String(row['CPF Motorista'] || '');
           const vehiclePlate = String(row['Placa Veiculo'] || '');
           if (!routesMap[routeName]) {
-            routesMap[routeName] = { tenantId, name: routeName, date: row['Data (YYYY-MM-DD)'] || new Date().toISOString(), driverCpf, vehiclePlate, deliveries: [] };
+            routesMap[routeName] = {
+              tenantId,
+              name: routeName,
+              date: formatDateForBackend(row['Data (YYYY-MM-DD)']),
+              driverCpf,
+              vehiclePlate,
+              deliveries: []
+            };
           }
           routesMap[routeName].deliveries.push({
             invoiceNumber: String(row['Nota Fiscal'] || ''),
@@ -406,14 +422,14 @@ export const RoutePlanner: React.FC = () => {
             currentSuccess++;
           } catch (error: any) {
             let msg = error.response?.data?.message || error.message || 'Erro desconhecido';
-            
+
             if (Array.isArray(msg)) {
               msg = msg.join(', ');
             } else if (typeof msg === 'object' && msg !== null) {
               // Se for objeto (ex: { message, error, statusCode }), tenta extrair a mensagem ou converte para JSON
               msg = msg.message || JSON.stringify(msg);
             }
-            
+
             currentErrors.push({ route: key, message: String(msg) });
           }
         }
