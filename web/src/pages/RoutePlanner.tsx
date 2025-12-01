@@ -389,6 +389,17 @@ export const RoutePlanner: React.FC = () => {
           return !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
         };
 
+        // Helper para formatar CNPJ
+        const maskCNPJ = (value: string) => {
+          if (!value) return "";
+          const v = value.replace(/\D/g, '').slice(0, 14);
+          if (v.length > 12) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5, 8)}/${v.slice(8, 12)}-${v.slice(12)}`;
+          if (v.length > 8) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5, 8)}/${v.slice(8)}`;
+          if (v.length > 5) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5)}`;
+          if (v.length > 2) return `${v.slice(0, 2)}.${v.slice(2)}`;
+          return v;
+        };
+
         rows.forEach((row: any) => {
           const routeName = row['Nome da Rota'] || 'Rota Importada';
           const driverCpf = String(row['CPF Motorista'] || '');
@@ -406,7 +417,7 @@ export const RoutePlanner: React.FC = () => {
           routesMap[routeName].deliveries.push({
             invoiceNumber: String(row['Nota Fiscal'] || ''),
             customerName: row['Nome Cliente'] || 'Desconhecido',
-            customerCnpj: String(row['CNPJ Cliente'] || ''),
+            customerCnpj: maskCNPJ(String(row['CNPJ Cliente'] || '')),
             customerAddress: row['Endereco'] || '',
             volume: parseFloat(row['Volume'] || 0),
             weight: parseFloat(row['Peso'] || 0),
