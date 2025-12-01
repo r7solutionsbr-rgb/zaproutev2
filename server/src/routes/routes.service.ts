@@ -104,6 +104,12 @@ export class RoutesService {
     return (this.prisma as any).route.delete({ where: { id } });
   }
 
+  private formatCNPJ(value: string): string {
+    const v = this.cleanString(value);
+    if (v.length !== 14) return value;
+    return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5, 8)}/${v.slice(8, 12)}-${v.slice(12)}`;
+  }
+
   // --- IMPORTAÇÃO ESTRITA (APENAS VINCULA) ---
   async importRoute(data: CreateRouteDto) {
     this.logger.log(`🔒 Iniciando importação estrita: ${data.name}`);
@@ -155,15 +161,17 @@ export class RoutesService {
       const missingCustomers = [];
 
       // Coletar todos os CNPJs e Nomes para buscar de uma vez
-      const cnpjs = data.deliveries.map(d => d.customerCnpj ? this.cleanString(d.customerCnpj) : null).filter(Boolean);
+      const rawCnpjs = data.deliveries.map(d => d.customerCnpj ? this.cleanString(d.customerCnpj) : null).filter(Boolean);
+      const formattedCnpjs = rawCnpjs.map(c => this.formatCNPJ(c));
       const names = data.deliveries.map(d => d.customerName).filter(Boolean);
 
-      // Busca em lote
+      // Busca em lote (CNPJ Limpo OU Formatado)
       const existingCustomers = await tx.customer.findMany({
         where: {
           tenantId: data.tenantId,
           OR: [
-            { cnpj: { in: cnpjs } },
+            { cnpj: { in: rawCnpjs } },
+            { cnpj: { in: formattedCnpjs } },
             { tradeName: { in: names, mode: 'insensitive' } },
             { legalName: { in: names, mode: 'insensitive' } }
           ]
