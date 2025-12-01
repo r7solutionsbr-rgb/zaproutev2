@@ -425,12 +425,48 @@ export const CustomerList: React.FC = () => {
     );
 };
 
+import { cnpjService } from '../services/cnpj';
+
 // (O CustomerFormModal permanece o mesmo, apenas certifique-se de que está no final do arquivo ou importado)
 const CustomerFormModal = ({ isOpen, onClose, mode, data, setData, onSave, isLoading, formError, maskCNPJ, maskPhone, handleAddressChange, handleLocationChange }: any) => {
     const [activeTab, setActiveTab] = useState<'DATA' | 'ADDRESS' | 'CONTACT'>('DATA');
     const [loadingCep, setLoadingCep] = useState(false);
+    const [loadingCnpj, setLoadingCnpj] = useState(false);
+    const [localError, setLocalError] = useState('');
 
     if (!isOpen) return null;
+
+    const handleCnpjSearch = async () => {
+        setLocalError('');
+        if (!data.cnpj || data.cnpj.length < 14) {
+            setLocalError('Digite um CNPJ válido para buscar.');
+            return;
+        }
+
+        setLoadingCnpj(true);
+        try {
+            const res = await cnpjService.search(data.cnpj);
+            setData((prev: any) => ({
+                ...prev,
+                legalName: res.razao_social,
+                tradeName: res.nome_fantasia || res.razao_social,
+                phone: maskPhone(res.ddd_telefone_1),
+                addressDetails: {
+                    ...prev.addressDetails,
+                    street: res.logradouro,
+                    number: res.numero,
+                    neighborhood: res.bairro,
+                    city: res.municipio,
+                    state: res.uf,
+                    zipCode: res.cep
+                }
+            }));
+        } catch (error: any) {
+            setLocalError(error.message);
+        } finally {
+            setLoadingCnpj(false);
+        }
+    };
 
     const handleCepSearch = async () => {
         const cep = data.addressDetails?.zipCode?.replace(/\D/g, '');
@@ -499,11 +535,33 @@ const CustomerFormModal = ({ isOpen, onClose, mode, data, setData, onSave, isLoa
                 <div className="overflow-y-auto p-6 flex-1 bg-slate-50/30">
                     <form id="customerForm" onSubmit={onSave} className="space-y-4">
                         {formError && <div className="p-3 bg-red-50 text-red-600 rounded text-sm flex items-center gap-2"><AlertCircle size={16} /> {formError}</div>}
+                        {localError && <div className="p-3 bg-amber-50 text-amber-600 rounded text-sm flex items-center gap-2"><AlertCircle size={16} /> {localError}</div>}
 
                         {/* ABA: DADOS */}
                         {activeTab === 'DATA' && (
                             <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
-                                <div><label className="text-xs font-bold text-slate-500 block mb-1">CNPJ *</label><input required className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.cnpj} onChange={e => setData({ ...data, cnpj: maskCNPJ(e.target.value) })} maxLength={18} placeholder="00.000.000/0000-00" /></div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 block mb-1">CNPJ *</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            required
+                                            className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                            value={data.cnpj}
+                                            onChange={e => setData({ ...data, cnpj: maskCNPJ(e.target.value) })}
+                                            maxLength={18}
+                                            placeholder="00.000.000/0000-00"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleCnpjSearch}
+                                            disabled={loadingCnpj}
+                                            className="p-2.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-2 font-bold text-sm"
+                                            title="Buscar Dados na Receita"
+                                        >
+                                            {loadingCnpj ? <Loader2 size={20} className="animate-spin" /> : <><Search size={18} /> Buscar</>}
+                                        </button>
+                                    </div>
+                                </div>
                                 <div><label className="text-xs font-bold text-slate-500 block mb-1">Razão Social</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.legalName} onChange={e => setData({ ...data, legalName: e.target.value })} placeholder="Razão Social Ltda" /></div>
                                 <div><label className="text-xs font-bold text-slate-500 block mb-1">Nome Fantasia *</label><input required className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.tradeName} onChange={e => setData({ ...data, tradeName: e.target.value })} placeholder="Nome Fantasia" /></div>
                                 <div><label className="text-xs font-bold text-slate-500 block mb-1">Inscrição Estadual</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.stateRegistration} onChange={e => setData({ ...data, stateRegistration: e.target.value })} placeholder="Isento ou Número" /></div>
