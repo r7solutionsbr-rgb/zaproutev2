@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Customer } from '../types';
-import { Users, Search, MapPin, Phone, Mail, User, MessageCircle, ArrowLeft, Building, FileText, Save, X, Plus, Download, FileSpreadsheet, Loader2, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Eye, Edit2 } from 'lucide-react';
+import { Users, Search, MessageCircle, Building, Plus, FileSpreadsheet, Loader2, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Eye, Edit2, User, X, Phone } from 'lucide-react';
 import { api } from '../services/api';
 import * as XLSX from 'xlsx';
+import { CustomerFormModal } from '../components/CustomerFormModal';
+import { maskCNPJ, maskPhone } from '../Utils/formatters';
 
 export const CustomerList: React.FC = () => {
     const [customers, setCustomers] = useState<Customer[]>([]);
@@ -15,11 +17,13 @@ export const CustomerList: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
 
-    // Estados de Modal e Seleção (Mantidos)
+    // Estados de Modal e Seleção
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState<'CREATE' | 'EDIT'>('CREATE');
-    const [formData, setFormData] = useState<Partial<Customer>>({ addressDetails: {} });
+    const [formData, setFormData] = useState<Partial<Customer>>({
+        addressDetails: { street: '', number: '', neighborhood: '', city: '', state: '', zipCode: '' }
+    });
     const [modalLoading, setModalLoading] = useState(false);
     const [formError, setFormError] = useState('');
     const [notification, setNotification] = useState<{ type: 'SUCCESS' | 'ERROR', message: string } | null>(null);
@@ -51,6 +55,7 @@ export const CustomerList: React.FC = () => {
             }
         } catch (e) {
             console.error("Failed to load customers", e);
+            setNotification({ type: 'ERROR', message: 'Falha ao carregar clientes.' });
         } finally {
             setLoading(false);
         }
@@ -68,32 +73,6 @@ export const CustomerList: React.FC = () => {
             return () => clearTimeout(timer);
         }
     }, [notification]);
-
-
-    // --- MÁSCARAS (Mantidas) ---
-    const maskCNPJ = (value: string) => {
-        if (!value) return "";
-        const v = value.replace(/\D/g, '').slice(0, 14);
-        if (v.length > 12) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5, 8)}/${v.slice(8, 12)}-${v.slice(12)}`;
-        if (v.length > 8) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5, 8)}/${v.slice(8)}`;
-        if (v.length > 5) return `${v.slice(0, 2)}.${v.slice(2, 5)}.${v.slice(5)}`;
-        if (v.length > 2) return `${v.slice(0, 2)}.${v.slice(2)}`;
-        return v;
-    };
-
-    const maskPhone = (value: string) => {
-        if (!value) return "";
-        let v = value;
-        if (v.startsWith("+55")) v = v.substring(3);
-        v = v.replace(/\D/g, "");
-        v = v.slice(0, 11);
-        if (!v) return "";
-        let s = "+55";
-        if (v.length > 0) s += ` (${v.slice(0, 2)}`;
-        if (v.length > 2) s += `) ${v.slice(2, 7)}`; // Ajuste para 9 digitos
-        if (v.length > 7) s += `-${v.slice(7)}`;
-        return s;
-    };
 
     // --- AÇÕES ---
     const openCreateModal = () => {
@@ -161,7 +140,6 @@ export const CustomerList: React.FC = () => {
     };
 
     // --- IMPORTAÇÃO ---
-    const handleDownloadTemplate = () => { /* ... (Mantém igual ao original) ... */ };
     const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -182,7 +160,6 @@ export const CustomerList: React.FC = () => {
                 if (rows.length === 0) throw new Error("O arquivo está vazio.");
 
                 // 1º PASSO: CRIAR A LISTA (customersToImport)
-                // Esta variável precisa ser criada ANTES de ser usada na API
                 const customersToImport = rows.map((row: any) => ({
                     legalName: row['RazaoSocial'] || row['NomeFantasia'],
                     tradeName: row['NomeFantasia'] || row['RazaoSocial'],
@@ -207,7 +184,6 @@ export const CustomerList: React.FC = () => {
                 }));
 
                 // 2º PASSO: ENVIAR PARA A API
-                // Agora que 'customersToImport' existe, podemos enviá-la
                 const response = await api.customers.import(user.tenantId, customersToImport);
 
                 // 3º PASSO: EXIBIR MENSAGEM DO BACKEND
@@ -231,7 +207,10 @@ export const CustomerList: React.FC = () => {
     };
 
     function handleAddressChange(field: string, value: string) {
-        setFormData(prev => ({ ...prev, addressDetails: { ...prev.addressDetails, [field]: value } }));
+        setFormData(prev => {
+            const currentAddress = prev.addressDetails || { street: '', number: '', neighborhood: '', city: '', state: '', zipCode: '' };
+            return { ...prev, addressDetails: { ...currentAddress, [field]: value } };
+        });
     }
 
     const handleLocationChange = (field: 'lat' | 'lng', value: string) => {
@@ -247,7 +226,7 @@ export const CustomerList: React.FC = () => {
             <div className="p-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
                 <div className="flex justify-between items-center mb-6">
                     <button onClick={() => setSelectedCustomer(null)} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors font-medium">
-                        <ArrowLeft size={20} /> Voltar para Lista
+                        <ChevronLeft size={20} /> Voltar para Lista
                     </button>
                     <button onClick={() => openEditModal(selectedCustomer)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-sm flex items-center gap-2">
                         <Edit2 size={18} /> Editar Cliente
@@ -279,7 +258,7 @@ export const CustomerList: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="space-y-6 lg:col-span-2">
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><FileText size={18} /> Dados Cadastrais</h3>
+                            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><Building size={18} /> Dados Cadastrais</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div><span className="text-xs text-slate-400 uppercase font-bold">CNPJ</span><p className="font-medium text-slate-700">{selectedCustomer.cnpj}</p></div>
                                 <div><span className="text-xs text-slate-400 uppercase font-bold">Vendedor</span><p className="font-medium text-slate-700 text-blue-600">{selectedCustomer.salesperson || 'N/A'}</p></div>
@@ -294,7 +273,7 @@ export const CustomerList: React.FC = () => {
                         </div>
                     </div>
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                        <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><MapPin size={18} /> Endereço</h3>
+                        <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><Building size={18} /> Endereço</h3>
                         <p className="text-slate-700 font-medium">{selectedCustomer.addressDetails?.street}, {selectedCustomer.addressDetails?.number}</p>
                         <p className="text-slate-500 text-sm">{selectedCustomer.addressDetails?.neighborhood} - {selectedCustomer.addressDetails?.city}/{selectedCustomer.addressDetails?.state}</p>
                     </div>
@@ -421,206 +400,6 @@ export const CustomerList: React.FC = () => {
             </div>
 
             {isModalOpen && <CustomerFormModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} mode={modalMode} data={formData} setData={setFormData} onSave={handleSave} isLoading={modalLoading} formError={formError} maskCNPJ={maskCNPJ} maskPhone={maskPhone} handleAddressChange={handleAddressChange} handleLocationChange={handleLocationChange} />}
-        </div>
-    );
-};
-
-import { cnpjService } from '../services/cnpj';
-
-// (O CustomerFormModal permanece o mesmo, apenas certifique-se de que está no final do arquivo ou importado)
-const CustomerFormModal = ({ isOpen, onClose, mode, data, setData, onSave, isLoading, formError, maskCNPJ, maskPhone, handleAddressChange, handleLocationChange }: any) => {
-    const [activeTab, setActiveTab] = useState<'DATA' | 'ADDRESS' | 'CONTACT'>('DATA');
-    const [loadingCep, setLoadingCep] = useState(false);
-    const [loadingCnpj, setLoadingCnpj] = useState(false);
-    const [localError, setLocalError] = useState('');
-
-    if (!isOpen) return null;
-
-    const handleCnpjSearch = async () => {
-        setLocalError('');
-        if (!data.cnpj || data.cnpj.length < 14) {
-            setLocalError('Digite um CNPJ válido para buscar.');
-            return;
-        }
-
-        setLoadingCnpj(true);
-        try {
-            const res = await cnpjService.search(data.cnpj);
-            setData((prev: any) => ({
-                ...prev,
-                legalName: res.razao_social,
-                tradeName: res.nome_fantasia || res.razao_social,
-                phone: maskPhone(res.ddd_telefone_1),
-                addressDetails: {
-                    ...prev.addressDetails,
-                    street: res.logradouro,
-                    number: res.numero,
-                    neighborhood: res.bairro,
-                    city: res.municipio,
-                    state: res.uf,
-                    zipCode: res.cep
-                }
-            }));
-        } catch (error: any) {
-            setLocalError(error.message);
-        } finally {
-            setLoadingCnpj(false);
-        }
-    };
-
-    const handleCepSearch = async () => {
-        const cep = data.addressDetails?.zipCode?.replace(/\D/g, '');
-        if (!cep || cep.length !== 8) return;
-
-        setLoadingCep(true);
-        try {
-            const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-            const addressData = await response.json();
-
-            if (!addressData.erro) {
-                setData((prev: any) => ({
-                    ...prev,
-                    addressDetails: {
-                        ...prev.addressDetails,
-                        street: addressData.logradouro,
-                        neighborhood: addressData.bairro,
-                        city: addressData.localidade,
-                        state: addressData.uf,
-                        zipCode: addressData.cep
-                    }
-                }));
-            }
-        } catch (error) {
-            console.error("Erro ao buscar CEP", error);
-        } finally {
-            setLoadingCep(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                {/* HEADER */}
-                <div className="flex justify-between items-center p-4 border-b bg-slate-50">
-                    <h2 className="text-lg font-bold text-slate-800">{mode === 'CREATE' ? 'Novo Cliente' : 'Editar Cliente'}</h2>
-                    <button onClick={onClose}><X size={24} className="text-slate-400 hover:text-slate-600" /></button>
-                </div>
-
-                {/* TABS */}
-                <div className="flex border-b border-slate-200 bg-white px-4 pt-2 gap-4">
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('DATA')}
-                        className={`pb-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'DATA' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <FileText size={16} /> Dados Cadastrais
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('ADDRESS')}
-                        className={`pb-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'ADDRESS' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <MapPin size={16} /> Endereço
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('CONTACT')}
-                        className={`pb-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'CONTACT' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <Phone size={16} /> Contato & Vendas
-                    </button>
-                </div>
-
-                {/* CONTENT */}
-                <div className="overflow-y-auto p-6 flex-1 bg-slate-50/30">
-                    <form id="customerForm" onSubmit={onSave} className="space-y-4">
-                        {formError && <div className="p-3 bg-red-50 text-red-600 rounded text-sm flex items-center gap-2"><AlertCircle size={16} /> {formError}</div>}
-                        {localError && <div className="p-3 bg-amber-50 text-amber-600 rounded text-sm flex items-center gap-2"><AlertCircle size={16} /> {localError}</div>}
-
-                        {/* ABA: DADOS */}
-                        {activeTab === 'DATA' && (
-                            <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 block mb-1">CNPJ *</label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            required
-                                            className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                            value={data.cnpj}
-                                            onChange={e => setData({ ...data, cnpj: maskCNPJ(e.target.value) })}
-                                            maxLength={18}
-                                            placeholder="00.000.000/0000-00"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={handleCnpjSearch}
-                                            disabled={loadingCnpj}
-                                            className="p-2.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-2 font-bold text-sm"
-                                            title="Buscar Dados na Receita"
-                                        >
-                                            {loadingCnpj ? <Loader2 size={20} className="animate-spin" /> : <><Search size={18} /> Buscar</>}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div><label className="text-xs font-bold text-slate-500 block mb-1">Razão Social</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.legalName} onChange={e => setData({ ...data, legalName: e.target.value })} placeholder="Razão Social Ltda" /></div>
-                                <div><label className="text-xs font-bold text-slate-500 block mb-1">Nome Fantasia *</label><input required className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.tradeName} onChange={e => setData({ ...data, tradeName: e.target.value })} placeholder="Nome Fantasia" /></div>
-                                <div><label className="text-xs font-bold text-slate-500 block mb-1">Inscrição Estadual</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.stateRegistration} onChange={e => setData({ ...data, stateRegistration: e.target.value })} placeholder="Isento ou Número" /></div>
-                            </div>
-                        )}
-
-                        {/* ABA: ENDEREÇO */}
-                        {activeTab === 'ADDRESS' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                                <div className="col-span-2 md:col-span-1">
-                                    <label className="text-xs font-bold text-slate-500 block mb-1">CEP</label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                            value={data.addressDetails?.zipCode}
-                                            onChange={e => handleAddressChange('zipCode', e.target.value)}
-                                            placeholder="00000-000"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={handleCepSearch}
-                                            disabled={loadingCep}
-                                            className="p-2.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
-                                            title="Buscar CEP"
-                                        >
-                                            {loadingCep ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="col-span-2 md:col-span-1"><label className="text-xs font-bold text-slate-500 block mb-1">Cidade</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" value={data.addressDetails?.city} onChange={e => handleAddressChange('city', e.target.value)} readOnly /></div>
-                                <div className="col-span-2"><label className="text-xs font-bold text-slate-500 block mb-1">Rua</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.addressDetails?.street} onChange={e => handleAddressChange('street', e.target.value)} /></div>
-                                <div><label className="text-xs font-bold text-slate-500 block mb-1">Número</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.addressDetails?.number} onChange={e => handleAddressChange('number', e.target.value)} /></div>
-                                <div><label className="text-xs font-bold text-slate-500 block mb-1">Bairro</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.addressDetails?.neighborhood} onChange={e => handleAddressChange('neighborhood', e.target.value)} /></div>
-                                <div><label className="text-xs font-bold text-slate-500 block mb-1">Estado (UF)</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" value={data.addressDetails?.state} onChange={e => handleAddressChange('state', e.target.value)} maxLength={2} readOnly /></div>
-                            </div>
-                        )}
-
-                        {/* ABA: CONTATO */}
-                        {activeTab === 'CONTACT' && (
-                            <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                                <div><label className="text-xs font-bold text-slate-500 block mb-1">Email</label><input type="email" className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.email} onChange={e => setData({ ...data, email: e.target.value })} placeholder="email@empresa.com" /></div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-xs font-bold text-slate-500 block mb-1">Telefone</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.phone} onChange={e => setData({ ...data, phone: maskPhone(e.target.value) })} placeholder="(00) 0000-0000" /></div>
-                                    <div><label className="text-xs font-bold text-slate-500 block mb-1">WhatsApp</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.whatsapp} onChange={e => setData({ ...data, whatsapp: maskPhone(e.target.value) })} placeholder="(00) 00000-0000" /></div>
-                                </div>
-                                <div><label className="text-xs font-bold text-slate-500 block mb-1">Vendedor Responsável</label><input className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={data.salesperson} onChange={e => setData({ ...data, salesperson: e.target.value })} placeholder="Nome do Vendedor" /></div>
-                            </div>
-                        )}
-                    </form>
-                </div>
-
-                {/* FOOTER */}
-                <div className="p-4 border-t bg-slate-50 flex justify-end gap-2">
-                    <button onClick={onClose} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
-                    <button type="submit" form="customerForm" disabled={isLoading} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold flex gap-2 items-center hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                        {isLoading && <Loader2 className="animate-spin" size={16} />} Salvar
-                    </button>
-                </div>
-            </div>
         </div>
     );
 };

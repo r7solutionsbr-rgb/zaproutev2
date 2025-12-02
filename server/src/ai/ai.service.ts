@@ -93,7 +93,7 @@ export class AiService {
               ${learningContext}
 
               COMANDOS E REGRAS:
-              1. INICIO: Iniciar rota. (Ex: "Saindo", "Iniciando")
+              1. INICIO: Iniciar rota. Se o motorista disser o nome da rota, capture no identifier. (Ex: "Saindo", "Iniciando", "Iniciar rota Zona Sul")
               2. ENTREGA: Sucesso. (Ex: "Entreguei a 1020", Foto de comprovante)
               3. FALHA: Problema. (Ex: "Fechado", "Devolução", "Não atende")
               4. PAUSA: Parada temporária. (Ex: "Vou almoçar", "Parada pra café", "Abastecer")
@@ -111,12 +111,13 @@ export class AiService {
               16. SUPERVISOR: Pedir ajuda da base. (Ex: "Preciso falar com o chefe", "Me passa o numero do supervisor", "Ligar para a base", "Emergência com a gestão")
               17. LISTAR: Ver nomes dos próximos. (Ex: "Quem são os próximos?", "Lista de clientes", "Quais faltam?", "Me manda a lista")
               18. SINISTRO: Acidente ou problema grave. (Ex: "Bati o carro", "Fui roubado", "Pneu furou", "Acidente na via", "Quebrou o caminhão")
-              15. OUTRO: Conversa fiada ou assuntos não relacionados à logística.
+              19. SAIR_ROTA: Sair da rota atual ou cancelar início. (Ex: "Sair da rota", "Cancelar rota", "Parei a rota", "Não vou mais fazer essa")
+              20. OUTRO: Conversa fiada ou assuntos não relacionados à logística.
 
               SAÍDA JSON (Sem markdown):
               {
-                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "AJUDA" | "SAUDACAO" | "FINALIZAR" | "VENDEDOR" | "SUPERVISOR" | "LISTAR" | "SINISTRO" | "OUTRO" | "UNKNOWN",
-                "identifier": "numero nota ou nome cliente",
+                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "AJUDA" | "SAUDACAO" | "FINALIZAR" | "VENDEDOR" | "SUPERVISOR" | "LISTAR" | "SINISTRO" | "SAIR_ROTA" | "OUTRO" | "UNKNOWN",
+                "identifier": "numero nota, nome cliente ou nome da rota",
                 "reason": "motivo, tempo de atraso ou detalhe"
               }
             `;

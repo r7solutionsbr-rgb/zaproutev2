@@ -1,68 +1,15 @@
-import React, { useMemo, useState } from 'react';
-import { Delivery, Route, Driver, DeliveryStatus } from '../types';
-import { TrendingUp, AlertTriangle, CheckCircle, Truck, Map, User, AlertOctagon, FileWarning, ArrowRight, X, Calendar, Clock, Image as ImageIcon } from 'lucide-react';
+import React, { useState } from 'react';
+import { Delivery, DeliveryStatus } from '../types';
+import { TrendingUp, AlertTriangle, CheckCircle, Truck, Map, User, AlertOctagon, FileWarning, ArrowRight, X, Clock, Image as ImageIcon } from 'lucide-react';
 
 import { useData } from '../contexts/DataContext';
+import { useDashboardStats } from '../hooks/useDashboardStats';
 
 export const Dashboard: React.FC = () => {
   const { deliveries, routes, drivers } = useData();
   const [selectedOccurrence, setSelectedOccurrence] = useState<Delivery | null>(null);
 
-  // KPI Calculations
-  const total = deliveries.length;
-  const delivered = deliveries.filter(d => d.status === DeliveryStatus.DELIVERED).length;
-  const active = deliveries.filter(d => d.status === DeliveryStatus.IN_TRANSIT).length;
-  const alerts = deliveries.filter(d => d.status === DeliveryStatus.FAILED || d.status === DeliveryStatus.RETURNED).length;
-
-  // --- LÓGICA DE EVOLUÇÃO DA ROTA ---
-  const activeRouteProgress = useMemo(() => {
-    const relevantRoutes = routes.filter(r => r.status === 'ACTIVE' || r.status === 'PLANNED' || r.status === 'COMPLETED');
-
-    return relevantRoutes.map(route => {
-      const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
-
-      const totalOps = routeDeliveries.length;
-      const completedOps = routeDeliveries.filter(d => d.status === DeliveryStatus.DELIVERED).length;
-      const failedOps = routeDeliveries.filter(d => d.status === DeliveryStatus.FAILED || d.status === DeliveryStatus.RETURNED).length;
-
-      const processed = completedOps + failedOps;
-      const percentage = totalOps > 0 ? Math.round((processed / totalOps) * 100) : 0;
-
-      const driver = drivers.find(d => d.id === route.driverId);
-
-      return {
-        id: route.id,
-        name: route.name,
-        percentage,
-        processed,
-        total: totalOps,
-        driverName: driver?.name || 'Sem Motorista',
-        driverAvatar: driver?.avatarUrl,
-        status: route.status,
-        startTime: route.startTime,
-        endTime: route.endTime
-      };
-    }).sort((a, b) => {
-      // 1. Critério: Rotas FINALIZADAS vão para o final da lista
-      if (a.status === 'COMPLETED' && b.status !== 'COMPLETED') return 1;
-      if (a.status !== 'COMPLETED' && b.status === 'COMPLETED') return -1;
-
-      // 2. Critério: Rotas com maior progresso aparecem primeiro (entre as ativas)
-      return b.percentage - a.percentage;
-    });
-  }, [routes, deliveries, drivers]);
-
-  // --- LÓGICA DE OCORRÊNCIAS ---
-  const occurrences = useMemo(() => {
-    return deliveries.filter(d =>
-      d.status === DeliveryStatus.FAILED ||
-      d.status === DeliveryStatus.RETURNED
-    ).sort((a, b) => {
-      const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-      const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-      return dateB - dateA;
-    });
-  }, [deliveries]);
+  const { total, delivered, active, alerts, activeRouteProgress, occurrences } = useDashboardStats({ deliveries, routes, drivers });
 
   const getDriverName = (driverId?: string) => {
     if (!driverId) return 'Não identificado';
@@ -168,8 +115,8 @@ export const Dashboard: React.FC = () => {
                   <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden relative shadow-inner mt-1">
                     <div
                       className={`h-full rounded-full transition-all duration-1000 ease-out flex items-center justify-end pr-2 ${route.percentage === 100
-                          ? 'bg-green-500' // Sucesso sólido
-                          : 'bg-gradient-to-r from-blue-500 to-indigo-600' // Degradê moderno
+                        ? 'bg-green-500' // Sucesso sólido
+                        : 'bg-gradient-to-r from-blue-500 to-indigo-600' // Degradê moderno
                         }`}
                       style={{ width: `${route.percentage}%` }}
                     >
