@@ -1,12 +1,42 @@
-export const cleanDigits = (v: any) => v ? v.replace(/\D/g, '') : '';
-export const maskCpfCnpj = (v: any) => {
-    const s = cleanDigits(v);
-    if (s.length <= 11) return s.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-    return s.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+export const cleanDigits = (value: string | undefined | null): string => {
+    if (!value) return '';
+    return value.replace(/\D/g, '');
 };
-export const maskPhone = (v: any) => {
-    let s = cleanDigits(v);
-    if (s.startsWith('55') && s.length >= 12) s = s.substring(2);
-    return s.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3').replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+
+export const maskCpfCnpj = (value: string | undefined | null): string => {
+    const v = cleanDigits(value);
+    if (!v) return '';
+    if (v.length <= 11) {
+        return v.replace(/(\d{3})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+            .replace(/(-\d{2})\d+?$/, '$1');
+    } else {
+        return v.replace(/(\d{2})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d)/, '$1/$2')
+            .replace(/(\d{4})(\d)/, '$1-$2')
+            .replace(/(-\d{2})\d+?$/, '$1');
+    }
 };
-export const maskCep = (v: any) => cleanDigits(v).replace(/(\d{5})(\d{3})/, '$1-$2');
+
+export const maskPhone = (value: string | undefined | null): string => {
+    let v = cleanDigits(value);
+    if (!v) return '';
+    // Remove 55 visualmente se for longo
+    if (v.startsWith('55') && v.length >= 12) v = v.substring(2);
+
+    if (v.length > 10) { // Celular
+        return v.replace(/(\d{2})(\d)/, '($1) $2')
+            .replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{4})\d+?$/, '$1');
+    }
+    // Fixo
+    return v.replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4})(\d)/, '$1-$2').replace(/(-\d{4})\d+?$/, '$1');
+};
+
+export const maskCep = (value: string | undefined | null): string => {
+    const v = cleanDigits(value);
+    if (!v) return '';
+    return v.replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{3})\d+?$/, '$1');
+};
