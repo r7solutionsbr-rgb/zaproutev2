@@ -157,9 +157,9 @@ export const Settings: React.FC = () => {
                   onChange={(e) => updateConfig('deliveryWorkflow', e.target.value)}
                   className="w-full p-2 border rounded-lg bg-slate-50"
                 >
-                  <option value="SIMPLE">Simples (Pendente -> Entregue)</option>
-                  <option value="STANDARD">Padrão (Início -> Chegada -> Entrega)</option>
-                  <option value="DETAILED">Detalhado (Início -> Chegada -> Descarga -> Fim)</option>
+                  <option value="SIMPLE">Simples (Pendente → Entregue)</option>
+                  <option value="STANDARD">Padrão (Início → Chegada → Entrega)</option>
+                  <option value="DETAILED">Detalhado (Início → Chegada → Descarga → Fim)</option>
                 </select>
               </div>
               <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">

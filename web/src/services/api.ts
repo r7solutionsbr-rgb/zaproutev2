@@ -55,6 +55,14 @@ export const api = {
         updateMe: async (data: any) => {
             const response = await client.patch('/tenants/me', data);
             return response.data;
+        },
+        getById: async (id: string) => {
+            const response = await client.get(`/tenants/${id}`);
+            return response.data;
+        },
+        updateConfig: async (id: string, config: any) => {
+            const response = await client.patch(`/tenants/${id}/config`, config);
+            return response.data;
         }
     },
     // --- EQUIPE (USERS) ---
