@@ -4,7 +4,7 @@ import { Edit2, Plus, Search, Upload, FileText, CheckCircle, X, AlertCircle, Arr
 import { JourneyHistoryModal } from '../components/JourneyHistoryModal';
 import { api } from '../services/api';
 import * as XLSX from 'xlsx';
-import { cleanDigits, maskCpfCnpj, maskPhone } from '@/utils/masks';
+import { cleanDigits, maskCpfCnpj, maskPhone } from '@/lib/masks';
 
 import { useData } from '../contexts/DataContext';
 
