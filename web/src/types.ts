@@ -1,117 +1,31 @@
-
-export enum DeliveryStatus {
-  PENDING = 'PENDING',
-  IN_TRANSIT = 'IN_TRANSIT',
-  DELIVERED = 'DELIVERED',
-  FAILED = 'FAILED',
-  RETURNED = 'RETURNED'
-}
-
-export interface Location {
-  lat: number;
-  lng: number;
-  address: string; // Full formatted address string for legacy support
-}
-
-export interface Address {
-  street: string;
-  number: string;
-  complement?: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  zipCode: string;
-}
-
-export interface Customer {
-  id: string;
-  legalName: string; // Razão Social
-  tradeName: string; // Nome Fantasia
-  cnpj: string;
-  stateRegistration?: string; // Inscrição Estadual
-  email: string;
-  phone: string;
-  whatsapp: string;
-  salesperson: string; // Vendedor Responsável
-  location: Location;
-  addressDetails: Address;
-  status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
-  creditLimit?: number;
-}
-
-export interface Delivery {
-  id: string;
-  invoiceNumber: string;
-  customer: Customer;
-  volume: number; // m3
-  weight: number; // kg
-  value: number; // R$ Currency
-  priority: 'NORMAL' | 'HIGH' | 'URGENT';
-  status: DeliveryStatus;
-  routeId?: string;
-  driverId?: string;
-  proofOfDelivery?: string; // base64 image
-  signature?: string; // base64 signature
-  timestamp?: string;
-  updatedAt?: string;
-  failureReason?: string;
-
-  // --- AUDITORIA ---
-  arrivedAt?: string;
-  unloadingStartedAt?: string;
-  unloadingEndedAt?: string;
-}
-
-export interface Vehicle {
-  id: string;
-  plate: string;
-  model: string;
-  brand: string;
-  year: number;
-  capacityWeight: number; // kg
-  capacityVolume: number; // m3
-  fuelType: 'DIESEL' | 'GASOLINE' | 'ELECTRIC' | 'FLEX';
-  status: 'AVAILABLE' | 'IN_USE' | 'MAINTENANCE';
-  lastMaintenance: string;
-  nextMaintenance: string;
-  imageUrl?: string;
-}
-
-export interface Driver {
-  id: string;
-  name: string;
-  cpf: string;
-  cnh: string;
-  cnhCategory: string;
-  cnhExpiration: string;
-  phone: string;
-  email: string;
-  vehicleId: string | null; // Assigned Vehicle
-  externalId?: string; // <--- NOVO
-  avatarUrl: string;
-  status: 'IDLE' | 'ON_ROUTE' | 'OFFLINE';
-  currentLocation?: Location;
-  rating: number; // 0 to 5
-  totalDeliveries: number;
-}
-
 export interface TenantConfig {
-  driverImportStrategy?: 'CPF' | 'PHONE' | 'EXTERNAL_ID';
-  requireProofOfDelivery?: boolean;
-  geofenceRadius?: number;
-  whatsappProvider?: 'ZAPI' | 'SENDPULSE'; // Padrão deve ser ZAPI se undefined
+  driverImportStrategy?: 'CPF_ONLY' | 'CPF_AND_NAME' | 'STRICT';
+  deliveryWorkflow?: 'SIMPLE' | 'STANDARD' | 'DETAILED';
+  displaySettings?: {
+    showValuesOnMobile: boolean;
+    requireProofOfDelivery: boolean;
+    allowPartialDelivery: boolean;
+  };
+  whatsappProvider?: {
+    type: 'ZAPI' | 'SENDPULSE';
+    zapiInstanceId?: string;
+    zapiToken?: string;
+    zapiClientToken?: string;
+    sendpulseClientId?: string;
+    sendpulseClientSecret?: string;
+    sendpulseBotId?: string;
+  };
   whatsappTemplates?: {
+    welcome?: string;
     greeting?: string;
     success?: string;
+    failure?: string;
   };
-  displaySettings?: {
-    showFinancials?: boolean;
-    showVolume?: boolean;
-    showWeight?: boolean;
-    volumeLabel?: string;
-    weightLabel?: string;
+  journeyRules?: {
+    maxDrivingTime: number; // minutos
+    minRestTime: number;    // minutos
+    lunchTime: number;      // minutos
   };
-  deliveryWorkflow?: 'SIMPLE' | 'STANDARD' | 'DETAILED';
 }
 
 export interface Tenant {
@@ -119,39 +33,173 @@ export interface Tenant {
   name: string;
   slug: string;
   plan: string;
+  status: 'ACTIVE' | 'BLOCKED' | 'TRIAL';
+  subscriptionEndsAt?: string;
   cnpj?: string;
   address?: string;
   logoUrl?: string;
   primaryColor?: string;
   config?: TenantConfig;
-}
-
-export interface Route {
-  id: string;
-  name: string;
-  driverId: string | null;
-  vehicleId: string | null;
-  date: string;
-  startTime?: string;
-  endTime?: string;
-  status: 'PLANNED' | 'ACTIVE' | 'COMPLETED';
-  deliveries: string[]; // Delivery IDs
-  estimatedDistance: number; // km
-  estimatedTime: number; // minutes
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface User {
   id: string;
   name: string;
-  role: 'ADMIN' | 'DISPATCHER' | 'DRIVER';
+  email: string;
+  role: 'ADMIN' | 'DISPATCHER' | 'DRIVER' | 'SUPER_ADMIN';
+  phone?: string;
+  avatarUrl?: string;
+  status: 'ACTIVE' | 'INACTIVE';
   tenantId: string;
+  tenant?: Tenant;
+}
+
+export interface Driver {
+  id: string;
+  name: string;
+  cpf: string;
+  externalId?: string;
+  cnh: string;
+  cnhCategory: string;
+  cnhExpiration: string;
+  phone: string;
+  email: string;
+  status: 'IDLE' | 'ON_ROUTE' | 'OFFLINE';
+  avatarUrl?: string;
+  rating?: number;
+  totalDeliveries?: number;
+  vehicleId?: string;
+  vehicle?: Vehicle;
+  tenantId: string;
+}
+
+export interface Vehicle {
+  id: string;
+  plate: string;
+  brand: string;
+  model: string;
+  year: number;
+  capacityWeight: number;
+  capacityVolume: number;
+  fuelType: string;
+  status: 'AVAILABLE' | 'MAINTENANCE' | 'BUSY';
+  lastMaintenance?: string;
+  nextMaintenance?: string;
+  imageUrl?: string;
+  tenantId: string;
+}
+
+export interface Customer {
+  id: string;
+  legalName: string;
+  tradeName: string;
+  cnpj: string;
+  stateRegistration?: string;
+  email: string;
+  phone: string;
+  whatsapp?: string;
+  salesperson?: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
+  creditLimit?: number;
+  location?: {
+    lat: number;
+    lng: number;
+    address: string;
+  };
+  addressDetails?: {
+    street: string;
+    number: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    complement?: string;
+  };
+  sellerId?: string;
+  seller?: Seller;
+  tenantId: string;
+}
+
+export interface Seller {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  tenantId: string;
+}
+
+export type DeliveryStatus = 'PENDING' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED' | 'RETURNED';
+
+export interface Delivery {
+  id: string;
+  invoiceNumber: string;
+  volume: number;
+  weight: number;
+  value: number;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  status: DeliveryStatus;
+  product?: string;
+  salesperson?: string;
+  proofOfDelivery?: string;
+  failureReason?: string;
+
+  customerId: string;
+  customer: Customer;
+
+  routeId?: string;
+  driverId?: string;
+
+  createdAt: string;
+  updatedAt: string;
+
+  // Auditoria de Workflow
+  arrivedAt?: string;
+  unloadingStartedAt?: string;
+  unloadingEndedAt?: string;
+}
+
+export interface Route {
+  id: string;
+  name: string;
+  date: string;
+  status: 'PLANNED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED';
+  startTime?: string;
+  endTime?: string;
+  estimatedDistance?: number;
+  estimatedTime?: number;
+
+  driverId?: string;
+  driver?: Driver;
+
+  vehicleId?: string;
+  vehicle?: Vehicle;
+
+  deliveries: Delivery[];
+
+  tenantId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Occurrence {
+  id: string;
+  type: string;
+  description: string;
+  driverId: string;
+  driver?: Driver;
+  routeId?: string;
+  createdAt: string;
 }
 
 export interface DashboardStats {
   totalDeliveries: number;
-  pending: number;
-  delivered: number;
-  failed: number;
+  completedDeliveries: number;
+  failedDeliveries: number;
   activeRoutes: number;
+  availableDrivers: number;
+  revenue: number;
   onTimeRate: number;
 }
