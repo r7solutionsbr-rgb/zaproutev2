@@ -4,7 +4,7 @@ import { Users, Search, MessageCircle, Building, Plus, FileSpreadsheet, Loader2,
 import { api } from '../services/api';
 import * as XLSX from 'xlsx';
 import { CustomerFormModal } from '../components/CustomerFormModal';
-import { cleanDigits, maskCpfCnpj, maskPhone } from '@/utils/maskUtils';
+import { cleanDigits, maskCpfCnpj, maskPhone } from '../utils/masks';
 import { ImportFeedbackModal, ImportSummary } from '../components/ImportFeedbackModal';
 
 export const CustomerList: React.FC = () => {
