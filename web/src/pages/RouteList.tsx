@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Route, Delivery, Driver, DeliveryStatus, Vehicle } from '../types';
-import { Waypoints, Truck, User, Package, Clock, AlertCircle, DollarSign, ArrowLeft, MapPin, FileText, CheckCircle2, Map as MapIcon, ChevronRight, X, Camera, Copy, MoreVertical, Edit, CheckSquare, AlertTriangle } from 'lucide-react';
+import { Route, Delivery, DeliveryStatus } from '../types';
+import { Waypoints, Truck, User, Package, Clock, ArrowLeft, MapPin, FileText, CheckCircle2, Map as MapIcon, X, Camera, Copy, MoreVertical, CheckSquare, AlertTriangle, AlertCircle } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -60,19 +60,19 @@ const RouteMapModal: React.FC<RouteMapModalProps> = ({ route, deliveries, onClos
   const markerRefs = useRef<{ [key: string]: L.Marker | null }>({});
 
   // Filtra as entregas desta rota
-  const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
+  const routeDeliveries = deliveries.filter(d => route.deliveries.some(rd => rd.id === d.id));
 
   // Extrai pontos válidos (lat/lng)
   const points = routeDeliveries
     .filter(d => d.customer.location && d.customer.location.lat && d.customer.location.lng)
     .map(d => ({
       id: d.id,
-      lat: d.customer.location.lat,
-      lng: d.customer.location.lng,
+      lat: d.customer.location!.lat,
+      lng: d.customer.location!.lng,
       status: d.status,
       customerName: d.customer.tradeName,
       invoiceNumber: d.invoiceNumber,
-      address: d.customer.location.address,
+      address: d.customer.location!.address,
       volume: d.volume,
       value: d.value,
       updatedAt: d.updatedAt
@@ -132,8 +132,8 @@ const RouteMapModal: React.FC<RouteMapModalProps> = ({ route, deliveries, onClos
                     if (ref) markerRefs.current[p.id] = ref;
                   }}
                   icon={
-                    p.status === DeliveryStatus.DELIVERED ? icons.green :
-                      p.status === DeliveryStatus.FAILED || p.status === DeliveryStatus.RETURNED ? icons.red :
+                    p.status === 'DELIVERED' ? icons.green :
+                      p.status === 'FAILED' || p.status === 'RETURNED' ? icons.red :
                         icons.blue
                   }
                 >
@@ -159,17 +159,17 @@ const RouteMapModal: React.FC<RouteMapModalProps> = ({ route, deliveries, onClos
 
                       {/* Rodapé Status */}
                       <div className="flex items-center justify-between mt-2">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.status === DeliveryStatus.DELIVERED ? 'bg-green-100 text-green-700' :
-                          p.status === DeliveryStatus.FAILED || p.status === DeliveryStatus.RETURNED ? 'bg-red-100 text-red-700' :
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.status === 'DELIVERED' ? 'bg-green-100 text-green-700' :
+                          p.status === 'FAILED' || p.status === 'RETURNED' ? 'bg-red-100 text-red-700' :
                             'bg-blue-100 text-blue-700'
                           }`}>
-                          {p.status === DeliveryStatus.DELIVERED ? 'ENTREGUE' :
-                            p.status === DeliveryStatus.FAILED ? 'FALHA' :
-                              p.status === DeliveryStatus.RETURNED ? 'DEVOLVIDO' :
-                                p.status === DeliveryStatus.IN_TRANSIT ? 'EM ROTA' : 'PENDENTE'}
+                          {p.status === 'DELIVERED' ? 'ENTREGUE' :
+                            p.status === 'FAILED' ? 'FALHA' :
+                              p.status === 'RETURNED' ? 'DEVOLVIDO' :
+                                p.status === 'IN_TRANSIT' ? 'EM ROTA' : 'PENDENTE'}
                         </span>
 
-                        {(p.status === DeliveryStatus.DELIVERED || p.status === DeliveryStatus.FAILED || p.status === DeliveryStatus.RETURNED) && p.updatedAt && (
+                        {(p.status === 'DELIVERED' || p.status === 'FAILED' || p.status === 'RETURNED') && p.updatedAt && (
                           <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500">
                             <Clock size={10} />
                             {new Date(p.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -275,7 +275,7 @@ const ForceDeliveryModal: React.FC<ForceDeliveryModalProps> = ({ delivery, onCon
 
           <div className="grid grid-cols-2 gap-3 pt-2">
             <button
-              onClick={() => onConfirm(DeliveryStatus.DELIVERED, reason)}
+              onClick={() => onConfirm('DELIVERED', reason)}
               disabled={isLoading}
               className="flex flex-col items-center justify-center gap-1 p-4 rounded-xl border-2 border-green-100 bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-200 transition-all disabled:opacity-50"
             >
@@ -284,7 +284,7 @@ const ForceDeliveryModal: React.FC<ForceDeliveryModalProps> = ({ delivery, onCon
             </button>
 
             <button
-              onClick={() => onConfirm(DeliveryStatus.FAILED, reason)}
+              onClick={() => onConfirm('FAILED', reason)}
               disabled={isLoading}
               className="flex flex-col items-center justify-center gap-1 p-4 rounded-xl border-2 border-red-100 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-200 transition-all disabled:opacity-50"
             >
@@ -344,15 +344,15 @@ export const RouteList: React.FC = () => {
   };
 
   const getRouteStats = (route: Route) => {
-    const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
+    const routeDeliveries = deliveries.filter(d => route.deliveries.some(rd => rd.id === d.id));
 
     const totalVolume = routeDeliveries.reduce((acc, d) => acc + Number(d.volume || 0), 0);
     const totalValue = routeDeliveries.reduce((acc, d) => acc + Number(d.value || 0), 0);
 
     // Contagens por Status
-    const pendingCount = routeDeliveries.filter(d => d.status === DeliveryStatus.PENDING || d.status === DeliveryStatus.IN_TRANSIT).length;
-    const deliveredCount = routeDeliveries.filter(d => d.status === DeliveryStatus.DELIVERED).length;
-    const failedCount = routeDeliveries.filter(d => d.status === DeliveryStatus.FAILED || d.status === DeliveryStatus.RETURNED).length;
+    const pendingCount = routeDeliveries.filter(d => d.status === 'PENDING' || d.status === 'IN_TRANSIT').length;
+    const deliveredCount = routeDeliveries.filter(d => d.status === 'DELIVERED').length;
+    const failedCount = routeDeliveries.filter(d => d.status === 'FAILED' || d.status === 'RETURNED').length;
 
     const total = routeDeliveries.length;
 
@@ -393,7 +393,7 @@ export const RouteList: React.FC = () => {
     const route = routes.find(r => r.id === selectedRouteId);
     if (!route) return <div>Rota não encontrada</div>;
 
-    const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
+    const routeDeliveries = deliveries.filter(d => route.deliveries.some(rd => rd.id === d.id));
     const stats = getRouteStats(route);
 
     return (
@@ -538,10 +538,9 @@ export const RouteList: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {routeDeliveries.map((delivery, index) => {
                   // Lógica da Timeline
-                  const isLast = index === routeDeliveries.length - 1;
-                  const isDelivered = delivery.status === DeliveryStatus.DELIVERED;
-                  const isFailed = delivery.status === DeliveryStatus.FAILED || delivery.status === DeliveryStatus.RETURNED;
-                  const isNext = !isDelivered && !isFailed && (index === 0 || routeDeliveries[index - 1].status === DeliveryStatus.DELIVERED);
+                  const isDelivered = delivery.status === 'DELIVERED';
+                  const isFailed = delivery.status === 'FAILED' || delivery.status === 'RETURNED';
+                  const isNext = !isDelivered && !isFailed && (index === 0 || routeDeliveries[index - 1].status === 'DELIVERED');
 
                   return (
                     <tr key={delivery.id} className="hover:bg-slate-50 group relative">
@@ -579,15 +578,15 @@ export const RouteList: React.FC = () => {
                         </div>
                       </td>
 
-                      <td className="p-4 text-slate-500 max-w-xs truncate" title={delivery.customer.location.address}>
+                      <td className="p-4 text-slate-500 max-w-xs truncate" title={delivery.customer.location?.address}>
                         <div className="flex items-center gap-1">
-                          <MapPin size={14} className="shrink-0" /> {delivery.customer.location.address}
+                          <MapPin size={14} className="shrink-0" /> {delivery.customer.location?.address}
                         </div>
                       </td>
 
                       {/* COLUNA HORÁRIO */}
                       <td className="p-4 whitespace-nowrap">
-                        {(delivery.status === DeliveryStatus.DELIVERED || delivery.status === DeliveryStatus.FAILED || delivery.status === DeliveryStatus.RETURNED) && delivery.updatedAt ? (
+                        {(delivery.status === 'DELIVERED' || delivery.status === 'FAILED' || delivery.status === 'RETURNED') && delivery.updatedAt ? (
                           <div className="flex items-center gap-1.5 text-slate-700 font-medium">
                             <Clock size={14} className="text-slate-400" />
                             {new Date(delivery.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -799,60 +798,37 @@ export const RouteList: React.FC = () => {
                             className="bg-red-500 h-full transition-all duration-500"
                             style={{ width: `${stats.failedPct}%` }}
                           />
-                          {/* O resto fica cinza (bg-slate-100 do container) */}
                         </div>
-
-                        <div className="flex justify-between items-center text-xs font-medium">
-                          <span className="text-slate-500">
-                            {stats.deliveredCount}/{stats.totalDeliveries} concluídas
-                          </span>
-                          {stats.failedCount > 0 && (
-                            <span className="text-red-500 font-bold flex items-center gap-1">
-                              <AlertCircle size={10} /> {stats.failedCount} falhas
-                            </span>
-                          )}
+                        <div className="flex justify-between text-[10px] text-slate-400">
+                          <span>{stats.deliveredCount}/{stats.totalDeliveries}</span>
+                          <span>{Math.round(stats.successPct)}%</span>
                         </div>
                       </div>
                     </td>
 
-                    {showVolume && <td className="p-4 text-right font-mono whitespace-nowrap">{stats.totalVolume.toFixed(2)}</td>}
-                    {showFinancials && <td className="p-4 text-right font-medium text-slate-800 whitespace-nowrap">{formatCurrency(stats.totalValue)}</td>}
-                    <td className="p-4 whitespace-nowrap">
-                      <div className="flex flex-col text-xs text-slate-500">
-                        <span className="flex items-center gap-1"><Clock size={12} className="text-green-500" /> {route.startTime || '--:--'}</span>
-                        <span className="flex items-center gap-1"><Clock size={12} className="text-red-500" /> {route.endTime || '--:--'}</span>
+                    {showVolume && <td className="p-4 text-right whitespace-nowrap">{stats.totalVolume.toFixed(2)}</td>}
+                    {showFinancials && <td className="p-4 text-right whitespace-nowrap">{formatCurrency(stats.totalValue)}</td>}
+
+                    <td className="p-4 whitespace-nowrap text-slate-500">
+                      <div className="flex items-center gap-1">
+                        <Clock size={14} />
+                        <span className="text-xs">
+                          {route.startTime || '--:--'} - {route.endTime || '--:--'}
+                        </span>
                       </div>
                     </td>
 
-                    {/* COLUNA CONDICIONAL: AÇÕES ou STATUS */}
                     <td className="p-4 text-center whitespace-nowrap">
                       {activeTab === 'ACTIVE' ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                            title="Ver no Mapa"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setViewMapRoute(route); // Abre o Modal
-                            }}
-                          >
-                            <MapIcon size={18} />
-                          </button>
-                          <button
-                            className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors"
-                            title="Ver Detalhes"
-                            onClick={() => setSelectedRouteId(route.id)}
-                          >
-                            <ChevronRight size={18} />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => setSelectedRouteId(route.id)}
+                          className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                        >
+                          Gerenciar
+                        </button>
                       ) : (
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${route.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' :
-                          route.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                            'bg-slate-100 text-slate-500'
-                          }`}>
-                          {route.status === 'ACTIVE' ? 'EM ROTA' :
-                            route.status === 'COMPLETED' ? 'FINALIZADA' : 'PLANEJADA'}
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${route.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {route.status === 'COMPLETED' ? 'FINALIZADA' : 'PLANEJADA'}
                         </span>
                       )}
                     </td>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Delivery, DeliveryStatus } from '../types';
-import { Navigation, CheckCircle, XCircle, MapPin, Camera, Upload, ChevronLeft, Phone, Clock, Coffee, Play, Square, Pause } from 'lucide-react';
+import { CheckCircle, XCircle, MapPin, Camera, Upload, ChevronLeft, Clock, Coffee, Play, Square, Pause } from 'lucide-react';
 import { api } from '../services/api';
 
 interface DriverAppProps {
@@ -82,7 +82,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
       } finally {
         setLoadingJourney(false);
       }
-    }, (error) => {
+    }, () => {
       alert("Erro ao obter localização. Permita o acesso ao GPS.");
       setLoadingJourney(false);
     });
@@ -118,8 +118,8 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
           const dist = calculateDistance(
             position.coords.latitude,
             position.coords.longitude,
-            selectedDelivery.customer.location.lat,
-            selectedDelivery.customer.location.lng
+            selectedDelivery.customer.location!.lat,
+            selectedDelivery.customer.location!.lng
           );
 
           if (dist > tenantConfig.geofenceRadius!) {
@@ -132,7 +132,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
           setView('LIST');
           setSelectedDelivery(null);
 
-        }, (error) => {
+        }, () => {
           alert("Erro ao validar localização. Verifique seu GPS.");
         });
         return; // Sai para esperar o callback do GPS
@@ -278,147 +278,116 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
 
         <div className="p-6 space-y-6">
           {/* Status Banner */}
-          <div className={`p-4 rounded-lg flex items-center gap-3 ${selectedDelivery.priority === 'URGENT' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+          <div className={`p-4 rounded-lg flex items-center gap-3 ${selectedDelivery.priority === 'HIGH' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
             <div className="font-bold">{selectedDelivery.status}</div>
-            {selectedDelivery.priority === 'URGENT' && <div className="text-xs bg-red-200 px-2 py-1 rounded">URGENTE</div>}
           </div>
+        </div>
 
-          {/* Customer Info */}
-          <div>
-            <h2 className="text-slate-500 text-sm uppercase font-bold mb-2">Cliente</h2>
-            <p className="text-xl font-bold text-slate-800">{selectedDelivery.customer.tradeName}</p>
-            <p className="text-slate-600 mt-1">{selectedDelivery.customer.location.address}</p>
-            <div className="mt-4 flex gap-3">
-              <button className="flex-1 py-3 bg-slate-100 rounded-lg flex items-center justify-center gap-2 text-slate-700 font-medium">
-                <Navigation size={18} /> Navegar
-              </button>
-              <button className="flex-1 py-3 bg-slate-100 rounded-lg flex items-center justify-center gap-2 text-slate-700 font-medium">
-                <Phone size={18} /> Ligar
+        {/* Actions */}
+        <div className="border-t pt-4">
+          <h2 className="text-slate-500 text-sm uppercase font-bold mb-4">Comprovante de Entrega</h2>
+
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+
+          {uploading ? (
+            <div className="w-full py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+              <span>Enviando foto...</span>
+            </div>
+          ) : !proofImage ? (
+            <button onClick={handleCamera} className="w-full py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-blue-400 transition-colors">
+              <Camera size={32} className="mb-2" />
+              <span>Toque para tirar foto</span>
+            </button>
+          ) : (
+            <div className="relative rounded-xl overflow-hidden mb-4">
+              <img src={proofImage} alt="Proof" className="w-full h-48 object-cover" />
+              <button onClick={() => setProofImage(null)} className="absolute top-2 right-2 bg-white/80 p-1 rounded-full text-slate-800">
+                <XCircle />
               </button>
             </div>
-          </div>
+          )}
 
-          {/* Order Info */}
-          <div className="border-t pt-4">
-            <h2 className="text-slate-500 text-sm uppercase font-bold mb-2">Info do Pedido</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <span className="block text-xs text-slate-400">Nota Fiscal</span>
-                <span className="font-mono font-medium">{selectedDelivery.invoiceNumber}</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <span className="block text-xs text-slate-400">Volume</span>
-                <span className="font-medium">{selectedDelivery.volume} m³</span>
-              </div>
-            </div>
-          </div>
+          <div className="mt-8 flex flex-col gap-3">
+            {(() => {
+              const workflow = tenantConfig.deliveryWorkflow || 'SIMPLE';
+              const { arrivedAt, unloadingStartedAt, unloadingEndedAt } = selectedDelivery;
 
-          {/* Actions */}
-          <div className="border-t pt-4">
-            <h2 className="text-slate-500 text-sm uppercase font-bold mb-4">Comprovante de Entrega</h2>
-
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-
-            {uploading ? (
-              <div className="w-full py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-                <span>Enviando foto...</span>
-              </div>
-            ) : !proofImage ? (
-              <button onClick={handleCamera} className="w-full py-8 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-blue-400 transition-colors">
-                <Camera size={32} className="mb-2" />
-                <span>Toque para tirar foto</span>
-              </button>
-            ) : (
-              <div className="relative rounded-xl overflow-hidden mb-4">
-                <img src={proofImage} alt="Proof" className="w-full h-48 object-cover" />
-                <button onClick={() => setProofImage(null)} className="absolute top-2 right-2 bg-white/80 p-1 rounded-full text-slate-800">
-                  <XCircle />
-                </button>
-              </div>
-            )}
-
-            <div className="mt-8 flex flex-col gap-3">
-              {(() => {
-                const workflow = tenantConfig.deliveryWorkflow || 'SIMPLE';
-                const { arrivedAt, unloadingStartedAt, unloadingEndedAt } = selectedDelivery;
-
-                // --- WORKFLOW: DETAILED ---
-                if (workflow === 'DETAILED') {
-                  if (!arrivedAt) {
-                    return (
-                      <button
-                        onClick={() => handleWorkflowAction('ARRIVED')}
-                        className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-blue-700"
-                      >
-                        <MapPin /> Informar Chegada
-                      </button>
-                    );
-                  }
-                  if (!unloadingStartedAt) {
-                    return (
-                      <button
-                        onClick={() => handleWorkflowAction('START_UNLOADING')}
-                        className="w-full py-4 bg-orange-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-orange-700"
-                      >
-                        <Upload /> Iniciar Descarga
-                      </button>
-                    );
-                  }
-                  if (!unloadingEndedAt) {
-                    return (
-                      <button
-                        onClick={() => handleWorkflowAction('END_UNLOADING')}
-                        className="w-full py-4 bg-purple-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-purple-700"
-                      >
-                        <CheckCircle /> Finalizar Descarga
-                      </button>
-                    );
-                  }
-                }
-
-                // --- WORKFLOW: STANDARD ---
-                if (workflow === 'STANDARD') {
-                  if (!arrivedAt) {
-                    return (
-                      <button
-                        onClick={() => handleWorkflowAction('ARRIVED')}
-                        className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-blue-700"
-                      >
-                        <MapPin /> Informar Chegada
-                      </button>
-                    );
-                  }
-                }
-
-                // --- FINAL STEP (ALL WORKFLOWS) ---
-                return (
-                  <>
+              // --- WORKFLOW: DETAILED ---
+              if (workflow === 'DETAILED') {
+                if (!arrivedAt) {
+                  return (
                     <button
-                      onClick={() => handleComplete(DeliveryStatus.DELIVERED)}
-                      disabled={!proofImage}
-                      className={`w-full py-4 rounded-xl text-white font-bold text-lg flex items-center justify-center gap-2 ${proofImage ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-300 cursor-not-allowed'}`}
+                      onClick={() => handleWorkflowAction('ARRIVED')}
+                      className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-blue-700"
                     >
-                      <CheckCircle /> Confirmar Entrega
+                      <MapPin /> Informar Chegada
                     </button>
-
+                  );
+                }
+                if (!unloadingStartedAt) {
+                  return (
                     <button
-                      onClick={() => handleComplete(DeliveryStatus.FAILED)}
-                      className="w-full py-4 bg-red-100 text-red-700 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
+                      onClick={() => handleWorkflowAction('START_UNLOADING')}
+                      className="w-full py-4 bg-orange-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-orange-700"
                     >
-                      <XCircle /> Relatar Problema / Falha
+                      <Upload /> Iniciar Descarga
                     </button>
-                  </>
-                );
-              })()}
-            </div>
+                  );
+                }
+                if (!unloadingEndedAt) {
+                  return (
+                    <button
+                      onClick={() => handleWorkflowAction('END_UNLOADING')}
+                      className="w-full py-4 bg-purple-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-purple-700"
+                    >
+                      <CheckCircle /> Finalizar Descarga
+                    </button>
+                  );
+                }
+              }
+
+              // --- WORKFLOW: STANDARD ---
+              if (workflow === 'STANDARD') {
+                if (!arrivedAt) {
+                  return (
+                    <button
+                      onClick={() => handleWorkflowAction('ARRIVED')}
+                      className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-blue-700"
+                    >
+                      <MapPin /> Informar Chegada
+                    </button>
+                  );
+                }
+              }
+
+              // --- FINAL STEP (ALL WORKFLOWS) ---
+              return (
+                <>
+                  <button
+                    onClick={() => handleComplete('DELIVERED')}
+                    disabled={!proofImage}
+                    className={`w-full py-4 rounded-xl text-white font-bold text-lg flex items-center justify-center gap-2 ${proofImage ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-300 cursor-not-allowed'}`}
+                  >
+                    <CheckCircle /> Confirmar Entrega
+                  </button>
+
+                  <button
+                    onClick={() => handleComplete('FAILED')}
+                    className="w-full py-4 bg-red-100 text-red-700 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
+                  >
+                    <XCircle /> Relatar Problema / Falha
+                  </button>
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -471,9 +440,9 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
             <h3 className="font-bold text-slate-800">{d.customer.tradeName}</h3>
             <div className="flex items-center gap-2 text-slate-500 text-sm mt-1">
               <MapPin size={14} />
-              <span className="truncate">{d.customer.location.address}</span>
+              <span className="truncate">{d.customer.location?.address}</span>
             </div>
-            {d.priority === 'URGENT' && (
+            {d.priority === 'HIGH' && (
               <div className="mt-3 pt-3 border-t border-slate-50 flex justify-end">
                 <span className="text-xs text-red-600 font-bold flex items-center gap-1"><Upload size={12} /> Alta Prioridade</span>
               </div>

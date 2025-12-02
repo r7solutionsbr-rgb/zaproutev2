@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Delivery, Driver, DeliveryStatus } from '../types';
-import { Package, User, MapPin, DollarSign, Calendar, ArrowLeft, CheckCircle, XCircle, Truck, FileText, AlertTriangle, Search, Filter, Eye, Clock, AlertCircle, X, Map as MapIcon, ZoomIn } from 'lucide-react';
+import { Package, MapPin, Calendar, CheckCircle, Truck, FileText, AlertTriangle, Search, Eye, Clock, AlertCircle, X, Map as MapIcon, ZoomIn } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css'; // Ensure CSS is imported if not globally
@@ -38,7 +38,7 @@ interface SingleDeliveryMapModalProps {
 }
 
 const SingleDeliveryMapModal: React.FC<SingleDeliveryMapModalProps> = ({ delivery, onClose }) => {
-  const hasLocation = delivery.customer.location && delivery.customer.location.lat && delivery.customer.location.lng;
+  const hasLocation = delivery.customer.location?.lat && delivery.customer.location?.lng;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -56,7 +56,7 @@ const SingleDeliveryMapModal: React.FC<SingleDeliveryMapModalProps> = ({ deliver
         <div className="h-[400px] bg-slate-100 relative">
           {hasLocation ? (
             <MapContainer
-              center={[delivery.customer.location.lat, delivery.customer.location.lng]}
+              center={[delivery.customer.location!.lat, delivery.customer.location!.lng]}
               zoom={15}
               style={{ height: '100%', width: '100%' }}
             >
@@ -66,13 +66,13 @@ const SingleDeliveryMapModal: React.FC<SingleDeliveryMapModalProps> = ({ deliver
               />
               <MapInvalidator />
               <Marker
-                position={[delivery.customer.location.lat, delivery.customer.location.lng]}
+                position={[delivery.customer.location!.lat, delivery.customer.location!.lng]}
                 icon={icons.blue}
               >
                 <Popup>
                   <div className="p-1">
                     <strong className="block text-sm text-slate-800">{delivery.customer.tradeName}</strong>
-                    <span className="text-xs text-slate-600">{delivery.customer.location.address}</span>
+                    <span className="text-xs text-slate-600">{delivery.customer.location?.address}</span>
                   </div>
                 </Popup>
               </Marker>
@@ -87,7 +87,7 @@ const SingleDeliveryMapModal: React.FC<SingleDeliveryMapModalProps> = ({ deliver
         </div>
 
         <div className="p-4 bg-white border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
-          <span>{delivery.customer.location.address}</span>
+          <span>{delivery.customer.location?.address}</span>
           {!hasLocation && <span className="text-red-500 font-bold">Sem GPS</span>}
         </div>
       </div>
@@ -220,7 +220,7 @@ const DeliveryDetailModal: React.FC<DeliveryDetailModalProps> = ({ delivery, dri
 
 export const DeliveryList: React.FC = () => {
   const { deliveries, drivers } = useData();
-  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null); // Este estado pode ser removido se a navegação de detalhes for apenas via modal
+
   const [mapDelivery, setMapDelivery] = useState<Delivery | null>(null);
   const [detailDelivery, setDetailDelivery] = useState<Delivery | null>(null); // Estado para o Modal de Detalhes
 
@@ -254,13 +254,13 @@ export const DeliveryList: React.FC = () => {
     }
 
     // 2. Filtro por Aba
-    if (activeTab === 'PENDING' && d.status !== DeliveryStatus.PENDING) return false;
-    if (activeTab === 'IN_TRANSIT' && d.status !== DeliveryStatus.IN_TRANSIT) return false;
-    if (activeTab === 'DELIVERED' && d.status !== DeliveryStatus.DELIVERED) return false;
-    if (activeTab === 'PROBLEMS' && d.status !== DeliveryStatus.FAILED && d.status !== DeliveryStatus.RETURNED) return false;
+    if (activeTab === 'PENDING' && d.status !== 'PENDING') return false;
+    if (activeTab === 'IN_TRANSIT' && d.status !== 'IN_TRANSIT') return false;
+    if (activeTab === 'DELIVERED' && d.status !== 'DELIVERED') return false;
+    if (activeTab === 'PROBLEMS' && d.status !== 'FAILED' && d.status !== 'RETURNED') return false;
 
     // 3. Filtro de Prioridade
-    if (onlyPriority && d.priority !== 'URGENT') return false;
+    if (onlyPriority && d.priority !== 'HIGH') return false;
 
     // 4. Busca (NF ou Cliente)
     if (searchTerm) {
@@ -282,10 +282,10 @@ export const DeliveryList: React.FC = () => {
         if (deliveryDate < startDate || deliveryDate > endDate) return false;
       }
 
-      if (tab === 'PENDING') return d.status === DeliveryStatus.PENDING;
-      if (tab === 'IN_TRANSIT') return d.status === DeliveryStatus.IN_TRANSIT;
-      if (tab === 'DELIVERED') return d.status === DeliveryStatus.DELIVERED;
-      if (tab === 'PROBLEMS') return d.status === DeliveryStatus.FAILED || d.status === DeliveryStatus.RETURNED;
+      if (tab === 'PENDING') return d.status === 'PENDING';
+      if (tab === 'IN_TRANSIT') return d.status === 'IN_TRANSIT';
+      if (tab === 'DELIVERED') return d.status === 'DELIVERED';
+      if (tab === 'PROBLEMS') return d.status === 'FAILED' || d.status === 'RETURNED';
       return true;
     }).length;
   };
@@ -293,29 +293,29 @@ export const DeliveryList: React.FC = () => {
   // --- COMPONENTES VISUAIS ---
   const StatusBadge = ({ status }: { status: DeliveryStatus }) => {
     switch (status) {
-      case DeliveryStatus.DELIVERED:
+      case 'DELIVERED':
         return (
           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 flex items-center gap-1.5 w-fit">
             <CheckCircle size={12} /> ENTREGUE
           </span>
         );
-      case DeliveryStatus.IN_TRANSIT:
+      case 'IN_TRANSIT':
         return (
           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 flex items-center gap-1.5 w-fit">
             <Truck size={12} /> EM ROTA
           </span>
         );
-      case DeliveryStatus.PENDING:
+      case 'PENDING':
         return (
           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 flex items-center gap-1.5 w-fit">
             <Clock size={12} /> PENDENTE
           </span>
         );
-      case DeliveryStatus.FAILED:
-      case DeliveryStatus.RETURNED:
+      case 'FAILED':
+      case 'RETURNED':
         return (
           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 flex items-center gap-1.5 w-fit">
-            <AlertCircle size={12} /> {status === DeliveryStatus.FAILED ? 'FALHA' : 'DEVOLVIDO'}
+            <AlertCircle size={12} /> {status === 'FAILED' ? 'FALHA' : 'DEVOLVIDO'}
           </span>
         );
       default:
@@ -476,7 +476,7 @@ export const DeliveryList: React.FC = () => {
                     <td className="p-4">
                       <div className="font-medium text-slate-800">{d.customer.tradeName}</div>
                       <div className="text-xs text-slate-400 max-w-[200px] truncate flex items-center gap-1">
-                        <MapPin size={10} /> {d.customer.location.address}
+                        <MapPin size={10} /> {d.customer.location?.address}
                       </div>
                     </td>
                     <td className="p-4">
@@ -498,7 +498,7 @@ export const DeliveryList: React.FC = () => {
                       </div>
                     </td>
                     <td className="p-4">
-                      {d.priority === 'URGENT' ? (
+                      {d.priority === 'HIGH' ? (
                         <span className="text-red-600 font-bold text-xs flex items-center gap-1 bg-red-50 px-2 py-1 rounded-md w-fit">
                           <AlertTriangle size={12} /> ALTA
                         </span>

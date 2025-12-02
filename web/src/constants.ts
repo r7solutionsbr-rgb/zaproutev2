@@ -1,6 +1,7 @@
 
-import { Driver, Delivery, Route, DeliveryStatus, Customer, Vehicle } from './types';
+import { Driver, Delivery, Route, Customer, Vehicle } from './types';
 
+// --- VEHICLES ---
 // --- VEHICLES ---
 export const MOCK_VEHICLES: Vehicle[] = [
   {
@@ -12,10 +13,11 @@ export const MOCK_VEHICLES: Vehicle[] = [
     capacityWeight: 1500,
     capacityVolume: 10.5,
     fuelType: 'DIESEL',
-    status: 'IN_USE',
+    status: 'BUSY',
     lastMaintenance: '2023-12-10',
     nextMaintenance: '2024-06-10',
-    imageUrl: 'https://img.freepik.com/free-vector/white-van-vector-mockup_1051-1089.jpg' // Generic placeholder
+    imageUrl: 'https://img.freepik.com/free-vector/white-van-vector-mockup_1051-1089.jpg', // Generic placeholder
+    tenantId: 'tenant-1'
   },
   {
     id: 'V-002',
@@ -28,7 +30,8 @@ export const MOCK_VEHICLES: Vehicle[] = [
     fuelType: 'DIESEL',
     status: 'AVAILABLE',
     lastMaintenance: '2024-01-15',
-    nextMaintenance: '2024-07-15'
+    nextMaintenance: '2024-07-15',
+    tenantId: 'tenant-1'
   },
   {
     id: 'V-003',
@@ -41,7 +44,8 @@ export const MOCK_VEHICLES: Vehicle[] = [
     fuelType: 'DIESEL',
     status: 'MAINTENANCE',
     lastMaintenance: '2023-11-20',
-    nextMaintenance: '2024-05-20'
+    nextMaintenance: '2024-05-20',
+    tenantId: 'tenant-1'
   },
   {
     id: 'V-004',
@@ -52,74 +56,78 @@ export const MOCK_VEHICLES: Vehicle[] = [
     capacityWeight: 2000,
     capacityVolume: 14.0,
     fuelType: 'DIESEL',
-    status: 'IN_USE',
+    status: 'BUSY',
     lastMaintenance: '2024-02-01',
-    nextMaintenance: '2024-08-01'
+    nextMaintenance: '2024-08-01',
+    tenantId: 'tenant-1'
   },
 ];
 
 // --- DRIVERS ---
 export const MOCK_DRIVERS: Driver[] = [
-  { 
-    id: 'd1', 
-    name: 'Carlos Silva', 
+  {
+    id: 'd1',
+    name: 'Carlos Silva',
     cpf: '123.456.789-00',
     cnh: '12345678900',
     cnhCategory: 'AB',
     cnhExpiration: '2025-10-15',
     phone: '(11) 98765-4321',
     email: 'carlos.silva@logistica.com',
-    vehicleId: 'V-001', 
-    avatarUrl: 'https://picsum.photos/seed/d1/100/100', 
-    status: 'ON_ROUTE', 
-    currentLocation: { lat: -23.5505, lng: -46.6333, address: 'Av. Paulista, 1000' },
+    vehicleId: 'V-001',
+    avatarUrl: 'https://picsum.photos/seed/d1/100/100',
+    status: 'ON_ROUTE',
     rating: 4.8,
-    totalDeliveries: 1250
+    totalDeliveries: 1250,
+    tenantId: 'tenant-1'
   },
-  { 
-    id: 'd2', 
-    name: 'Mariana Souza', 
+  {
+    id: 'd2',
+    name: 'Mariana Souza',
     cpf: '987.654.321-99',
     cnh: '09876543211',
     cnhCategory: 'D',
     cnhExpiration: '2026-05-20',
     phone: '(11) 91234-5678',
     email: 'mariana.souza@logistica.com',
-    vehicleId: 'V-002', 
-    avatarUrl: 'https://picsum.photos/seed/d2/100/100', 
+    vehicleId: 'V-002',
+    avatarUrl: 'https://picsum.photos/seed/d2/100/100',
     status: 'IDLE',
     rating: 4.9,
-    totalDeliveries: 890
+    totalDeliveries: 890,
+    tenantId: 'tenant-1'
   },
-  { 
-    id: 'd3', 
-    name: 'Roberto Alves', 
+  {
+    id: 'd3',
+    name: 'Roberto Alves',
     cpf: '456.789.123-44',
     cnh: '56789012344',
     cnhCategory: 'C',
     cnhExpiration: '2024-12-01',
     phone: '(11) 95555-4444',
     email: 'roberto.alves@logistica.com',
-    vehicleId: 'V-003', 
-    avatarUrl: 'https://picsum.photos/seed/d3/100/100', 
+    vehicleId: 'V-003',
+    avatarUrl: 'https://picsum.photos/seed/d3/100/100',
     status: 'OFFLINE',
     rating: 4.5,
-    totalDeliveries: 2100
+    totalDeliveries: 2100,
+    tenantId: 'tenant-1'
   },
-  { 
-    id: 'd4', 
-    name: 'Julia Lima', 
+  {
+    id: 'd4',
+    name: 'Julia Lima',
     cpf: '321.654.987-22',
     cnh: '32109876522',
     cnhCategory: 'B',
     cnhExpiration: '2027-01-10',
     phone: '(11) 97777-8888',
     email: 'julia.lima@logistica.com',
-    vehicleId: 'V-004', 
-    avatarUrl: 'https://picsum.photos/seed/d4/100/100', 
+    vehicleId: 'V-004',
+    avatarUrl: 'https://picsum.photos/seed/d4/100/100',
     status: 'ON_ROUTE',
     rating: 5.0,
-    totalDeliveries: 450
+    totalDeliveries: 450,
+    tenantId: 'tenant-1'
   },
 ];
 
@@ -130,7 +138,7 @@ const generateCustomers = (count: number): Customer[] => {
   return Array.from({ length: count }).map((_, i) => {
     const isCompany = Math.random() > 0.3;
     const baseName = isCompany ? `Comercial ${i + 1} Ltda` : `Mercadinho do Bairro ${i + 1}`;
-    
+
     return {
       id: `cust-${i}`,
       legalName: isCompany ? `Comercial de Alimentos Exemplo ${i + 1} Ltda` : `João da Silva ${i + 1} ME`,
@@ -155,7 +163,8 @@ const generateCustomers = (count: number): Customer[] => {
         city: 'São Paulo',
         state: 'SP',
         zipCode: `01430-${100 + i}`
-      }
+      },
+      tenantId: 'tenant-1'
     };
   });
 };
@@ -170,13 +179,16 @@ export const MOCK_DELIVERIES: Delivery[] = Array.from({ length: 25 }).map((_, i)
     id: `del-${i + 1}`,
     invoiceNumber: `NF-${1000 + i}`,
     customer: customer,
+    customerId: customer.id,
     volume: Math.floor(Math.random() * 10) + 1,
     weight: Math.floor(Math.random() * 50) + 5,
     value: Math.floor(Math.random() * 5000) + 500,
-    priority: Math.random() > 0.8 ? 'URGENT' : 'NORMAL',
-    status: i < 5 ? DeliveryStatus.DELIVERED : (i < 10 ? DeliveryStatus.IN_TRANSIT : DeliveryStatus.PENDING),
+    priority: Math.random() > 0.8 ? 'HIGH' : 'MEDIUM',
+    status: i < 5 ? 'DELIVERED' : (i < 10 ? 'IN_TRANSIT' : 'PENDING'),
     routeId: i < 10 ? 'r-1' : (i < 18 ? 'r-2' : undefined),
     driverId: i < 10 ? 'd1' : (i < 18 ? 'd2' : undefined),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 });
 
@@ -190,9 +202,12 @@ export const MOCK_ROUTES: Route[] = [
     startTime: '08:00',
     endTime: '18:00',
     status: 'ACTIVE',
-    deliveries: MOCK_DELIVERIES.slice(0, 10).map(d => d.id),
+    deliveries: MOCK_DELIVERIES.slice(0, 10),
     estimatedDistance: 45.2,
-    estimatedTime: 180
+    estimatedTime: 180,
+    tenantId: 'tenant-1',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   },
   {
     id: 'r-2',
@@ -203,8 +218,11 @@ export const MOCK_ROUTES: Route[] = [
     startTime: '09:30',
     endTime: '17:00',
     status: 'PLANNED',
-    deliveries: MOCK_DELIVERIES.slice(10, 18).map(d => d.id),
+    deliveries: MOCK_DELIVERIES.slice(10, 18),
     estimatedDistance: 32.5,
-    estimatedTime: 140
+    estimatedTime: 140,
+    tenantId: 'tenant-1',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }
 ];

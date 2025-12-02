@@ -1,7 +1,5 @@
-
 import React, { useState } from 'react';
-import { Delivery, Route, Driver, DeliveryStatus } from '../types';
-import { AlertTriangle, ArrowLeft, User, MapPin, FileText, Calendar, CheckCircle, Eye, Search, Camera, CameraOff, Maximize2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, User, Calendar, Search, Camera, CameraOff, Maximize2, Eye, CheckCircle } from 'lucide-react';
 
 import { useData } from '../contexts/DataContext';
 
@@ -13,13 +11,13 @@ export const OccurrenceList: React.FC = () => {
 
   // Filter only problematic deliveries
   const allOccurrences = deliveries.filter(d =>
-    d.status === DeliveryStatus.FAILED || d.status === DeliveryStatus.RETURNED
+    d.status === 'FAILED' || d.status === 'RETURNED'
   );
 
   const filteredOccurrences = allOccurrences.filter(d => {
     // 1. Filter by Tab
-    if (activeTab === 'FAILED' && d.status !== DeliveryStatus.FAILED) return false;
-    if (activeTab === 'RETURNED' && d.status !== DeliveryStatus.RETURNED) return false;
+    if (activeTab === 'FAILED' && d.status !== 'FAILED') return false;
+    if (activeTab === 'RETURNED' && d.status !== 'RETURNED') return false;
 
     // 2. Filter by Search
     if (searchTerm) {
@@ -34,8 +32,8 @@ export const OccurrenceList: React.FC = () => {
 
   const getTabCount = (tab: typeof activeTab) => {
     return allOccurrences.filter(d => {
-      if (tab === 'FAILED') return d.status === DeliveryStatus.FAILED;
-      if (tab === 'RETURNED') return d.status === DeliveryStatus.RETURNED;
+      if (tab === 'FAILED') return d.status === 'FAILED';
+      if (tab === 'RETURNED') return d.status === 'RETURNED';
       return true;
     }).length;
   };
@@ -86,7 +84,7 @@ export const OccurrenceList: React.FC = () => {
               </div>
               <div>
                 <span className="block text-slate-400 text-xs uppercase">Endereço</span>
-                <span className="text-slate-600">{delivery.customer.location.address}</span>
+                <span className="text-slate-600">{delivery.customer.location?.address}</span>
               </div>
               <div>
                 <span className="block text-slate-400 text-xs uppercase">Nota Fiscal</span>
@@ -181,15 +179,14 @@ export const OccurrenceList: React.FC = () => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`
-              px-4 py-2 text-sm font-medium transition-all border-b-2 flex items-center gap-2
-              ${activeTab === tab.id
+            className={`px-4 py-2 text-sm font-medium transition-all border-b-2 flex items-center gap-2 ${activeTab === tab.id
                 ? 'border-red-600 text-red-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}
-            `}
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
           >
             {tab.label}
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}`}>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'
+              }`}>
               {getTabCount(tab.id as any)}
             </span>
           </button>

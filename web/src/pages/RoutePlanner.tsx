@@ -1,14 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import * as XLSX from 'xlsx';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
-import { Delivery, Route, Driver, Vehicle, DeliveryStatus } from '../types';
+import { Delivery, Route } from '../types';
+import { MOCK_DRIVERS, MOCK_DELIVERIES, MOCK_VEHICLES } from '../constants';
 import {
-  FileSpreadsheet, Truck, Calendar, Package, Navigation,
-  Download, Loader2, Filter, Check, Edit, Trash2,
-  AlertTriangle, CheckCircle, X, Info, Save, Lock, User, XCircle, Map as MapIcon, MapPin, FileText, RotateCcw
+  Calendar, Truck, MapPin, X, Save,
+  AlertTriangle, CheckCircle, Info, XCircle, Check, Edit, Trash2, RotateCcw, Download,
+  Loader2, FileSpreadsheet, Filter, User, Map as MapIcon
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -346,7 +348,7 @@ export const RoutePlanner: React.FC = () => {
   const handleConfirmDeliveryAction = async () => {
     if (!deliveryToAction) return;
     const { delivery, type } = deliveryToAction;
-    const newStatus = type === 'DELIVER' ? DeliveryStatus.DELIVERED : DeliveryStatus.FAILED;
+    const newStatus = type === 'DELIVER' ? 'DELIVERED' : 'FAILED';
     try {
       await api.routes.updateDeliveryStatus(delivery.id, newStatus, undefined, type === 'FAIL' ? 'Manual' : undefined);
       setDeliveries((prev: any[]) => prev.map(d => d.id === delivery.id ? { ...d, status: newStatus } : d));
