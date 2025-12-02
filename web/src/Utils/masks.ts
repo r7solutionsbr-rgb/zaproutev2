@@ -1,49 +1,51 @@
-export const cleanDigits = (value: string) => {
+export const cleanDigits = (value: string | undefined | null): string => {
+    if (!value) return '';
     return value.replace(/\D/g, '');
 };
 
-export const maskCpfCnpj = (value: string) => {
+export const maskCpfCnpj = (value: string | undefined | null): string => {
     const v = cleanDigits(value);
+    if (!v) return '';
 
     if (v.length <= 11) {
-        // CPF: 000.000.000-00
         return v
             .replace(/(\d{3})(\d)/, '$1.$2')
             .replace(/(\d{3})(\d)/, '$1.$2')
-            .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+            .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+            .replace(/(-\d{2})\d+?$/, '$1');
     } else {
-        // CNPJ: 00.000.000/0000-00
         return v
-            .replace(/^(\d{2})(\d)/, '$1.$2')
-            .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-            .replace(/\.(\d{3})(\d)/, '.$1/$2')
-            .replace(/(\d{4})(\d)/, '$1-$2');
+            .replace(/(\d{2})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d)/, '$1/$2')
+            .replace(/(\d{4})(\d)/, '$1-$2')
+            .replace(/(-\d{2})\d+?$/, '$1');
     }
 };
 
-export const maskPhone = (value: string) => {
+export const maskPhone = (value: string | undefined | null): string => {
     let v = cleanDigits(value);
+    if (!v) return '';
 
-    // Se começar com 55 e tiver 12 ou 13 dígitos, remove o 55 visualmente
-    if (v.startsWith('55') && (v.length === 12 || v.length === 13)) {
+    if (v.startsWith('55') && v.length >= 12) {
         v = v.substring(2);
     }
 
-    // (00) 00000-0000
     if (v.length > 10) {
         return v
-            .replace(/^(\d\d)(\d{5})(\d{4}).*/, '($1) $2-$3');
+            .replace(/(\d{2})(\d)/, '($1) $2')
+            .replace(/(\d{5})(\d)/, '$1-$2')
+            .replace(/(-\d{4})\d+?$/, '$1');
     }
-    // (00) 0000-0000
-    else if (v.length > 5) {
-        return v
-            .replace(/^(\d\d)(\d{4})(\d{0,4}).*/, '($1) $2-$3');
-    }
-    // (00) ...
-    else if (v.length > 2) {
-        return v.replace(/^(\d\d)(\d{0,5})/, '($1) $2');
-    }
-    else {
-        return v;
-    }
+
+    return v
+        .replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4})(\d)/, '$1-$2')
+        .replace(/(-\d{4})\d+?$/, '$1');
+};
+
+export const maskCep = (value: string | undefined | null): string => {
+    const v = cleanDigits(value);
+    if (!v) return '';
+    return v.replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{3})\d+?$/, '$1');
 };
