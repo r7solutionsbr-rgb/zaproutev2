@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Delivery, DeliveryStatus, Route, Driver } from '../types';
+import { Delivery, Route, Driver } from '../types';
 
 interface UseDashboardStatsProps {
     deliveries: Delivery[];
@@ -10,20 +10,20 @@ interface UseDashboardStatsProps {
 export const useDashboardStats = ({ deliveries, routes, drivers }: UseDashboardStatsProps) => {
     // KPI Calculations
     const total = deliveries.length;
-    const delivered = deliveries.filter(d => d.status === DeliveryStatus.DELIVERED).length;
-    const active = deliveries.filter(d => d.status === DeliveryStatus.IN_TRANSIT).length;
-    const alerts = deliveries.filter(d => d.status === DeliveryStatus.FAILED || d.status === DeliveryStatus.RETURNED).length;
+    const delivered = deliveries.filter(d => d.status === 'DELIVERED').length;
+    const active = deliveries.filter(d => d.status === 'IN_TRANSIT').length;
+    const alerts = deliveries.filter(d => d.status === 'FAILED' || d.status === 'RETURNED').length;
 
     // --- LÓGICA DE EVOLUÇÃO DA ROTA ---
     const activeRouteProgress = useMemo(() => {
         const relevantRoutes = routes.filter(r => r.status === 'ACTIVE' || r.status === 'PLANNED' || r.status === 'COMPLETED');
 
         return relevantRoutes.map(route => {
-            const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
+            const routeDeliveries = deliveries.filter(d => route.deliveries.some(rd => rd.id === d.id));
 
             const totalOps = routeDeliveries.length;
-            const completedOps = routeDeliveries.filter(d => d.status === DeliveryStatus.DELIVERED).length;
-            const failedOps = routeDeliveries.filter(d => d.status === DeliveryStatus.FAILED || d.status === DeliveryStatus.RETURNED).length;
+            const completedOps = routeDeliveries.filter(d => d.status === 'DELIVERED').length;
+            const failedOps = routeDeliveries.filter(d => d.status === 'FAILED' || d.status === 'RETURNED').length;
 
             const processed = completedOps + failedOps;
             const percentage = totalOps > 0 ? Math.round((processed / totalOps) * 100) : 0;
@@ -55,8 +55,8 @@ export const useDashboardStats = ({ deliveries, routes, drivers }: UseDashboardS
     // --- LÓGICA DE OCORRÊNCIAS ---
     const occurrences = useMemo(() => {
         return deliveries.filter(d =>
-            d.status === DeliveryStatus.FAILED ||
-            d.status === DeliveryStatus.RETURNED
+            d.status === 'FAILED' ||
+            d.status === 'RETURNED'
         ).sort((a, b) => {
             const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
             const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
