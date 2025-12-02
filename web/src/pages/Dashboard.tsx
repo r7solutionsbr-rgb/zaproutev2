@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Delivery, DeliveryStatus } from '../types';
+import { Delivery } from '../types';
 import { TrendingUp, AlertTriangle, CheckCircle, Truck, Map, User, AlertOctagon, FileWarning, ArrowRight, X, Clock, Image as ImageIcon } from 'lucide-react';
 
 import { useData } from '../contexts/DataContext';
@@ -158,8 +158,8 @@ export const Dashboard: React.FC = () => {
               occurrences.map(item => (
                 <div key={item.id} className="p-3 bg-white border border-red-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start mb-1">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.status === DeliveryStatus.FAILED ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
-                      {item.status === DeliveryStatus.FAILED ? 'Falha' : 'Devolução'}
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.status === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                      {item.status === 'FAILED' ? 'Falha' : 'Devolução'}
                     </span>
                     <span className="text-[10px] text-slate-400">
                       {item.updatedAt ? new Date(item.updatedAt).toLocaleTimeString().slice(0, 5) : '--:--'}
