@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { WhatsappService, ProviderConfig } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class WebhookService {
@@ -33,9 +33,88 @@ export class WebhookService {
         return 'Boa noite';
     }
 
+    private getWhatsappConfig(tenant: any): ProviderConfig {
+        const providerType = tenant.config?.whatsappProvider || 'ZAPI';
+
+        if (providerType === 'SENDPULSE') {
+            return {
+                type: 'SENDPULSE',
+                sendpulseClientId: process.env.SENDPULSE_ID,
+                sendpulseClientSecret: process.env.SENDPULSE_SECRET,
+                sendpulseBotId: tenant.config?.whatsappProvider?.sendpulseBotId || process.env.SENDPULSE_BOT_ID
+            };
+        }
+
+        // Default: Z-API
+        return {
+            type: 'ZAPI',
+            zapiInstanceId: tenant.config?.whatsappProvider?.zapiInstanceId || process.env.ZAPI_INSTANCE_ID,
+            zapiToken: tenant.config?.whatsappProvider?.zapiToken || process.env.ZAPI_TOKEN,
+            zapiClientToken: tenant.config?.whatsappProvider?.zapiClientToken || process.env.ZAPI_CLIENT_TOKEN
+        };
+    }
+
     // ===========================================================================
     // BLOCO 2: PROCESSAMENTO DO WEBHOOK
     // ===========================================================================
+
+    async processSendPulseMessage(event: any) {
+        this.logger.log(`🔄 Processando evento SendPulse: ${JSON.stringify(event)}`);
+
+        // 1. Validação básica
+        if (event.service !== 'whatsapp' || event.title !== 'incoming_message') {
+            this.logger.warn(`⚠️ Evento ignorado: Tipo inválido (Service: ${event.service}, Title: ${event.title})`);
+            return { status: 'ignored_event_type' };
+        }
+
+        // 2. Extração de dados
+        const rawPhone = event.contact?.phone;
+        const channelData = event.info?.message?.channel_data;
+        const msgData = channelData?.message;
+        const messageType = msgData?.type;
+
+        if (!rawPhone || !messageType) {
+            this.logger.warn(`⚠️ Evento ignorado: Dados incompletos (Phone: ${rawPhone}, Type: ${messageType})`);
+            return { status: 'invalid_payload' };
+        }
+
+        // 3. Normalização
+        const normalizedPayload: any = { phone: rawPhone };
+
+        switch (messageType) {
+            case 'text':
+                normalizedPayload.text = { message: msgData.text.body };
+                break;
+            case 'image':
+                normalizedPayload.image = {
+                    imageUrl: msgData.image.url,
+                    caption: msgData.image.caption || 'FOTO_ENVIADA'
+                };
+                break;
+            case 'audio':
+            case 'voice':
+                // SendPulse usa 'audio' ou 'voice'
+                normalizedPayload.audio = {
+                    audioUrl: msgData.audio?.url || msgData.voice?.url
+                };
+                break;
+            case 'location':
+                const loc = msgData.location;
+                normalizedPayload.location = {
+                    latitude: loc.latitude,
+                    longitude: loc.longitude
+                };
+                break;
+            default:
+                this.logger.warn(`⚠️ Tipo de mensagem não suportado: ${messageType}`);
+                return { status: 'type_not_supported' };
+        }
+
+        this.logger.log(`📨 [SendPulse] Recebido de ${rawPhone} | Tipo: ${messageType}`);
+
+        // 4. Reutiliza a lógica central
+        return this.processMessage(normalizedPayload);
+    }
 
     async processMessage(payload: any) {
         let rawPhone = '';
@@ -107,7 +186,7 @@ export class WebhookService {
         // 4. Consulta ao Banco
         const driver = await (this.prisma as any).driver.findFirst({
             where: { phone: { in: searchList } },
-            include: { vehicle: true }
+            include: { vehicle: true, tenant: true }
         });
 
         if (!driver) {
@@ -116,7 +195,16 @@ export class WebhookService {
         }
 
         this.logger.log(`✅ Motorista identificado: ${driver.name} (ID: ${driver.id})`);
-        const replyPhone = driver.phone; // Responde no número exato que está no cadastro
+
+        // CORREÇÃO: Responder para o número que enviou a mensagem (Webhook), 
+        // e não o do cadastro, para evitar erro de "Contact not active" por divergência de 9º dígito.
+        const replyPhone = rawPhone.replace(/\D/g, '');
+
+        const send = async (msg: string) => {
+            const config = this.getWhatsappConfig(driver.tenant);
+            this.logger.log(`🤖 Respondendo via ${config.type} para ${replyPhone}`);
+            await this.whatsapp.sendText(replyPhone, msg, config);
+        };
 
         // ===========================================================================
         // BLOCO 4: INTERPRETAÇÃO (INTELIGÊNCIA ARTIFICIAL)
@@ -126,15 +214,16 @@ export class WebhookService {
         if (messageContent.type === 'LOCATION') {
             const loc = messageContent.value;
             // await (this.prisma as any).driver.update(...) // Descomente se tiver campo location
-            await this.whatsapp.sendText(replyPhone, "📍 Localização recebida.");
+            await send("📍 Localização recebida.");
             return { status: 'location_updated' };
         }
 
         // Chama o Gemini para entender o texto/áudio/imagem
-        let aiResult;
-        if (messageContent.type === 'TEXT') aiResult = await this.aiService.interpretText(messageContent.value);
-        else if (messageContent.type === 'AUDIO') aiResult = await this.aiService.interpretAudio(messageContent.value);
-        else if (messageContent.type === 'IMAGE') aiResult = await this.aiService.interpretImage(messageContent.value, messageContent.caption);
+        const text = messageContent.type === 'TEXT' ? messageContent.value : (messageContent.caption || undefined);
+        const imageUrl = messageContent.type === 'IMAGE' ? messageContent.value : undefined;
+        const audioUrl = messageContent.type === 'AUDIO' ? messageContent.value : undefined;
+
+        const aiResult = await this.aiService.processMessage(driver.id, text, imageUrl, audioUrl);
 
         // Se a IA não entendeu ou falhou
         if (!aiResult || aiResult.action === 'UNKNOWN') {
@@ -149,13 +238,13 @@ export class WebhookService {
                 });
             } catch (e) { this.logger.error('Erro ao salvar learning', e); }
 
-            await this.whatsapp.sendText(replyPhone, "🤔 Não entendi. Tente comandos como 'Iniciar rota', 'Entreguei a nota X' ou 'Ajuda'.");
+            await send("🤔 Não entendi. Tente comandos como 'Iniciar rota', 'Entreguei a nota X' ou 'Ajuda'.");
             return { status: 'learning_queued' };
         }
 
         if (aiResult.action === 'AJUDA') {
             const helpMsg = `🤖 *Comandos ZapRoute*\n\n▶️ Iniciar\n⏸️ Pausa\n📦 Entreguei a nota X\n❌ Falha na nota X\n📊 Resumo`;
-            await this.whatsapp.sendText(replyPhone, helpMsg);
+            await send(helpMsg);
             return { status: 'help_sent' };
         }
 
@@ -201,13 +290,13 @@ export class WebhookService {
 
             if (completedRoute) {
                 // Caso A: O motorista trabalhou e já acabou tudo
-                await this.whatsapp.sendText(replyPhone, `🏁 ${greeting}, ${driver.name}!\n\nVerifiquei aqui e *todas as suas rotas de hoje já foram finalizadas*.\n\nBom descanso! Se houver alguma mudança, eu te aviso.`);
+                await send(`🏁 ${greeting}, ${driver.name}!\n\nVerifiquei aqui e *todas as suas rotas de hoje já foram finalizadas*.\n\nBom descanso! Se houver alguma mudança, eu te aviso.`);
             } else {
                 // Caso B: Realmente não tinha nada para hoje
                 if (aiResult.action === 'SAUDACAO' || aiResult.action === 'OUTRO' || aiResult.action === 'RESUMO') {
-                    await this.whatsapp.sendText(replyPhone, `${greeting}, ${driver.name}! 👋\nNo momento, não encontrei nenhuma rota agendada para você hoje.`);
+                    await send(`${greeting}, ${driver.name}! 👋\nNo momento, não encontrei nenhuma rota agendada para você hoje.`);
                 } else {
-                    await this.whatsapp.sendText(replyPhone, `🚫 ${greeting}, ${driver.name}. Você não tem rota ativa para realizar essa ação.`);
+                    await send(`🚫 ${greeting}, ${driver.name}. Você não tem rota ativa para realizar essa ação.`);
                 }
             }
             // Retorna status especial para encerrar a execução aqui
@@ -227,7 +316,7 @@ export class WebhookService {
             const activeRoute = activeRoutes.find((r: any) => r.status === 'ACTIVE');
 
             if (!activeRoute) {
-                await this.whatsapp.sendText(replyPhone, "⚠️ Você não tem nenhuma rota iniciada para sair.");
+                await send("⚠️ Você não tem nenhuma rota iniciada para sair.");
                 return { status: 'no_active_route_to_exit' };
             }
 
@@ -235,7 +324,7 @@ export class WebhookService {
             const processedCount = activeRoute.deliveries.filter((d: any) => d.status === 'DELIVERED' || d.status === 'FAILED').length;
 
             if (processedCount > 0) {
-                await this.whatsapp.sendText(replyPhone, `🚫 *Ação Bloqueada*\n\nVocê já realizou entregas nesta rota. Não é possível sair/cancelar agora para evitar erros no sistema.\n\nSe precisar parar, use o comando *'Pausa'* ou contate o supervisor.`);
+                await send(`🚫 *Ação Bloqueada*\n\nVocê já realizou entregas nesta rota. Não é possível sair/cancelar agora para evitar erros no sistema.\n\nSe precisar parar, use o comando *'Pausa'* ou contate o supervisor.`);
                 return { status: 'exit_route_blocked' };
             }
 
@@ -251,7 +340,7 @@ export class WebhookService {
                 data: { status: 'PENDING' }
             });
 
-            await this.whatsapp.sendText(replyPhone, `✅ *Rota Cancelada/Reiniciada*\n\nA rota *${activeRoute.name}* voltou para o status de planejamento.\nQuando estiver pronto, digite *'Iniciar'* novamente.`);
+            await send(`✅ *Rota Cancelada/Reiniciada*\n\nA rota *${activeRoute.name}* voltou para o status de planejamento.\nQuando estiver pronto, digite *'Iniciar'* novamente.`);
             return { status: 'route_exited' };
         }
 
@@ -260,7 +349,7 @@ export class WebhookService {
             // 1. Se já tem uma rota rodando, avisa e mantém nela
             const runningRoute = activeRoutes.find((r: any) => r.status === 'ACTIVE');
             if (runningRoute) {
-                await this.whatsapp.sendText(replyPhone, `⚠️ A rota *${runningRoute.name}* já está em andamento.\n\nTermine ela antes de iniciar outra!`);
+                await send(`⚠️ A rota *${runningRoute.name}* já está em andamento.\n\nTermine ela antes de iniciar outra!`);
                 return { status: 'already_started' };
             }
 
@@ -276,13 +365,13 @@ export class WebhookService {
                     } else {
                         // Falou nome mas não achou
                         const names = plannedRoutes.map((r: any) => `• ${r.name}`).join('\n');
-                        await this.whatsapp.sendText(replyPhone, `🤔 Não encontrei a rota "${identifier}".\n\nSuas rotas disponíveis:\n${names}\n\nTente: "Iniciar rota [Nome]"`);
+                        await send(`🤔 Não encontrei a rota "${identifier}".\n\nSuas rotas disponíveis:\n${names}\n\nTente: "Iniciar rota [Nome]"`);
                         return { status: 'route_not_found_by_name' };
                     }
                 } else {
                     // Não falou nome, lista as opções
                     const names = plannedRoutes.map((r: any) => `• ${r.name}`).join('\n');
-                    await this.whatsapp.sendText(replyPhone, `📋 Você tem *${plannedRoutes.length} rotas* disponíveis:\n\n${names}\n\nPor favor, diga qual quer iniciar.\nEx: *"Iniciar rota ${plannedRoutes[0].name}"*`);
+                    await send(`📋 Você tem *${plannedRoutes.length} rotas* disponíveis:\n\n${names}\n\nPor favor, diga qual quer iniciar.\nEx: *"Iniciar rota ${plannedRoutes[0].name}"*`);
                     return { status: 'multiple_routes_ambiguity' };
                 }
             }
@@ -299,7 +388,7 @@ export class WebhookService {
                 data: { status: 'IN_TRANSIT' }
             });
 
-            await this.whatsapp.sendText(replyPhone, `🚀 *Rota Iniciada: ${targetRoute.name}*\n\nBom trabalho, ${driver.name}!\n📦 Total de entregas: *${targetRoute.deliveries.length}*.`);
+            await send(`🚀 *Rota Iniciada: ${targetRoute.name}*\n\nBom trabalho, ${driver.name}!\n📦 Total de entregas: *${targetRoute.deliveries.length}*.`);
             return { status: 'route_started' };
         }
 
@@ -311,7 +400,18 @@ export class WebhookService {
             const greeting = this.getGreeting();
             const pending = activeRoute.deliveries.filter((d: any) => d.status === 'PENDING' || d.status === 'IN_TRANSIT').length;
 
-            await this.whatsapp.sendText(replyPhone, `${greeting}, ${driver.name}! 🚚\n\nSua rota *${activeRoute.name}* está ativa.\n📦 Entregas pendentes: *${pending}*.\n\nDigite *'Iniciar'* para começar ou *'Resumo'* para detalhes.`);
+            // Template Personalizado
+            const config = driver.tenant?.config as any || {};
+            const templates = config.whatsappTemplates || {};
+
+            if (templates.greeting) {
+                let msg = templates.greeting;
+                msg = msg.replace('{motorista}', driver.name.split(' ')[0]);
+                await send(msg);
+            } else {
+                // Padrão
+                await send(`${greeting}, ${driver.name}! 🚚\n\nSua rota *${activeRoute.name}* está ativa.\n📦 Entregas pendentes: *${pending}*.\n\nDigite *'Iniciar'* para começar ou *'Resumo'* para detalhes.`);
+            }
             return { status: 'greeting_sent' };
         }
 
@@ -327,22 +427,22 @@ export class WebhookService {
                 msg += `\n👉 Próxima: ${pending[0].customer.tradeName}`;
             }
 
-            await this.whatsapp.sendText(replyPhone, msg);
+            await send(msg);
             return { status: 'summary_sent' };
         }
 
         if (action === 'PAUSA') {
-            await this.whatsapp.sendText(replyPhone, `🍽️ *Pausa Registrada.*\nBom descanso!`);
+            await send(`🍽️ *Pausa Registrada.*\nBom descanso!`);
             return { status: 'paused' };
         }
 
         if (action === 'RETOMADA') {
-            await this.whatsapp.sendText(replyPhone, `▶️ *Retomando!*\nBora para a próxima.`);
+            await send(`▶️ *Retomando!*\nBora para a próxima.`);
             return { status: 'resumed' };
         }
 
         if (action === 'ATRASO') {
-            await this.whatsapp.sendText(replyPhone, `⚠️ *Atraso reportado.*\nMotivo: ${reason || 'Não informado'}.`);
+            await send(`⚠️ *Atraso reportado.*\nMotivo: ${reason || 'Não informado'}.`);
             return { status: 'delay_reported' };
         }
 
@@ -353,7 +453,7 @@ export class WebhookService {
                 : activeRoute.deliveries.find((d: any) => d.status === 'IN_TRANSIT' || d.status === 'PENDING');
 
             if (!target) {
-                await this.whatsapp.sendText(replyPhone, "📍 Nenhuma entrega localizada para navegação.");
+                await send("📍 Nenhuma entrega localizada para navegação.");
                 return { status: 'no_target_nav' };
             }
 
@@ -362,12 +462,12 @@ export class WebhookService {
                 : target.customer.location?.address;
 
             if (!address) {
-                await this.whatsapp.sendText(replyPhone, `📍 Endereço não cadastrado para ${target.customer.tradeName}.`);
+                await send(`📍 Endereço não cadastrado para ${target.customer.tradeName}.`);
                 return { status: 'no_address' };
             }
 
             const encoded = encodeURIComponent(address);
-            await this.whatsapp.sendText(replyPhone, `🗺️ *Navegar para ${target.customer.tradeName}*\n🚙 Waze: https://waze.com/ul?q=${encoded}\n🌎 Maps: http://maps.google.com/?q=${encoded}`);
+            await send(`🗺️ *Navegar para ${target.customer.tradeName}*\n🚙 Waze: https://waze.com/ul?q=${encoded}\n🌎 Maps: http://maps.google.com/?q=${encoded}`);
             return { status: 'nav_sent' };
         }
 
@@ -388,13 +488,13 @@ export class WebhookService {
             }
 
             if (!delivery) {
-                await this.whatsapp.sendText(replyPhone, `❌ Não encontrei a nota ou cliente *"${identifier}"*.`);
+                await send(`❌ Não encontrei a nota ou cliente *"${identifier}"*.`);
                 return { status: 'not_found' };
             }
 
             // 2. Trava de Rota Não Iniciada
             if (activeRoute.status === 'PLANNED') {
-                await this.whatsapp.sendText(replyPhone, `🚫 *Atenção:* Sua rota ainda não foi iniciada.\n\nPor favor, digite *'Iniciar'* antes de começar.`);
+                await send(`🚫 *Atenção:* Sua rota ainda não foi iniciada.\n\nPor favor, digite *'Iniciar'* antes de começar.`);
                 return { status: 'route_not_started_block' };
             }
 
@@ -426,7 +526,7 @@ export class WebhookService {
                 const currentDelivery = await (this.prisma as any).delivery.findUnique({ where: { id: delivery.id } });
                 const statusPt = currentDelivery?.status === 'DELIVERED' ? 'Entregue' : 'Com Ocorrência';
 
-                await this.whatsapp.sendText(replyPhone, `⚠️ A nota *${delivery.invoiceNumber}* já consta como *${statusPt}*.\n\nSe baixou errado e quer corrigir, digite *'Desfazer'*.`);
+                await send(`⚠️ A nota *${delivery.invoiceNumber}* já consta como *${statusPt}*.\n\nSe baixou errado e quer corrigir, digite *'Desfazer'*.`);
                 return { status: 'delivery_already_done_block' };
             }
 
@@ -440,13 +540,70 @@ export class WebhookService {
                     where: { id: activeRoute.id },
                     data: { status: 'COMPLETED', endTime: new Date().toLocaleTimeString('pt-BR') }
                 });
-                await this.whatsapp.sendText(replyPhone, `🎉 *Rota Finalizada!* Todas as entregas concluídas.`);
+                await send(`🎉 *Rota Finalizada!* Todas as entregas concluídas.`);
             } else {
-                const emoji = action === 'ENTREGA' ? '✅' : '⚠️';
-                await this.whatsapp.sendText(replyPhone, `${emoji} *Registrado*\nNF: ${delivery.invoiceNumber}\nFaltam: ${pendingCount}.`);
+                // Template Personalizado de Sucesso
+                const config = driver.tenant?.config as any || {};
+                const templates = config.whatsappTemplates || {};
+
+                if (templates.success) {
+                    let msg = templates.success;
+                    msg = msg.replace('{motorista}', driver.name.split(' ')[0]);
+                    msg = msg.replace('{cliente}', delivery.customer.tradeName);
+                    msg = msg.replace('{nf}', delivery.invoiceNumber);
+                    await send(msg);
+                } else {
+                    // Padrão
+                    const emoji = action === 'ENTREGA' ? '✅' : '⚠️';
+                    await send(`${emoji} *Registrado*\nNF: ${delivery.invoiceNumber}\nFaltam: ${pendingCount}.`);
+                }
             }
 
             return { status: 'success', action: newStatus };
+        }
+
+        // --- BLOCO: WORKFLOW DETALHADO (CHEGADA / DESCARGA) ---
+        if (['CHEGADA', 'INICIO_DESCARGA', 'FIM_DESCARGA'].includes(action)) {
+            // 1. Busca Entrega Alvo
+            let delivery = null;
+            if (identifier) {
+                delivery = activeRoute.deliveries.find((d: any) =>
+                    d.invoiceNumber === identifier || d.customer.tradeName.toLowerCase().includes(identifier.toLowerCase())
+                );
+            } else {
+                // Se não falou qual, assume a próxima pendente/em trânsito
+                delivery = activeRoute.deliveries.find((d: any) => d.status === 'IN_TRANSIT' || d.status === 'PENDING');
+            }
+
+            if (!delivery) {
+                await send(`⚠️ Não identifiquei qual entrega você está se referindo.\n\nDiga o nome do cliente ou número da nota.`);
+                return { status: 'workflow_target_not_found' };
+            }
+
+            // 2. Define Campo a Atualizar
+            const updateData: any = {};
+            let msg = '';
+            const now = new Date();
+
+            if (action === 'CHEGADA') {
+                updateData.arrivedAt = now;
+                msg = `📍 *Chegada Registrada*\nCliente: ${delivery.customer.tradeName}\n\nPode iniciar a descarga quando estiver pronto.`;
+            } else if (action === 'INICIO_DESCARGA') {
+                updateData.unloadingStartedAt = now;
+                msg = `📦 *Descarga Iniciada*\nCliente: ${delivery.customer.tradeName}\n\nAvise quando terminar.`;
+            } else if (action === 'FIM_DESCARGA') {
+                updateData.unloadingEndedAt = now;
+                msg = `✅ *Descarga Finalizada*\nCliente: ${delivery.customer.tradeName}\n\nAgora confirme a entrega (foto/assinatura).`;
+            }
+
+            // 3. Atualiza no Banco
+            await (this.prisma as any).delivery.update({
+                where: { id: delivery.id },
+                data: updateData
+            });
+
+            await send(msg);
+            return { status: 'workflow_step_updated', step: action };
         }
         // ... (resto do código igual)
         if (action === 'VENDEDOR') {
@@ -468,9 +625,9 @@ export class WebhookService {
                     msg += `\n(Sem telefone cadastrado no sistema)`;
                 }
 
-                await this.whatsapp.sendText(replyPhone, msg);
+                await send(msg);
             } else {
-                await this.whatsapp.sendText(replyPhone, "De qual cliente você quer saber o vendedor?");
+                await send("De qual cliente você quer saber o vendedor?");
             }
             return { status: 'salesperson_info' };
         }
@@ -488,9 +645,9 @@ export class WebhookService {
 
             if (supervisor && supervisor.phone) {
                 const supPhone = supervisor.phone.replace(/\D/g, '');
-                await this.whatsapp.sendText(replyPhone, `👮‍♂️ *Contato da Base*\n\nFale com: ${supervisor.name}\n📞 Link: https://wa.me/55${supPhone}`);
+                await send(`👮‍♂️ *Contato da Base*\n\nFale com: ${supervisor.name}\n📞 Link: https://wa.me/55${supPhone}`);
             } else {
-                await this.whatsapp.sendText(replyPhone, "🏢 Não encontrei um número de supervisor cadastrado. Por favor, ligue na central.");
+                await send("🏢 Não encontrei um número de supervisor cadastrado. Por favor, ligue na central.");
             }
             return { status: 'supervisor_sent' };
         }
@@ -503,9 +660,9 @@ export class WebhookService {
                 .join('\n');
 
             if (pendingList) {
-                await this.whatsapp.sendText(replyPhone, `📋 *Próximos Clientes:*\n\n${pendingList}`);
+                await send(`📋 *Próximos Clientes:*\n\n${pendingList}`);
             } else {
-                await this.whatsapp.sendText(replyPhone, "🎉 A lista está vazia! Você já entregou tudo.");
+                await send("🎉 A lista está vazia! Você já entregou tudo.");
             }
             return { status: 'list_sent' };
         }
@@ -524,7 +681,7 @@ export class WebhookService {
             });
 
             // 2. Avisa o motorista
-            await this.whatsapp.sendText(replyPhone, `🚨 *SINISTRO REGISTRADO!* 🚨\n\nMantenha a calma. Já notifiquei a base sobre o ocorrido.\nSe houver vítimas, ligue 192/193 imediatamente.\n\nAguarde contato do supervisor.`);
+            await send(`🚨 *SINISTRO REGISTRADO!* 🚨\n\nMantenha a calma. Já notifiquei a base sobre o ocorrido.\nSe houver vítimas, ligue 192/193 imediatamente.\n\nAguarde contato do supervisor.`);
 
             // 3. (Opcional) Poderíamos mandar msg pro Supervisor aqui também se tivesse a integração ativa
 
@@ -536,7 +693,7 @@ export class WebhookService {
 
             if (pending.length > 0) {
                 // Cenário A: Tem pendência. Avisa e bloqueia.
-                await this.whatsapp.sendText(replyPhone, `⚠️ Você ainda tem *${pending.length} entregas pendentes*.\n\nSe não foram feitas, registre como FALHA antes de encerrar (Ex: "Cliente fechado nota X").`);
+                await send(`⚠️ Você ainda tem *${pending.length} entregas pendentes*.\n\nSe não foram feitas, registre como FALHA antes de encerrar (Ex: "Cliente fechado nota X").`);
                 return { status: 'finish_blocked' };
             } else {
                 // Cenário B: Tudo feito, encerra.
@@ -544,13 +701,13 @@ export class WebhookService {
                     where: { id: activeRoute.id },
                     data: { status: 'COMPLETED', endTime: new Date().toLocaleTimeString('pt-BR') }
                 });
-                await this.whatsapp.sendText(replyPhone, `✅ *Rota Encerrada!*\n\nMaravilha, ${driver.name}. Bom descanso!`);
+                await send(`✅ *Rota Encerrada!*\n\nMaravilha, ${driver.name}. Bom descanso!`);
                 return { status: 'route_force_completed' };
             }
         }
         // --- BLOCO 5: SAUDAÇÃO E OUTROS ---
         if (action === 'OUTRO') {
-            await this.whatsapp.sendText(replyPhone, "🤖 Sou o assistente ZapRoute.\nFale sobre sua rota ou digite *'Ajuda'*.");
+            await send("🤖 Sou o assistente ZapRoute.\nFale sobre sua rota ou digite *'Ajuda'*.");
             return { status: 'outro_replied' };
         }
 

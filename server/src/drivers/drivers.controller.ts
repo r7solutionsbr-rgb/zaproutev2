@@ -13,8 +13,8 @@ export class DriversController {
   ) { }
 
   @Get()
-  async findAll(@Query('tenantId') tenantId: string) {
-    return this.driversService.findAll(tenantId);
+  async findAll(@Query('tenantId') tenantId: string, @Query('search') search?: string) {
+    return this.driversService.findAll(tenantId, search);
   }
 
   @Post()

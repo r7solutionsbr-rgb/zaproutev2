@@ -303,6 +303,17 @@ export const RouteList: React.FC = () => {
   const { routes, deliveries, drivers, vehicles, refreshData } = useData();
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
 
+  // --- TENANT CONFIG ---
+  const [tenantConfig, setTenantConfig] = useState<any>({});
+
+  useEffect(() => {
+    api.tenants.getMe().then(t => setTenantConfig(t.config || {}));
+  }, []);
+
+  const showFinancials = tenantConfig.displaySettings?.showFinancials ?? true;
+  const showVolume = tenantConfig.displaySettings?.showVolume ?? true;
+  const volumeLabel = tenantConfig.displaySettings?.volumeLabel || 'Volume';
+
   // States for Modals
   const [viewMapRoute, setViewMapRoute] = useState<Route | null>(null);
   const [focusedDeliveryId, setFocusedDeliveryId] = useState<string | null>(null); // Para focar no mapa
@@ -466,8 +477,12 @@ export const RouteList: React.FC = () => {
                 {route.status === 'ACTIVE' ? 'EM ROTA' :
                   route.status === 'COMPLETED' ? 'FINALIZADA' : 'PLANEJADA'}
               </span>
-              <div className="mt-2 text-2xl font-bold text-slate-800">{formatCurrency(stats.totalValue)}</div>
-              <div className="text-xs text-slate-500">Valor Total da Carga</div>
+              {showFinancials && (
+                <>
+                  <div className="mt-2 text-2xl font-bold text-slate-800">{formatCurrency(stats.totalValue)}</div>
+                  <div className="text-xs text-slate-500">Valor Total da Carga</div>
+                </>
+              )}
             </div>
           </div>
 
@@ -480,10 +495,12 @@ export const RouteList: React.FC = () => {
               <span className="block text-xs text-slate-400 uppercase font-bold">Pendentes</span>
               <span className="text-lg font-semibold text-orange-600">{stats.pendingCount}</span>
             </div>
-            <div>
-              <span className="block text-xs text-slate-400 uppercase font-bold">Volume</span>
-              <span className="text-lg font-semibold">{stats.totalVolume.toFixed(2)} m³</span>
-            </div>
+            {showVolume && (
+              <div>
+                <span className="block text-xs text-slate-400 uppercase font-bold">{volumeLabel}</span>
+                <span className="text-lg font-semibold">{stats.totalVolume.toFixed(2)}</span>
+              </div>
+            )}
             <div>
               <span className="block text-xs text-slate-400 uppercase font-bold">Progresso</span>
               {/* Barra Segmentada no Detalhe também */}
@@ -512,7 +529,7 @@ export const RouteList: React.FC = () => {
                   <th className="p-4">Cliente / NF</th>
                   <th className="p-4">Endereço</th>
                   <th className="p-4">Horário</th>
-                  <th className="p-4 text-right">Valor</th>
+                  {showFinancials && <th className="p-4 text-right">Valor</th>}
                   <th className="p-4 text-center">Evidência</th>
                   <th className="p-4 text-center">Status</th>
                   <th className="p-4 text-center w-12"></th>
@@ -580,7 +597,7 @@ export const RouteList: React.FC = () => {
                         )}
                       </td>
 
-                      <td className="p-4 text-right">{formatCurrency(Number(delivery.value || 0))}</td>
+                      {showFinancials && <td className="p-4 text-right">{formatCurrency(Number(delivery.value || 0))}</td>}
 
                       {/* COLUNA EVIDÊNCIA */}
                       <td className="p-4 text-center">
@@ -718,8 +735,8 @@ export const RouteList: React.FC = () => {
                 <th className="p-4 whitespace-nowrap">Motorista</th>
                 <th className="p-4 whitespace-nowrap">Veículo</th>
                 <th className="p-4 whitespace-nowrap w-64">Progresso</th>
-                <th className="p-4 text-right whitespace-nowrap">Volume (m³)</th>
-                <th className="p-4 text-right whitespace-nowrap">Valor Total</th>
+                {showVolume && <th className="p-4 text-right whitespace-nowrap">{volumeLabel}</th>}
+                {showFinancials && <th className="p-4 text-right whitespace-nowrap">Valor Total</th>}
                 <th className="p-4 whitespace-nowrap">Início / Fim</th>
 
                 {/* COLUNA CONDICIONAL: AÇÕES ou STATUS */}
@@ -798,12 +815,8 @@ export const RouteList: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="p-4 text-right font-mono whitespace-nowrap">
-                      {stats.totalVolume.toFixed(1)}
-                    </td>
-                    <td className="p-4 text-right font-medium text-slate-800 whitespace-nowrap">
-                      {formatCurrency(stats.totalValue)}
-                    </td>
+                    {showVolume && <td className="p-4 text-right font-mono whitespace-nowrap">{stats.totalVolume.toFixed(2)}</td>}
+                    {showFinancials && <td className="p-4 text-right font-medium text-slate-800 whitespace-nowrap">{formatCurrency(stats.totalValue)}</td>}
                     <td className="p-4 whitespace-nowrap">
                       <div className="flex flex-col text-xs text-slate-500">
                         <span className="flex items-center gap-1"><Clock size={12} className="text-green-500" /> {route.startTime || '--:--'}</span>

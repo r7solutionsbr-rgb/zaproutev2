@@ -20,18 +20,20 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
   const [journeyStatus, setJourneyStatus] = useState<JourneyStatus>(null);
   const [loadingJourney, setLoadingJourney] = useState(false);
 
-  // Fetch initial journey status
+  const [tenantConfig, setTenantConfig] = useState<any>({});
+
+  // Fetch initial journey status and config
   useEffect(() => {
-    const fetchDriverStatus = async () => {
+    const fetchData = async () => {
       try {
-        // Assuming we have an endpoint to get driver details or we use the list endpoint
-        // For MVP, let's assume we can get it from the drivers list or a specific endpoint.
-        // Since we don't have a specific GET /drivers/:id, we might need to rely on the context or fetch all.
-        // Let's use the api.drivers.getAll and find me.
-        // Ideally: api.drivers.getOne(driverId)
         const userStr = localStorage.getItem('zaproute_user');
         const user = userStr ? JSON.parse(userStr) : null;
         if (user && user.tenantId) {
+          // 1. Get Config
+          const tenant = await api.tenants.getMe();
+          setTenantConfig(tenant.config || {});
+
+          // 2. Get Status
           const drivers = await api.drivers.getAll(user.tenantId);
           const me = drivers.find((d: any) => d.id === driverId);
           if (me) {
@@ -39,11 +41,26 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
           }
         }
       } catch (e) {
-        console.error("Failed to fetch driver status", e);
+        console.error("Failed to fetch data", e);
       }
     };
-    fetchDriverStatus();
+    fetchData();
   }, [driverId]);
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3; // metres
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) *
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+  };
 
   const handleJourneyAction = async (type: JourneyStatus) => {
     if (!type) return;
@@ -83,10 +100,85 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
   };
 
   const handleComplete = (status: DeliveryStatus) => {
-    if (selectedDelivery) {
-      updateDeliveryStatus(selectedDelivery.id, status, proofImage || undefined);
-      setView('LIST');
-      setSelectedDelivery(null);
+    if (!selectedDelivery) return;
+
+    // 1. Validação de Comprovante
+    if (status === 'DELIVERED' && tenantConfig.requireProofOfDelivery && !proofImage) {
+      alert("⚠️ Foto obrigatória conforme regra da empresa.\nPor favor, tire uma foto do comprovante.");
+      return;
+    }
+
+    // 2. Validação de Geofence
+    if (status === 'DELIVERED' && tenantConfig.geofenceRadius && tenantConfig.geofenceRadius > 0) {
+      if (!selectedDelivery.customer.location?.lat || !selectedDelivery.customer.location?.lng) {
+        // Se cliente não tem GPS, permite (ou bloqueia, dependendo da rigidez. Aqui vamos permitir com aviso)
+        console.warn("Cliente sem GPS cadastrado. Pulando validação de raio.");
+      } else {
+        navigator.geolocation.getCurrentPosition((position) => {
+          const dist = calculateDistance(
+            position.coords.latitude,
+            position.coords.longitude,
+            selectedDelivery.customer.location.lat,
+            selectedDelivery.customer.location.lng
+          );
+
+          if (dist > tenantConfig.geofenceRadius!) {
+            alert(`🚫 Você está muito longe do local de entrega!\n\nDistância: ${Math.round(dist)}m\nPermitido: ${tenantConfig.geofenceRadius}m`);
+            return;
+          }
+
+          // Se passou, finaliza
+          updateDeliveryStatus(selectedDelivery.id, status, proofImage || undefined);
+          setView('LIST');
+          setSelectedDelivery(null);
+
+        }, (error) => {
+          alert("Erro ao validar localização. Verifique seu GPS.");
+        });
+        return; // Sai para esperar o callback do GPS
+      }
+    }
+
+    // Se não tem geofence ou passou direto
+    updateDeliveryStatus(selectedDelivery.id, status, proofImage || undefined);
+    setView('LIST');
+    setSelectedDelivery(null);
+  };
+
+  const handleWorkflowAction = async (action: 'ARRIVED' | 'START_UNLOADING' | 'END_UNLOADING') => {
+    if (!selectedDelivery) return;
+
+    const now = new Date().toISOString();
+    const updates: any = {};
+
+    if (action === 'ARRIVED') updates.arrivedAt = now;
+    if (action === 'START_UNLOADING') updates.unloadingStartedAt = now;
+    if (action === 'END_UNLOADING') updates.unloadingEndedAt = now;
+
+    // Chama API com atualização parcial (mantém status PENDING/IN_TRANSIT)
+    // Precisamos garantir que o status não mude para DELIVERED ainda
+    // O backend aceita status, então mandamos o status ATUAL da entrega
+    try {
+      await api.routes.updateDeliveryStatus(
+        selectedDelivery.id,
+        selectedDelivery.status, // Mantém status atual
+        undefined,
+        undefined,
+        updates // Novos campos
+      );
+
+      // Atualiza estado local
+      setSelectedDelivery({ ...selectedDelivery, ...updates });
+
+      // Atualiza lista global (opcional, mas bom pra consistência)
+      // updateDeliveryStatus(selectedDelivery.id, selectedDelivery.status); // Isso pode ser confuso pois a prop updateDeliveryStatus do pai pode esperar mudança de status real.
+      // Melhor apenas atualizar o selectedDelivery localmente por enquanto, pois o pai (App.tsx) recarrega dados periodicamente ou podemos forçar refresh.
+      // Como DriverApp recebe `deliveries` como prop, idealmente deveríamos avisar o pai.
+      // Mas para UX imediata, atualizar local state é suficiente.
+
+    } catch (error) {
+      console.error("Erro ao atualizar workflow", error);
+      alert("Erro ao registrar etapa. Tente novamente.");
     }
   };
 
@@ -254,20 +346,78 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
             )}
 
             <div className="mt-8 flex flex-col gap-3">
-              <button
-                onClick={() => handleComplete(DeliveryStatus.DELIVERED)}
-                disabled={!proofImage}
-                className={`w-full py-4 rounded-xl text-white font-bold text-lg flex items-center justify-center gap-2 ${proofImage ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-300 cursor-not-allowed'}`}
-              >
-                <CheckCircle /> Confirmar Entrega
-              </button>
+              {(() => {
+                const workflow = tenantConfig.deliveryWorkflow || 'SIMPLE';
+                const { arrivedAt, unloadingStartedAt, unloadingEndedAt } = selectedDelivery;
 
-              <button
-                onClick={() => handleComplete(DeliveryStatus.FAILED)}
-                className="w-full py-4 bg-red-100 text-red-700 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
-              >
-                <XCircle /> Relatar Problema / Falha
-              </button>
+                // --- WORKFLOW: DETAILED ---
+                if (workflow === 'DETAILED') {
+                  if (!arrivedAt) {
+                    return (
+                      <button
+                        onClick={() => handleWorkflowAction('ARRIVED')}
+                        className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-blue-700"
+                      >
+                        <MapPin /> Informar Chegada
+                      </button>
+                    );
+                  }
+                  if (!unloadingStartedAt) {
+                    return (
+                      <button
+                        onClick={() => handleWorkflowAction('START_UNLOADING')}
+                        className="w-full py-4 bg-orange-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-orange-700"
+                      >
+                        <Upload /> Iniciar Descarga
+                      </button>
+                    );
+                  }
+                  if (!unloadingEndedAt) {
+                    return (
+                      <button
+                        onClick={() => handleWorkflowAction('END_UNLOADING')}
+                        className="w-full py-4 bg-purple-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-purple-700"
+                      >
+                        <CheckCircle /> Finalizar Descarga
+                      </button>
+                    );
+                  }
+                }
+
+                // --- WORKFLOW: STANDARD ---
+                if (workflow === 'STANDARD') {
+                  if (!arrivedAt) {
+                    return (
+                      <button
+                        onClick={() => handleWorkflowAction('ARRIVED')}
+                        className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-blue-700"
+                      >
+                        <MapPin /> Informar Chegada
+                      </button>
+                    );
+                  }
+                }
+
+                // --- FINAL STEP (ALL WORKFLOWS) ---
+                return (
+                  <>
+                    <button
+                      onClick={() => handleComplete(DeliveryStatus.DELIVERED)}
+                      disabled={!proofImage}
+                      className={`w-full py-4 rounded-xl text-white font-bold text-lg flex items-center justify-center gap-2 ${proofImage ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-300 cursor-not-allowed'}`}
+                    >
+                      <CheckCircle /> Confirmar Entrega
+                    </button>
+
+                    <button
+                      onClick={() => handleComplete(DeliveryStatus.FAILED)}
+                      className="w-full py-4 bg-red-100 text-red-700 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
+                    >
+                      <XCircle /> Relatar Problema / Falha
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

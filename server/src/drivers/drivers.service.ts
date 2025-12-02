@@ -1,20 +1,73 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
 
-import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { WhatsappService, ProviderConfig } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class DriversService {
+  private readonly logger = new Logger(DriversService.name);
+
   constructor(
     private prisma: PrismaService,
     private whatsapp: WhatsappService
   ) { }
 
-  async findAll(tenantId: string) {
+  // Helper para limpar dados
+  private prepareData(data: any) {
+    const clean = { ...data };
+    if (clean.cpf) clean.cpf = clean.cpf.replace(/\D/g, '');
+    if (clean.phone) {
+      clean.phone = clean.phone.replace(/\D/g, '');
+      // Se tiver 10 ou 11 dígitos (DDD + Número), adiciona 55
+      if (clean.phone.length === 10 || clean.phone.length === 11) {
+        clean.phone = `55${clean.phone}`;
+      }
+    }
+    if (clean.cnh) clean.cnh = clean.cnh.replace(/\D/g, '');
+    return clean;
+  }
+
+  // Helper para obter configuração do WhatsApp
+  private getWhatsappConfig(tenant: any): ProviderConfig {
+    const providerType = tenant.config?.whatsappProvider || 'ZAPI';
+
+    if (providerType === 'SENDPULSE') {
+      return {
+        type: 'SENDPULSE',
+        sendpulseClientId: process.env.SENDPULSE_ID,
+        sendpulseClientSecret: process.env.SENDPULSE_SECRET,
+        sendpulseBotId: tenant.config?.whatsappProvider?.sendpulseBotId || process.env.SENDPULSE_BOT_ID
+      };
+    }
+
+    // Default: Z-API
+    return {
+      type: 'ZAPI',
+      zapiInstanceId: tenant.config?.whatsappProvider?.zapiInstanceId || process.env.ZAPI_INSTANCE_ID,
+      zapiToken: tenant.config?.whatsappProvider?.zapiToken || process.env.ZAPI_TOKEN,
+      zapiClientToken: tenant.config?.whatsappProvider?.zapiClientToken || process.env.ZAPI_CLIENT_TOKEN
+    };
+  }
+
+  async findAll(tenantId: string, search?: string) {
     if (!tenantId) return [];
+
+    const where: Prisma.DriverWhereInput = { tenantId };
+
+    if (search) {
+      const cleanSearch = search.replace(/\D/g, '');
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        ...(cleanSearch ? [
+          { cpf: { contains: cleanSearch } },
+          { cnh: { contains: cleanSearch } }
+        ] : [])
+      ];
+    }
+
     return this.prisma.driver.findMany({
-      where: { tenantId },
+      where,
       include: { vehicle: true },
       orderBy: { name: 'asc' }
     });
@@ -22,7 +75,12 @@ export class DriversService {
 
   // Criação Individual
   async create(data: Prisma.DriverCreateInput & { tenantId: string }) {
-    const { tenantId, ...rest } = data;
+    const { tenantId, ...rest } = this.prepareData(data);
+
+    // 1. Busca Tenant para saber a config
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new Error("Empresa não encontrada");
+
     const driver = await this.prisma.driver.create({
       data: {
         ...rest,
@@ -33,8 +91,23 @@ export class DriversService {
 
     // Envia Boas-vindas
     if (driver.phone) {
-      const msg = `Olá *${driver.name}*! 👋\n\nBem-vindo ao *ZapRoute*!\nSeu cadastro foi realizado com sucesso.\n\nAgora você receberá suas rotas e suporte por aqui. 🚚💨`;
-      this.whatsapp.sendText(driver.phone, msg);
+      const whatsappConfig = this.getWhatsappConfig(tenant);
+      this.logger.log(`Criando motorista para tenant: ${tenant.name} via ${whatsappConfig.type}`);
+
+      // Lógica de Template vs Texto
+      // Se for SendPulse, DEVE ser template para iniciar conversa (se não houver janela de 24h).
+      // Se for Z-API, o provider faz fallback para texto.
+
+      const templateName = (tenant.config as any)?.whatsappTemplates?.welcome || 'welcome_driver';
+      const firstName = driver.name.split(' ')[0];
+
+      // Tenta enviar Template
+      await this.whatsapp.sendTemplate(
+        driver.phone,
+        templateName,
+        [firstName], // Variável {{1}}
+        whatsappConfig
+      );
     }
 
     return driver;
@@ -42,38 +115,44 @@ export class DriversService {
 
   // Edição
   async update(id: string, data: any) {
-    // Remove campos relacionais e IDs para evitar erros
-    const { id: _id, tenantId, tenant, vehicle, deliveries, routes, ...cleanData } = data;
+    const { id: _id, tenantId, tenant, vehicle, deliveries, routes, ...rawData } = data;
+    const cleanData = this.prepareData(rawData);
+
     return this.prisma.driver.update({
       where: { id },
       data: cleanData,
     });
   }
 
-  // Importação Massiva (Lógica Manual "Check-Then-Act")
+  // Importação Massiva
   async importMassive(tenantId: string, drivers: any[]) {
     const results = [];
 
-    for (const d of drivers) {
-      // Ignora linhas sem CPF
+    // 1. Busca Tenant UMA VEZ para saber a config
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new Error("Empresa não encontrada");
+
+    const whatsappConfig = this.getWhatsappConfig(tenant);
+    this.logger.log(`Importação massiva para tenant: ${tenant.name} via ${whatsappConfig.type}`);
+
+    for (const rawDriver of drivers) {
+      const d = this.prepareData(rawDriver);
+
       if (!d.cpf) continue;
 
-      // 1. Tenta encontrar o motorista pelo CPF (Manual, pois CPF não é @unique no schema)
       const existingDriver = await this.prisma.driver.findFirst({
         where: {
           cpf: d.cpf,
-          tenantId: tenantId // Garante que é da mesma empresa
+          tenantId: tenantId
         }
       });
 
-      // Tratamento de segurança para datas inválidas
       let expirationDate = new Date();
       if (d.cnhExpiration && !isNaN(new Date(d.cnhExpiration).getTime())) {
         expirationDate = new Date(d.cnhExpiration);
       }
 
       if (existingDriver) {
-        // ATUALIZA
         const updated = await this.prisma.driver.update({
           where: { id: existingDriver.id },
           data: {
@@ -87,7 +166,6 @@ export class DriversService {
         });
         results.push(updated);
       } else {
-        // CRIA
         const created = await this.prisma.driver.create({
           data: {
             name: d.name,
@@ -103,10 +181,17 @@ export class DriversService {
           }
         });
 
-        // Envia Boas-vindas
         if (created.phone) {
-          const msg = `Olá *${created.name}*! 👋\n\nBem-vindo ao *ZapRoute*!\nSeu cadastro foi realizado com sucesso.\n\nAgora você receberá suas rotas e comprovantes por aqui. 🚚💨`;
-          this.whatsapp.sendText(created.phone, msg);
+          const templateName = (tenant.config as any)?.whatsappTemplates?.welcome || 'welcome_driver';
+          const firstName = created.name.split(' ')[0];
+
+          // Tenta enviar Template
+          await this.whatsapp.sendTemplate(
+            created.phone,
+            templateName,
+            [firstName],
+            whatsappConfig
+          );
         }
 
         results.push(created);
@@ -114,6 +199,7 @@ export class DriversService {
     }
     return results;
   }
+
   async getDriverPerformance(driverId: string) {
     const driver = await this.prisma.driver.findUnique({
       where: { id: driverId },
@@ -122,11 +208,9 @@ export class DriversService {
 
     if (!driver) throw new Error("Motorista não encontrado");
 
-    // Data de 30 dias atrás
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Busca entregas dos últimos 30 dias
     const deliveries = await this.prisma.delivery.findMany({
       where: {
         driverId,
@@ -143,7 +227,6 @@ export class DriversService {
       ? ((deliveredCount / totalDeliveries) * 100).toFixed(1)
       : "0.0";
 
-    // Busca últimas 3 ocorrências (falhas)
     const recentFailures = await this.prisma.delivery.findMany({
       where: {
         driverId,

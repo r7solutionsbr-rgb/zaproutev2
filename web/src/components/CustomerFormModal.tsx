@@ -142,7 +142,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                         {activeTab === 'DATA' && (
                             <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 block mb-1">CNPJ *</label>
+                                    <label className="text-xs font-bold text-slate-500 block mb-1">CPF / CNPJ *</label>
                                     <div className="flex gap-2">
                                         <input
                                             required

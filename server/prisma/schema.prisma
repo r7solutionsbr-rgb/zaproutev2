@@ -20,6 +20,7 @@ model Tenant {
   address      String?
   logoUrl      String?
   primaryColor String?  @default("#2563eb")
+  config       Json?    @default("{}") // <--- NOVO
 
   // --- RELACIONAMENTOS ---
   users        User[]
@@ -61,6 +62,7 @@ model Driver {
   id              String   @id @default(uuid())
   name            String
   cpf             String
+  externalId      String?  // <--- NOVO
   cnh             String
   cnhCategory     String
   cnhExpiration   DateTime
@@ -216,6 +218,11 @@ model Delivery {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // --- AUDITORIA DE WORKFLOW ---
+  arrivedAt          DateTime?
+  unloadingStartedAt DateTime?
+  unloadingEndedAt   DateTime?
   @@index([routeId])
   @@index([invoiceNumber]) // Crítico para o motorista baixar nota
   @@index([customerId])

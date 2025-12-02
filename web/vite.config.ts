@@ -6,13 +6,15 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'), // Aponta para src
+      '@': path.resolve(__dirname, './src'),
     },
   },
   server: {
+    // Adicione esta linha abaixo:
+    allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000', // Conecta com seu NestJS
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       }

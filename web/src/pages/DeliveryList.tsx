@@ -6,6 +6,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css'; // Ensure CSS is imported if not globally
 
 import { useData } from '../contexts/DataContext';
+import { api } from '../services/api';
 
 // --- LEAFLET ICONS ---
 const createIcon = (color: string) => new L.Icon({
@@ -322,6 +323,19 @@ export const DeliveryList: React.FC = () => {
     }
   };
 
+  // --- TENANT CONFIG ---
+  const [tenantConfig, setTenantConfig] = useState<any>({});
+
+  useEffect(() => {
+    api.tenants.getMe().then(t => setTenantConfig(t.config || {}));
+  }, []);
+
+  const showFinancials = tenantConfig.displaySettings?.showFinancials ?? true;
+  const showVolume = tenantConfig.displaySettings?.showVolume ?? true;
+  const showWeight = tenantConfig.displaySettings?.showWeight ?? false;
+  const volumeLabel = tenantConfig.displaySettings?.volumeLabel || 'Volume';
+  const weightLabel = tenantConfig.displaySettings?.weightLabel || 'Peso';
+
   // --- VIEW: LIST ---
   return (
     <div className="p-6 max-w-7xl mx-auto relative">
@@ -438,7 +452,9 @@ export const DeliveryList: React.FC = () => {
                 <th className="p-4">Cliente</th>
                 <th className="p-4">Motorista</th>
                 <th className="p-4">Prioridade</th>
-                <th className="p-4 text-right">Valor</th>
+                {showVolume && <th className="p-4 text-right">{volumeLabel}</th>}
+                {showWeight && <th className="p-4 text-right">{weightLabel}</th>}
+                {showFinancials && <th className="p-4 text-right">Valor</th>}
                 <th className="p-4 text-center">Status</th>
                 <th className="p-4 text-center">Ações</th>
               </tr>
@@ -490,9 +506,13 @@ export const DeliveryList: React.FC = () => {
                         <span className="text-slate-400 text-xs bg-slate-100 px-2 py-1 rounded-md w-fit">NORMAL</span>
                       )}
                     </td>
-                    <td className="p-4 text-right font-medium text-slate-800">
-                      {formatCurrency(d.value)}
-                    </td>
+                    {showVolume && <td className="p-4 text-right">{d.volume}</td>}
+                    {showWeight && <td className="p-4 text-right">{d.weight}</td>}
+                    {showFinancials && (
+                      <td className="p-4 text-right font-medium text-slate-800">
+                        {formatCurrency(d.value)}
+                      </td>
+                    )}
                     <td className="p-4 text-center">
                       <div className="flex justify-center">
                         <StatusBadge status={d.status} />

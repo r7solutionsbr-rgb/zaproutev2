@@ -55,6 +55,11 @@ export interface Delivery {
   timestamp?: string;
   updatedAt?: string;
   failureReason?: string;
+
+  // --- AUDITORIA ---
+  arrivedAt?: string;
+  unloadingStartedAt?: string;
+  unloadingEndedAt?: string;
 }
 
 export interface Vehicle {
@@ -82,11 +87,43 @@ export interface Driver {
   phone: string;
   email: string;
   vehicleId: string | null; // Assigned Vehicle
+  externalId?: string; // <--- NOVO
   avatarUrl: string;
   status: 'IDLE' | 'ON_ROUTE' | 'OFFLINE';
   currentLocation?: Location;
   rating: number; // 0 to 5
   totalDeliveries: number;
+}
+
+export interface TenantConfig {
+  driverImportStrategy?: 'CPF' | 'PHONE' | 'EXTERNAL_ID';
+  requireProofOfDelivery?: boolean;
+  geofenceRadius?: number;
+  whatsappProvider?: 'ZAPI' | 'SENDPULSE'; // Padrão deve ser ZAPI se undefined
+  whatsappTemplates?: {
+    greeting?: string;
+    success?: string;
+  };
+  displaySettings?: {
+    showFinancials?: boolean;
+    showVolume?: boolean;
+    showWeight?: boolean;
+    volumeLabel?: string;
+    weightLabel?: string;
+  };
+  deliveryWorkflow?: 'SIMPLE' | 'STANDARD' | 'DETAILED';
+}
+
+export interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  cnpj?: string;
+  address?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  config?: TenantConfig;
 }
 
 export interface Route {

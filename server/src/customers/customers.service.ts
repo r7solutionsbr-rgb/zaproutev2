@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import axios from 'axios';
+import { validateCNPJ, validateCPF } from '../common/validators';
 
 @Injectable()
 export class CustomersService {
@@ -140,13 +141,29 @@ export class CustomersService {
 
     // PROCESSAMENTO EM LOTES (CHUNKS)
     const BATCH_SIZE = 50;
+    const errors: string[] = []; // Array para acumular erros detalhados
+
     for (let i = 0; i < customers.length; i += BATCH_SIZE) {
       const batch = customers.slice(i, i + BATCH_SIZE);
 
       // Processa o lote em paralelo (mas cuidado com conexões do banco)
       // Aqui faremos sequencial dentro do lote para garantir integridade
-      for (const c of batch) {
-        if (!c.cnpj && !c.tradeName) continue;
+      for (const [index, c] of batch.entries()) {
+        const rowNumber = i + index + 1; // Número da linha (aproximado)
+
+        // 1. Validação Rígida de Documento (CNPJ ou CPF)
+        const rawDoc = (c.cnpj || '').replace(/\D/g, ''); // Assume que o campo 'cnpj' pode vir com CPF também
+        let docType: 'CNPJ' | 'CPF' | null = null;
+
+        if (validateCNPJ(rawDoc)) docType = 'CNPJ';
+        else if (validateCPF(rawDoc)) docType = 'CPF';
+
+        if (!docType) {
+          // REJEIÇÃO: Não tem documento válido
+          this.logger.warn(`Importação rejeitada (Linha ${rowNumber}): Documento inválido ou ausente (${c.cnpj})`);
+          // Opcional: Adicionar ao log de erros para retorno
+          continue;
+        }
 
         // 2. Resolve Vendedor
         let sellerId = null;
@@ -172,14 +189,11 @@ export class CustomersService {
           }
         }
 
-        // 3. Verifica Existência
+        // 3. Verifica Existência (Busca ESTRITA pelo Documento)
         const existingCustomer = await (this.prisma as any).customer.findFirst({
           where: {
             tenantId: tenantId,
-            OR: [
-              { cnpj: c.cnpj },
-              { tradeName: c.tradeName }
-            ]
+            cnpj: rawDoc // O campo no banco chama 'cnpj', mas guardamos CPF lá também se for o caso
           }
         });
 
@@ -187,7 +201,7 @@ export class CustomersService {
         const rawData = {
           legalName: c.legalName || c.tradeName,
           tradeName: c.tradeName,
-          cnpj: c.cnpj,
+          cnpj: rawDoc, // Salva limpo
           stateRegistration: c.stateRegistration,
           email: c.email,
           phone: c.phone,
@@ -208,24 +222,28 @@ export class CustomersService {
         }
 
         // 5. Salva e Incrementa Contadores
-        if (existingCustomer) {
-          await (this.prisma as any).customer.update({
-            where: { id: existingCustomer.id },
-            data: {
-              ...customerData,
-              ...relationData
-            }
-          });
-          updatedCount++;
-        } else {
-          await (this.prisma as any).customer.create({
-            data: {
-              ...customerData,
-              ...relationData,
-              tenant: { connect: { id: tenantId } }
-            }
-          });
-          createdCount++;
+        try {
+          if (existingCustomer) {
+            await (this.prisma as any).customer.update({
+              where: { id: existingCustomer.id },
+              data: {
+                ...customerData,
+                ...relationData
+              }
+            });
+            updatedCount++;
+          } else {
+            await (this.prisma as any).customer.create({
+              data: {
+                ...customerData,
+                ...relationData,
+                tenant: { connect: { id: tenantId } }
+              }
+            });
+            createdCount++;
+          }
+        } catch (error: any) {
+          this.logger.error(`Erro ao salvar cliente ${rawDoc}: ${error.message}`);
         }
       }
     }
@@ -240,6 +258,11 @@ export class CustomersService {
 
   private prepareData(data: any) {
     const clean: any = { ...data };
+
+    // Limpeza de Dados (Store Clean)
+    if (clean.cnpj) clean.cnpj = clean.cnpj.replace(/\D/g, '');
+    if (clean.phone) clean.phone = clean.phone.replace(/\D/g, '');
+    if (clean.whatsapp) clean.whatsapp = clean.whatsapp.replace(/\D/g, '');
 
     if (clean.creditLimit === '' || clean.creditLimit === null || clean.creditLimit === undefined) {
       clean.creditLimit = null;

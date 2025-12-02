@@ -20,6 +20,14 @@ export class CreateRouteDto {
 
   @IsString()
   @IsOptional()
+  driverPhone?: string; // <--- NOVO
+
+  @IsString()
+  @IsOptional()
+  driverExternalId?: string; // <--- NOVO
+
+  @IsString()
+  @IsOptional()
   vehiclePlate?: string;
 
   @IsString()
@@ -52,7 +60,7 @@ export class CreateDeliveryDto {
 
   @IsString()
   priority: 'NORMAL' | 'HIGH' | 'URGENT';
-  
+
   @IsNumber()
   @IsOptional()
   value?: number;
@@ -82,8 +90,21 @@ export class UpdateDeliveryStatusDto {
   @IsNumber()
   @IsOptional()
   locationLat?: number;
-  
+
   @IsNumber()
   @IsOptional()
   locationLng?: number;
+
+  // --- NOVOS CAMPOS DE AUDITORIA ---
+  @IsString()
+  @IsOptional()
+  arrivedAt?: string;
+
+  @IsString()
+  @IsOptional()
+  unloadingStartedAt?: string;
+
+  @IsString()
+  @IsOptional()
+  unloadingEndedAt?: string;
 }

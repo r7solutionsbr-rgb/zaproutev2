@@ -51,6 +51,19 @@ export class AiService {
     }
   }
 
+  async processMessage(driverId: string, text?: string, imageUrl?: string, audioUrl?: string): Promise<any> {
+    if (imageUrl) {
+      return this.interpretImage(imageUrl, text);
+    }
+    if (audioUrl) {
+      return this.interpretAudio(audioUrl);
+    }
+    if (text) {
+      return this.interpretText(text);
+    }
+    return { action: 'UNKNOWN', error: 'Nenhum conteúdo processável' };
+  }
+
   private async askGemini(
     context: string,
     _unused?: string,
@@ -112,11 +125,14 @@ export class AiService {
               17. LISTAR: Ver nomes dos próximos. (Ex: "Quem são os próximos?", "Lista de clientes", "Quais faltam?", "Me manda a lista")
               18. SINISTRO: Acidente ou problema grave. (Ex: "Bati o carro", "Fui roubado", "Pneu furou", "Acidente na via", "Quebrou o caminhão")
               19. SAIR_ROTA: Sair da rota atual ou cancelar início. (Ex: "Sair da rota", "Cancelar rota", "Parei a rota", "Não vou mais fazer essa")
-              20. OUTRO: Conversa fiada ou assuntos não relacionados à logística.
+              20. CHEGADA: Chegou no cliente. (Ex: "Cheguei", "Estou na porta", "No local", "Cheguei no cliente X")
+              21. INICIO_DESCARGA: Começou a baixar. (Ex: "Começando a baixar", "Iniciando descarga", "Vou descarregar")
+              22. FIM_DESCARGA: Terminou de baixar. (Ex: "Terminei de baixar", "Descarga finalizada", "Acabei de descarregar")
+              23. OUTRO: Conversa fiada ou assuntos não relacionados à logística.
 
               SAÍDA JSON (Sem markdown):
               {
-                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "AJUDA" | "SAUDACAO" | "FINALIZAR" | "VENDEDOR" | "SUPERVISOR" | "LISTAR" | "SINISTRO" | "SAIR_ROTA" | "OUTRO" | "UNKNOWN",
+                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "AJUDA" | "SAUDACAO" | "FINALIZAR" | "VENDEDOR" | "SUPERVISOR" | "LISTAR" | "SINISTRO" | "SAIR_ROTA" | "CHEGADA" | "INICIO_DESCARGA" | "FIM_DESCARGA" | "OUTRO" | "UNKNOWN",
                 "identifier": "numero nota, nome cliente ou nome da rota",
                 "reason": "motivo, tempo de atraso ou detalhe"
               }

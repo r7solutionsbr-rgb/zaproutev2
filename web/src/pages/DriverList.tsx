@@ -4,6 +4,7 @@ import { Edit2, Plus, Search, Upload, FileText, CheckCircle, X, AlertCircle, Arr
 import { JourneyHistoryModal } from '../components/JourneyHistoryModal';
 import { api } from '../services/api';
 import * as XLSX from 'xlsx';
+import { cleanDigits, maskCpfCnpj, maskPhone } from '../utils/masks';
 
 import { useData } from '../contexts/DataContext';
 
@@ -94,29 +95,7 @@ export const DriverList: React.FC = () => {
     };
 
     // --- MÁSCARAS ---
-    const maskCPF = (value: string) => {
-        if (!value) return "";
-        const v = value.replace(/\D/g, '').slice(0, 11);
-        if (v.length > 9) return `${v.slice(0, 3)}.${v.slice(3, 6)}.${v.slice(6, 9)}-${v.slice(9)}`;
-        if (v.length > 6) return `${v.slice(0, 3)}.${v.slice(3, 6)}.${v.slice(6)}`;
-        if (v.length > 3) return `${v.slice(0, 3)}.${v.slice(3)}`;
-        return v;
-    };
-
-    const maskPhone = (value: string) => {
-        if (!value) return "";
-        let v = value;
-        if (v.startsWith("+55")) v = v.substring(3);
-        v = v.replace(/\D/g, "");
-        if (v.startsWith("55") && v.length > 11) v = v.substring(2);
-        v = v.slice(0, 11);
-        if (!v) return "";
-        let s = "+55";
-        if (v.length > 0) s += ` (${v.slice(0, 2)}`;
-        if (v.length > 2) s += `) ${v.slice(2, 7)}`;
-        if (v.length > 7) s += `-${v.slice(7)}`;
-        return s;
-    };
+    // (Removido: Usando utils/masks)
 
     // --- HANDLERS ---
 
@@ -141,7 +120,7 @@ export const DriverList: React.FC = () => {
             name: '', cpf: '', cnh: '', cnhCategory: 'B',
             cnhExpiration: new Date().toISOString().split('T')[0],
             phone: '', email: '', rating: 5, totalDeliveries: 0,
-            avatarUrl: '', status: 'IDLE' // Default status
+            avatarUrl: '', status: 'IDLE', externalId: '' // Default status
         });
         setFormError('');
         setModalMode('CREATE');
@@ -153,9 +132,10 @@ export const DriverList: React.FC = () => {
         setFormData({
             ...driver,
             cnhExpiration: dateStr,
-            cpf: maskCPF(driver.cpf),
+            cpf: maskCpfCnpj(driver.cpf),
             phone: maskPhone(driver.phone),
-            avatarUrl: driver.avatarUrl || ''
+            avatarUrl: driver.avatarUrl || '',
+            externalId: driver.externalId || ''
         });
         setFormError('');
         setModalMode('EDIT');
@@ -171,7 +151,14 @@ export const DriverList: React.FC = () => {
             const userStr = localStorage.getItem('zaproute_user');
             const user = userStr ? JSON.parse(userStr) : null;
 
-            const payload = { ...formData };
+            // Limpa dados antes de enviar
+            const payload = {
+                ...formData,
+                cpf: cleanDigits(formData.cpf || ''),
+                phone: cleanDigits(formData.phone || ''),
+                cnh: cleanDigits(formData.cnh || '')
+            };
+
             if (payload.cnhExpiration) payload.cnhExpiration = new Date(payload.cnhExpiration as string).toISOString();
 
             if (!payload.avatarUrl) {
@@ -229,9 +216,13 @@ export const DriverList: React.FC = () => {
                 const rows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                 if (rows.length === 0) throw new Error("Planilha vazia.");
                 const driversToImport = rows.map((row: any) => ({
-                    name: row['Nome'], cpf: maskCPF(String(row['CPF'] || '')), cnh: String(row['CNH'] || ''),
-                    cnhCategory: String(row['Categoria'] || 'B'), cnhExpiration: row['Validade'] || new Date().toISOString(),
-                    phone: maskPhone(String(row['Telefone'] || '')), email: row['Email']
+                    name: row['Nome'],
+                    cpf: cleanDigits(String(row['CPF'] || '')),
+                    cnh: cleanDigits(String(row['CNH'] || '')),
+                    cnhCategory: String(row['Categoria'] || 'B'),
+                    cnhExpiration: row['Validade'] || new Date().toISOString(),
+                    phone: cleanDigits(String(row['Telefone'] || '')),
+                    email: row['Email']
                 }));
                 await api.drivers.import(user.tenantId, driversToImport);
                 setNotification({ type: 'SUCCESS', message: `${driversToImport.length} motoristas importados com sucesso!` });
@@ -304,7 +295,7 @@ export const DriverList: React.FC = () => {
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                             <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><CreditCard size={18} /> Documentação</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div><span className="text-xs text-slate-400 font-bold block">CPF</span>{selectedDriver.cpf}</div>
+                                <div><span className="text-xs text-slate-400 font-bold block">CPF</span>{maskCpfCnpj(selectedDriver.cpf)}</div>
                                 <div><span className="text-xs text-slate-400 font-bold block">CNH</span>{selectedDriver.cnh}</div>
                                 <div><span className="text-xs text-slate-400 font-bold block">Categoria</span>{selectedDriver.cnhCategory}</div>
                                 <div>
@@ -319,7 +310,7 @@ export const DriverList: React.FC = () => {
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                             <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><Phone size={18} /> Contato</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div><span className="text-xs text-slate-400 font-bold block">Celular</span>{selectedDriver.phone}</div>
+                                <div><span className="text-xs text-slate-400 font-bold block">Celular</span>{maskPhone(selectedDriver.phone)}</div>
                                 <div><span className="text-xs text-slate-400 font-bold block">Email</span>{selectedDriver.email}</div>
                             </div>
                         </div>
@@ -384,7 +375,11 @@ export const DriverList: React.FC = () => {
                                 <tr key={d.id} className="hover:bg-slate-50 group">
                                     <td className="p-4 flex items-center gap-3">
                                         <img src={d.avatarUrl} alt="" className="w-10 h-10 rounded-full border border-slate-200 object-cover" />
-                                        <div><div className="font-bold text-slate-800">{d.name}</div><div className="text-xs text-slate-400">{d.cpf}</div></div>
+                                        <div>
+                                            <div className="font-bold text-slate-800">{d.name}</div>
+                                            <div className="text-xs text-slate-400">{maskCpfCnpj(d.cpf)}</div>
+                                            {d.externalId && <div className="text-[10px] text-blue-600 font-bold bg-blue-50 px-1 rounded inline-block mt-0.5">ID: {d.externalId}</div>}
+                                        </div>
                                     </td>
                                     <td className="p-4">{d.cnh} <span className="text-xs bg-slate-100 px-1 rounded font-bold">{d.cnhCategory}</span></td>
                                     <td className="p-4">
@@ -545,6 +540,9 @@ export const DriverList: React.FC = () => {
 
                             <div className="col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo</label><input required className="w-full p-2 border rounded" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} /></div>
 
+                            <div className="col-span-2 md:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Matrícula / ID Externo (Opcional)</label><input className="w-full p-2 border rounded" value={formData.externalId || ''} onChange={e => setFormData({ ...formData, externalId: e.target.value })} placeholder="Ex: 12345" /></div>
+                            <div className="col-span-2 md:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input type="email" required className="w-full p-2 border rounded" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} /></div>
+
                             {/* MULTI-SELECT CATEGORIAS */}
                             <div className="col-span-2">
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Categorias da CNH</label>
@@ -569,10 +567,10 @@ export const DriverList: React.FC = () => {
                             <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">CNH</label><input required className="w-full p-2 border rounded" value={formData.cnh || ''} onChange={e => setFormData({ ...formData, cnh: e.target.value })} /></div>
                             <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Validade CNH</label><input type="date" required className="w-full p-2 border rounded" value={formData.cnhExpiration ? String(formData.cnhExpiration) : ''} onChange={e => setFormData({ ...formData, cnhExpiration: e.target.value })} /></div>
 
-                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">CPF</label><input required className="w-full p-2 border rounded" value={formData.cpf || ''} onChange={e => setFormData({ ...formData, cpf: maskCPF(e.target.value) })} maxLength={14} /></div>
+                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">CPF</label><input required className="w-full p-2 border rounded" value={formData.cpf || ''} onChange={e => setFormData({ ...formData, cpf: maskCpfCnpj(e.target.value) })} maxLength={14} /></div>
                             <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Telefone</label><input required className="w-full p-2 border rounded" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: maskPhone(e.target.value) })} maxLength={19} /></div>
 
-                            <div className="col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input type="email" required className="w-full p-2 border rounded" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} /></div>
+                            {/* Email movido para cima */}
 
                             {/* SELECT DE STATUS */}
                             <div className="col-span-2">

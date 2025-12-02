@@ -45,9 +45,9 @@ export class RoutesService {
     return d;
   }
 
-  private cleanString(str: string): string {
-    if (!str) return '';
-    return str.replace(/[^a-zA-Z0-9]/g, '');
+  private cleanString(str: string | number | null | undefined): string {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/\D/g, '');
   }
 
   async findAll(tenantId: string, days?: number) {
@@ -116,24 +116,59 @@ export class RoutesService {
 
     return (this.prisma as any).$transaction(async (tx: any) => {
 
-      // 1. Validação do Motorista (Obrigatório existir)
+      // 1. Validação do Motorista (Estratégia Dinâmica)
       let finalDriverId = data.driverId;
 
-      if (!finalDriverId && data.driverCpf) {
-        const cleanCpf = this.cleanString(data.driverCpf);
-        const driver = await tx.driver.findFirst({
-          where: {
-            tenantId: data.tenantId,
-            OR: [{ cpf: cleanCpf }, { cpf: data.driverCpf }]
+      if (!finalDriverId) {
+        // Busca Configuração do Tenant
+        const tenant = await tx.tenant.findUnique({ where: { id: data.tenantId } });
+        const config = tenant?.config as any || {};
+        const strategy = config.driverImportStrategy || 'CPF'; // Default: CPF
+
+        let driver = null;
+
+        if (strategy === 'PHONE' && data.driverPhone) {
+          // Estratégia: TELEFONE (Busca flexível)
+          const cleanPhone = this.cleanString(data.driverPhone);
+          if (cleanPhone.length > 8) {
+            driver = await tx.driver.findFirst({
+              where: {
+                tenantId: data.tenantId,
+                phone: { contains: cleanPhone } // Busca parcial para evitar problemas de +55
+              }
+            });
           }
-        });
+        } else if (strategy === 'EXTERNAL_ID' && data.driverExternalId) {
+          // Estratégia: MATRÍCULA (Busca exata)
+          driver = await tx.driver.findFirst({
+            where: {
+              tenantId: data.tenantId,
+              externalId: data.driverExternalId
+            }
+          });
+        } else if (data.driverCpf) {
+          // Estratégia: CPF (Padrão e Fallback)
+          const cleanCpf = this.cleanString(data.driverCpf);
+          driver = await tx.driver.findFirst({
+            where: {
+              tenantId: data.tenantId,
+              OR: [{ cpf: cleanCpf }, { cpf: data.driverCpf }]
+            }
+          });
+        }
 
         if (!driver) {
-          throw new NotFoundException(`Motorista não encontrado! CPF: ${data.driverCpf}. Cadastre-o antes de importar.`);
+          const field = strategy === 'PHONE' ? 'Telefone' : strategy === 'EXTERNAL_ID' ? 'Matrícula' : 'CPF';
+          const value = strategy === 'PHONE' ? data.driverPhone : strategy === 'EXTERNAL_ID' ? data.driverExternalId : data.driverCpf;
+
+          throw new NotFoundException(
+            `Motorista não encontrado! Estratégia: ${field} (${value || 'Não informado'}). Verifique o cadastro ou a configuração da empresa.`
+          );
         }
         finalDriverId = driver.id;
-      } else if (finalDriverId) {
-        // Se veio ID, valida se existe
+
+      } else {
+        // Se veio ID direto, valida se existe
         const exists = await tx.driver.findUnique({ where: { id: finalDriverId } });
         if (!exists) throw new NotFoundException(`Motorista ID ${finalDriverId} inválido.`);
       }
@@ -161,17 +196,19 @@ export class RoutesService {
       const missingCustomers = [];
 
       // Coletar todos os CNPJs e Nomes para buscar de uma vez
+      const originalCnpjs = data.deliveries.map(d => d.customerCnpj).filter(Boolean);
       const rawCnpjs = data.deliveries.map(d => d.customerCnpj ? this.cleanString(d.customerCnpj) : null).filter(Boolean);
       const formattedCnpjs = rawCnpjs.map(c => this.formatCNPJ(c));
       const names = data.deliveries.map(d => d.customerName).filter(Boolean);
 
-      // Busca em lote (CNPJ Limpo OU Formatado)
+      // Busca em lote (CNPJ Limpo OU Formatado OU Original)
       const existingCustomers = await tx.customer.findMany({
         where: {
           tenantId: data.tenantId,
           OR: [
             { cnpj: { in: rawCnpjs } },
             { cnpj: { in: formattedCnpjs } },
+            { cnpj: { in: originalCnpjs } },
             { tradeName: { in: names, mode: 'insensitive' } },
             { legalName: { in: names, mode: 'insensitive' } }
           ]
@@ -183,7 +220,12 @@ export class RoutesService {
       const customerByName = new Map();
 
       existingCustomers.forEach((c: any) => {
-        if (c.cnpj) customerByCnpj.set(this.cleanString(c.cnpj), c);
+        if (c.cnpj) {
+          // Indexa por todas as variações possíveis para garantir o match
+          customerByCnpj.set(c.cnpj, c); // Raw DB
+          customerByCnpj.set(this.cleanString(c.cnpj), c); // Clean DB
+          customerByCnpj.set(this.formatCNPJ(c.cnpj), c); // Formatted DB
+        }
         if (c.tradeName) customerByName.set(c.tradeName.toUpperCase(), c);
         if (c.legalName) customerByName.set(c.legalName.toUpperCase(), c);
       });
@@ -191,10 +233,20 @@ export class RoutesService {
       for (const del of data.deliveries) {
         let customer = null;
 
-        // Tenta achar por CNPJ no Map
+        // Tenta achar por CNPJ no Map (várias tentativas)
         if (del.customerCnpj) {
-          const cleanCnpj = this.cleanString(del.customerCnpj);
-          customer = customerByCnpj.get(cleanCnpj);
+          // 1. Tenta exato como veio
+          customer = customerByCnpj.get(del.customerCnpj);
+
+          // 2. Tenta limpo
+          if (!customer) {
+            customer = customerByCnpj.get(this.cleanString(del.customerCnpj));
+          }
+
+          // 3. Tenta formatado
+          if (!customer) {
+            customer = customerByCnpj.get(this.formatCNPJ(del.customerCnpj));
+          }
         }
 
         // Se não achou por CNPJ, tenta por Nome no Map
@@ -276,14 +328,20 @@ export class RoutesService {
   }
 
   async updateDeliveryStatus(id: string, dto: UpdateDeliveryStatusDto) {
+    const data: any = {
+      status: dto.status,
+      proofOfDelivery: dto.proofUrl,
+      failureReason: dto.failureReason,
+      updatedAt: new Date()
+    };
+
+    if (dto.arrivedAt) data.arrivedAt = new Date(dto.arrivedAt);
+    if (dto.unloadingStartedAt) data.unloadingStartedAt = new Date(dto.unloadingStartedAt);
+    if (dto.unloadingEndedAt) data.unloadingEndedAt = new Date(dto.unloadingEndedAt);
+
     return (this.prisma as any).delivery.update({
       where: { id },
-      data: {
-        status: dto.status,
-        proofOfDelivery: dto.proofUrl,
-        failureReason: dto.failureReason,
-        updatedAt: new Date()
-      }
+      data
     });
   }
 }

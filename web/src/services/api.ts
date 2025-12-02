@@ -86,11 +86,12 @@ export const api = {
             const response = await client.post('/routes/import', data);
             return response.data;
         },
-        updateDeliveryStatus: async (id: string, status: DeliveryStatus, proofUrl?: string, failureReason?: string) => {
+        updateDeliveryStatus: async (id: string, status: DeliveryStatus, proofUrl?: string, failureReason?: string, options?: { arrivedAt?: string, unloadingStartedAt?: string, unloadingEndedAt?: string }) => {
             const response = await client.patch(`/routes/deliveries/${id}/status`, {
                 status,
                 proofUrl,
-                failureReason
+                failureReason,
+                ...options
             });
             return response.data;
         },
