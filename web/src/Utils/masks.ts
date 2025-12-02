@@ -23,14 +23,12 @@ export const maskCpfCnpj = (value: string | undefined | null): string => {
 export const maskPhone = (value: string | undefined | null): string => {
     let v = cleanDigits(value);
     if (!v) return '';
-    // Remove 55 visualmente se for longo
     if (v.startsWith('55') && v.length >= 12) v = v.substring(2);
 
-    if (v.length > 10) { // Celular
+    if (v.length > 10) {
         return v.replace(/(\d{2})(\d)/, '($1) $2')
             .replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{4})\d+?$/, '$1');
     }
-    // Fixo
     return v.replace(/(\d{2})(\d)/, '($1) $2')
         .replace(/(\d{4})(\d)/, '$1-$2').replace(/(-\d{4})\d+?$/, '$1');
 };
