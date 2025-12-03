@@ -37,10 +37,12 @@ export class MailService {
         tls: {
           rejectUnauthorized: process.env.SMTP_IGNORE_TLS !== 'true',
         },
-        // Aumenta timeout para 30s (Railway pode ser lento às vezes)
-        connectionTimeout: 30000,
+        family: 4, // Force IPv4
+        connectionTimeout: 60000, // 60s
         greetingTimeout: 30000,
-        socketTimeout: 30000,
+        socketTimeout: 60000, // 60s
+        logger: true,
+        debug: true,
       });
 
       // Verifica conexão
