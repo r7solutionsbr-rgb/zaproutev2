@@ -11,8 +11,8 @@ export class ZApiAuthGuard implements CanActivate {
         const secureToken = process.env.ZAPI_SECURE_TOKEN;
 
         if (!secureToken) {
-            console.warn('⚠️ ZAPI_SECURE_TOKEN não configurado no .env! Webhook vulnerável.');
-            return true; // Fallback inseguro para não parar tudo, mas idealmente deveria bloquear.
+            console.error('⛔ ZAPI_SECURE_TOKEN não configurado! Bloqueando acesso por segurança.');
+            throw new UnauthorizedException('Configuração de segurança incompleta no servidor.');
         }
 
         if (clientToken !== secureToken) {

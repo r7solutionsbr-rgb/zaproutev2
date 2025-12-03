@@ -46,9 +46,9 @@ export class CustomersService {
     };
   }
 
-  async findOne(id: string) {
-    const customer = await (this.prisma as any).customer.findUnique({
-      where: { id },
+  async findOne(id: string, tenantId: string) {
+    const customer = await (this.prisma as any).customer.findFirst({
+      where: { id, tenantId },
       include: { seller: true }
     });
 
@@ -109,8 +109,8 @@ export class CustomersService {
     }
   }
 
-  async update(id: string, data: any) {
-    const { id: _id, tenantId, tenant, deliveries, seller, sellerId, ...rest } = data;
+  async update(id: string, tenantId: string, data: any) {
+    const { id: _id, tenantId: _tId, tenant, deliveries, seller, sellerId, ...rest } = data;
     const cleanData = this.prepareData(rest);
 
     // Handle sellerId directly (simpler approach)
@@ -119,6 +119,10 @@ export class CustomersService {
     }
 
     try {
+      // Verifica se existe e pertence ao tenant
+      const exists = await (this.prisma as any).customer.findFirst({ where: { id, tenantId } });
+      if (!exists) throw new NotFoundException('Cliente não encontrado ou acesso negado.');
+
       return await (this.prisma as any).customer.update({
         where: { id },
         data: cleanData,
@@ -129,8 +133,8 @@ export class CustomersService {
     }
   }
 
-  async geocodeCustomer(id: string) {
-    const customer = await (this.prisma as any).customer.findUnique({ where: { id } });
+  async geocodeCustomer(id: string, tenantId: string) {
+    const customer = await (this.prisma as any).customer.findFirst({ where: { id, tenantId } });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
 
     const details = customer.addressDetails || {};

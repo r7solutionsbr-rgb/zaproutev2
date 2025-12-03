@@ -17,30 +17,31 @@ export class RoutesService {
       throw new BadRequestException('A data da rota é obrigatória.');
     }
 
-    let d = new Date(dateInput);
+    let d: Date;
 
-    // Se a conversão padrão falhou (Invalid Date) e é uma string
-    if (isNaN(d.getTime()) && typeof dateInput === 'string') {
-      // Tenta salvar se o formato for brasileiro (DD/MM/YYYY)
-      if (dateInput.includes('/')) {
-        const parts = dateInput.split('/');
-        if (parts.length === 3) {
-          // Converte para ISO (YYYY-MM-DD) que o JavaScript entende
-          // parts[2] = ano, parts[1] = mês, parts[0] = dia
-          d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    if (dateInput instanceof Date) {
+      d = dateInput;
+    } else {
+      // Tenta parsing ISO direto primeiro (YYYY-MM-DD)
+      d = new Date(dateInput);
+
+      // Se falhou ou é inválida, tenta formato brasileiro
+      if (isNaN(d.getTime())) {
+        if (typeof dateInput === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dateInput)) {
+          const [day, month, year] = dateInput.split('/');
+          d = new Date(`${year}-${month}-${day}`);
         }
       }
     }
 
-    // Se ainda assim for inválida, para tudo e avisa
     if (isNaN(d.getTime())) {
       this.logger.error(`Data inválida recebida: ${dateInput}`);
       throw new BadRequestException(
-        `Data inválida: "${dateInput}". Certifique-se de que está no formato YYYY-MM-DD ou DD/MM/YYYY.`
+        `Data inválida: "${dateInput}". Use o formato ISO (YYYY-MM-DD) ou PT-BR (DD/MM/YYYY).`
       );
     }
 
-    // Fixa meio-dia UTC para evitar problemas de fuso horário (-3h)
+    // Normaliza para meio-dia UTC para evitar problemas de timezone
     d.setUTCHours(12, 0, 0, 0);
     return d;
   }
@@ -74,20 +75,27 @@ export class RoutesService {
     });
   }
 
-  async findOne(id: string) {
-    return (this.prisma as any).route.findUnique({
-      where: { id },
+  async findOne(id: string, tenantId: string) {
+    const route = await (this.prisma as any).route.findFirst({
+      where: { id, tenantId },
       include: {
         deliveries: { include: { customer: true } },
         driver: true,
         vehicle: true
       }
     });
+
+    if (!route) throw new NotFoundException('Rota não encontrada');
+    return route;
   }
 
-  async update(id: string, data: any) {
+  async update(id: string, tenantId: string, data: any) {
     const { driverId, vehicleId, date, ...rest } = data;
     const updateData: any = { ...rest };
+
+    // Verifica ownership
+    const exists = await (this.prisma as any).route.findFirst({ where: { id, tenantId } });
+    if (!exists) throw new NotFoundException('Rota não encontrada ou acesso negado.');
 
     if (date) updateData.date = this.fixDate(date);
     if (driverId) updateData.driver = { connect: { id: driverId } };
@@ -99,7 +107,10 @@ export class RoutesService {
     });
   }
 
-  async remove(id: string) {
+  async remove(id: string, tenantId: string) {
+    const exists = await (this.prisma as any).route.findFirst({ where: { id, tenantId } });
+    if (!exists) throw new NotFoundException('Rota não encontrada ou acesso negado.');
+
     await (this.prisma as any).delivery.deleteMany({ where: { routeId: id } });
     return (this.prisma as any).route.delete({ where: { id } });
   }
@@ -294,19 +305,27 @@ export class RoutesService {
         }
       });
 
-      // 5. Criar Entregas (Bulk Insert se possível, ou loop)
-      // Otimização: createMany não suporta relations em alguns casos, mas aqui estamos conectando.
-      // Vamos manter o loop mas agora é só INSERT, sem SELECTs no meio.
-      for (const delData of deliveriesToCreate) {
-        const { customerId, driverId, ...restOfDelivery } = delData;
+      // 5. Criar Entregas (Bulk Insert Otimizado)
+      // Otimização: createMany é muito mais rápido que loop de create
+      const deliveriesPayload = deliveriesToCreate.map(d => ({
+        invoiceNumber: d.invoiceNumber,
+        volume: d.volume,
+        weight: d.weight,
+        value: d.value,
+        product: d.product,
+        salesperson: d.salesperson,
+        priority: d.priority,
+        status: 'PENDING',
+        customerId: d.customerId,
+        driverId: d.driverId, // Pode ser null
+        routeId: route.id,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }));
 
-        await tx.delivery.create({
-          data: {
-            ...restOfDelivery,
-            route: { connect: { id: route.id } },
-            customer: { connect: { id: customerId } },
-            driver: driverId ? { connect: { id: driverId } } : undefined
-          }
+      if (deliveriesPayload.length > 0) {
+        await tx.delivery.createMany({
+          data: deliveriesPayload
         });
       }
 

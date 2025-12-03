@@ -1,6 +1,7 @@
 export interface TenantConfig {
   driverImportStrategy?: 'CPF_ONLY' | 'CPF_AND_NAME' | 'STRICT';
   deliveryWorkflow?: 'SIMPLE' | 'STANDARD' | 'DETAILED';
+  enableJourneyControl?: boolean; // Feature flag para controle de jornada
   displaySettings?: {
     showValuesOnMobile: boolean;
     showVolumeOnMobile: boolean;

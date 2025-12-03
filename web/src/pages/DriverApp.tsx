@@ -297,8 +297,8 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
             })}
             disabled={!proofImage && tenantConfig.requireProofOfDelivery}
             className={`flex-[2] font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-green-900/20 ${!proofImage && tenantConfig.requireProofOfDelivery
-                ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                : 'bg-green-600 hover:bg-green-500 text-white'
+              ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+              : 'bg-green-600 hover:bg-green-500 text-white'
               }`}
           >
             <CheckCircle size={20} /> Confirmar
@@ -322,76 +322,79 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
   }
 
   // --- LIST VIEW ---
+  const journeyEnabled = tenantConfig.enableJourneyControl ?? true;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
-      {/* Top Bar */}
-      <div className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 shadow-lg">
-        {/* Status Line */}
-        <div className={`h-1 w-full ${journeyInfo.color}`} />
+      {/* Top Bar - Only show if journey control is enabled */}
+      {journeyEnabled && (
+        <div className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 shadow-lg">
+          {/* Status Line */}
+          <div className={`h-1 w-full ${journeyInfo.color}`} />
 
-        <div className="p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-2 h-2 rounded-full ${journeyInfo.color} animate-pulse`} />
-            <div>
-              <h1 className="font-bold text-sm text-slate-300">STATUS ATUAL</h1>
-              <div className={`font-black text-lg ${journeyInfo.text}`}>{journeyInfo.label}</div>
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-2 h-2 rounded-full ${journeyInfo.color} animate-pulse`} />
+              <div>
+                <h1 className="font-bold text-sm text-slate-300">STATUS ATUAL</h1>
+                <div className={`font-black text-lg ${journeyInfo.text}`}>{journeyInfo.label}</div>
+              </div>
             </div>
+            <button
+              onClick={() => setShowJourneyMenu(!showJourneyMenu)}
+              className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
+            >
+              {showJourneyMenu ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </button>
           </div>
-          <button
-            onClick={() => setShowJourneyMenu(!showJourneyMenu)}
-            className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
-          >
-            {showJourneyMenu ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-          </button>
-        </div>
 
-        {/* Collapsible Journey Menu */}
-        {showJourneyMenu && (
-          <div className="bg-slate-800 border-b border-slate-700 p-4 animate-in slide-in-from-top-2 duration-200">
-            <div className="grid grid-cols-2 gap-3">
-              {isOff ? (
-                <button
-                  onClick={() => setConfirmAction({ type: 'JOURNEY', payload: 'JOURNEY_START', title: 'Iniciar Jornada', message: 'Deseja iniciar sua jornada de trabalho?' })}
-                  className="col-span-2 bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2"
-                >
-                  <Play size={20} /> Iniciar Dia
-                </button>
-              ) : (
-                <>
-                  {isWorking && (
-                    <>
-                      <button onClick={() => handleJourneyAction('MEAL_START')} className="bg-orange-600/20 hover:bg-orange-600/30 text-orange-400 border border-orange-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2">
-                        <Coffee size={18} /> Refeição
-                      </button>
-                      <button onClick={() => handleJourneyAction('WAIT_START')} className="bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 border border-yellow-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2">
-                        <Pause size={18} /> Espera
-                      </button>
-                      <button onClick={() => handleJourneyAction('REST_START')} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2">
-                        <Clock size={18} /> Descanso
-                      </button>
+          {/* Collapsible Journey Menu */}
+          {showJourneyMenu && (
+            <div className="bg-slate-800 border-b border-slate-700 p-4 animate-in slide-in-from-top-2 duration-200">
+              <div className="grid grid-cols-2 gap-3">
+                {isOff ? (
+                  <button
+                    onClick={() => setConfirmAction({ type: 'JOURNEY', payload: 'JOURNEY_START', title: 'Iniciar Jornada', message: 'Deseja iniciar sua jornada de trabalho?' })}
+                    className="col-span-2 bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2"
+                  >
+                    <Play size={20} /> Iniciar Dia
+                  </button>
+                ) : (
+                  <>
+                    {isWorking && (
+                      <>
+                        <button onClick={() => handleJourneyAction('MEAL_START')} className="bg-orange-600/20 hover:bg-orange-600/30 text-orange-400 border border-orange-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                          <Coffee size={18} /> Refeição
+                        </button>
+                        <button onClick={() => handleJourneyAction('WAIT_START')} className="bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 border border-yellow-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                          <Pause size={18} /> Espera
+                        </button>
+                        <button onClick={() => handleJourneyAction('REST_START')} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                          <Clock size={18} /> Descanso
+                        </button>
+                        <button
+                          onClick={() => setConfirmAction({ type: 'JOURNEY', payload: 'JOURNEY_END', title: 'Encerrar Jornada', message: 'Deseja finalizar seu dia de trabalho?' })}
+                          className="bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+                        >
+                          <Square size={18} /> Encerrar
+                        </button>
+                      </>
+                    )}
+                    {!isWorking && (
                       <button
-                        onClick={() => setConfirmAction({ type: 'JOURNEY', payload: 'JOURNEY_END', title: 'Encerrar Jornada', message: 'Deseja finalizar seu dia de trabalho?' })}
-                        className="bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+                        onClick={() => handleJourneyAction(journeyStatus === 'MEAL_START' ? 'MEAL_END' : journeyStatus === 'WAIT_START' ? 'WAIT_END' : 'REST_END')}
+                        className="col-span-2 bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2"
                       >
-                        <Square size={18} /> Encerrar
+                        <Play size={20} /> Voltar ao Trabalho
                       </button>
-                    </>
-                  )}
-                  {!isWorking && (
-                    <button
-                      onClick={() => handleJourneyAction(journeyStatus === 'MEAL_START' ? 'MEAL_END' : journeyStatus === 'WAIT_START' ? 'WAIT_END' : 'REST_END')}
-                      className="col-span-2 bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2"
-                    >
-                      <Play size={20} /> Voltar ao Trabalho
-                    </button>
-                  )}
-                </>
-              )}
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Delivery List */}
       <div className="p-4 space-y-4">

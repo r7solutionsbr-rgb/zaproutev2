@@ -109,9 +109,14 @@ export class DriversService {
   }
 
   // Edição
-  async update(id: string, data: any) {
-    const { id: _id, tenantId, tenant, vehicle, deliveries, routes, ...rawData } = data;
+  // Edição
+  async update(id: string, tenantId: string, data: any) {
+    const { id: _id, tenantId: _tId, tenant, vehicle, deliveries, routes, ...rawData } = data;
     const cleanData = this.prepareData(rawData);
+
+    // Verifica se existe e pertence ao tenant
+    const exists = await this.prisma.driver.findFirst({ where: { id, tenantId } });
+    if (!exists) throw new Error("Motorista não encontrado ou acesso negado.");
 
     return this.prisma.driver.update({
       where: { id },
@@ -195,9 +200,9 @@ export class DriversService {
     return results;
   }
 
-  async getDriverPerformance(driverId: string) {
-    const driver = await this.prisma.driver.findUnique({
-      where: { id: driverId },
+  async getDriverPerformance(driverId: string, tenantId: string) {
+    const driver = await this.prisma.driver.findFirst({
+      where: { id: driverId, tenantId },
       include: { vehicle: true }
     });
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, HttpException, HttpStatus, Req } from '@nestjs/common';
 import { DriversService } from './drivers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -23,8 +23,8 @@ export class DriversController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() data: any) {
-    return this.driversService.update(id, data);
+  async update(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+    return this.driversService.update(id, req.user.tenantId, data);
   }
 
   @Post('import')
@@ -35,9 +35,9 @@ export class DriversController {
     return this.driversService.importMassive(body.tenantId, body.drivers);
   }
   @Get(':id/ai-analysis')
-  async getAiAnalysis(@Param('id') id: string) {
+  async getAiAnalysis(@Param('id') id: string, @Req() req: any) {
     try {
-      const stats = await this.driversService.getDriverPerformance(id);
+      const stats = await this.driversService.getDriverPerformance(id, req.user.tenantId);
       const analysis = await this.aiService.analyzeDriverPerformance(stats.driverName, stats);
       return { analysis };
     } catch (error) {

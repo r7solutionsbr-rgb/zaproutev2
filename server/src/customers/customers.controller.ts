@@ -19,8 +19,8 @@ export class CustomersController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.customersService.findOne(id);
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    return this.customersService.findOne(id, req.user.tenantId);
   }
 
   // ... (outros métodos: create, update, geocode, import mantêm-se iguais)
@@ -31,15 +31,11 @@ export class CustomersController {
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() data: any, @Req() req: any) {
-    // Garante que não se pode mudar o tenantId e que o update usa o tenant do usuário (embora o service precise validar se o ID pertence ao tenant)
-    // Nota: O service idealmente deveria receber o tenantId para verificar ownership.
-    // Por enquanto, vamos passar o tenantId para o service se ele suportar ou confiar que o ID é único globalmente (UUID), 
-    // mas para segurança total, o service deve verificar: where: { id, tenantId }
-    return this.customersService.update(id, { ...data, tenantId: req.user.tenantId });
+    return this.customersService.update(id, req.user.tenantId, data);
   }
 
   @Post(':id/geocode')
-  async geocode(@Param('id') id: string) { return this.customersService.geocodeCustomer(id); }
+  async geocode(@Param('id') id: string, @Req() req: any) { return this.customersService.geocodeCustomer(id, req.user.tenantId); }
 
   @Post('import')
   async import(@Body() body: { customers: any[] }, @Req() req: any) {

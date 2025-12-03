@@ -38,6 +38,8 @@ model Tenant {
   @@index([status])
 }
 
+
+
 model User {
   id                String   @id @default(uuid())
   email             String   @unique
@@ -56,13 +58,15 @@ model User {
   tenant            Tenant   @relation(fields: [tenantId], references: [id])
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  @@index([tenantId]) // Performance: FK
+  @@index([email])    // Performance: Login
 }
 
 model Driver {
   id              String   @id @default(uuid())
   name            String
   cpf             String
-  externalId      String?  // <--- NOVO
+  externalId      String?
   cnh             String
   cnhCategory     String
   cnhExpiration   DateTime
@@ -89,6 +93,7 @@ model Driver {
   @@index([phone]) // Crítico para o Webhook achar rápido
   @@index([cpf])
   @@index([status])
+  @@index([vehicleId]) // Performance: FK
 }
 
 model Vehicle {
@@ -111,6 +116,8 @@ model Vehicle {
   drivers         Driver[] 
   routes          Route[]
   @@index([tenantId])
+  @@index([plate])   // Performance: Busca por placa
+  @@index([status])  // Performance: Filtro de ativos
 }
 
 // --- NOVO MODELO: SELLER (VENDEDOR) ---
@@ -149,7 +156,7 @@ model Customer {
   addressDetails    Json?
   
   // --- VÍNCULO COM VENDEDOR ---
-  sellerId          String?  // <--- ESTA LINHA ESTAVA FALTANDO
+  sellerId          String?
   seller            Seller?  @relation(fields: [sellerId], references: [id])
   // ----------------------------
 
@@ -162,6 +169,7 @@ model Customer {
   @@index([tradeName]) // Para busca no import
   @@index([legalName]) // Para busca no import
   @@index([status])
+  @@index([sellerId])  // Performance: FK
 }
 
 model Route {
@@ -191,6 +199,7 @@ model Route {
   @@index([driverId])
   @@index([date]) // Crítico para filtrar rotas do dia
   @@index([status])
+  @@index([vehicleId]) // Performance: FK
 }
 
 model Delivery {
@@ -229,6 +238,7 @@ model Delivery {
   @@index([invoiceNumber]) // Crítico para o motorista baixar nota
   @@index([customerId])
   @@index([status])
+  @@index([driverId]) // Performance: FK
 }
 
 model AiLearning {
@@ -254,6 +264,10 @@ model Occurrence {
   tenant      Tenant   @relation(fields: [tenantId], references: [id])
   
   createdAt   DateTime @default(now())
+  @@index([driverId]) // Performance: FK
+  @@index([routeId])  // Performance: FK
+  @@index([tenantId]) // Performance: FK
+  @@index([type])     // Performance: Filtro por tipo
 }
 
 enum JourneyEventType {
