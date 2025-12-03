@@ -43,7 +43,7 @@ export class MailService {
         socketTimeout: 60000, // 60s
         logger: true,
         debug: true,
-      });
+      } as any);
 
       // Verifica conexão
       try {
