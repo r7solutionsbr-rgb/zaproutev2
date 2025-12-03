@@ -13,15 +13,44 @@ export class MailService {
   private async initTransport() {
     // Verifica se temos credenciais reais ou usamos Ethereal (Teste)
     if (process.env.SMTP_HOST) {
+      const host = process.env.SMTP_HOST;
+      const port = Number(process.env.SMTP_PORT) || 587;
+      const user = process.env.SMTP_USER;
+
+      // Lógica inteligente para 'secure':
+      // Se SMTP_SECURE estiver definido, usa o valor.
+      // Se não, assume true para porta 465 e false para outras (587, 25).
+      const secure = process.env.SMTP_SECURE !== undefined
+        ? process.env.SMTP_SECURE === 'true'
+        : port === 465;
+
+      this.logger.log(`🔧 Configurando SMTP: Host=${host}, Port=${port}, Secure=${secure}, User=${user ? '***' : 'MISSING'}`);
+
       this.transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === 'true',
+        host,
+        port,
+        secure,
         auth: {
-          user: process.env.SMTP_USER,
+          user,
           pass: process.env.SMTP_PASS,
         },
+        tls: {
+          rejectUnauthorized: process.env.SMTP_IGNORE_TLS !== 'true',
+        },
+        // Aumenta timeout para 30s (Railway pode ser lento às vezes)
+        connectionTimeout: 30000,
+        greetingTimeout: 30000,
+        socketTimeout: 30000,
       });
+
+      // Verifica conexão
+      try {
+        await this.transporter.verify();
+        this.logger.log('✅ SMTP Conectado com sucesso!');
+      } catch (error) {
+        this.logger.error(`❌ Erro ao conectar SMTP: ${error.message}`, error.stack);
+      }
+
     } else {
       // Cria conta de teste (Ethereal) automaticamente para DEV
       const testAccount = await nodemailer.createTestAccount();
