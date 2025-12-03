@@ -14,7 +14,7 @@ export class MailService {
     // Verifica se temos credenciais reais ou usamos Ethereal (Teste)
     if (process.env.SMTP_HOST) {
       const host = process.env.SMTP_HOST;
-      const port = Number(process.env.SMTP_PORT) || 587;
+      const port = Number(process.env.SMTP_PORT) || 2525;
       const user = process.env.SMTP_USER;
 
       // Lógica inteligente para 'secure':
@@ -48,7 +48,7 @@ export class MailService {
         await this.transporter.verify();
         this.logger.log('✅ SMTP Conectado com sucesso!');
       } catch (error) {
-        this.logger.error(`❌ Erro ao conectar SMTP: ${error.message}`, error.stack);
+        this.logger.error(`❌ Erro ao conectar SMTP (${host}:${port}): ${error.message}`, error.stack);
       }
 
     } else {

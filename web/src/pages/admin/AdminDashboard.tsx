@@ -106,7 +106,20 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
             fetchTenants();
             setTimeout(() => setSuccess(''), 3000);
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Erro ao salvar empresa.');
+            const errorData = err.response?.data;
+            let errorMessage = 'Erro ao salvar empresa.';
+
+            if (errorData?.message) {
+                if (Array.isArray(errorData.message)) {
+                    errorMessage = errorData.message.join(', ');
+                } else if (typeof errorData.message === 'object') {
+                    errorMessage = JSON.stringify(errorData.message);
+                } else {
+                    errorMessage = errorData.message;
+                }
+            }
+            
+            setError(errorMessage);
         } finally {
             setSubmitting(false);
         }

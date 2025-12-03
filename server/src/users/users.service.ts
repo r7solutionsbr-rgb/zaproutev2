@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client'; // Importa tipos auxiliares se necessário
 import * as bcrypt from 'bcryptjs';
@@ -33,6 +33,11 @@ export class UsersService {
   async create(data: any) {
     const rawPassword = data.password || '123456';
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
+
+    const existingUser = await this.prisma.user.findUnique({ where: { email: data.email } });
+    if (existingUser) {
+      throw new BadRequestException('Email já cadastrado.');
+    }
 
     const user = await this.prisma.user.create({
       data: {
