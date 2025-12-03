@@ -223,6 +223,7 @@ model Delivery {
   arrivedAt          DateTime?
   unloadingStartedAt DateTime?
   unloadingEndedAt   DateTime?
+  deliveredAt        DateTime? // <--- NOVO: Data final da entrega (Simples, Padrão ou Detalhado)
   @@index([routeId])
   @@index([invoiceNumber]) // Crítico para o motorista baixar nota
   @@index([customerId])

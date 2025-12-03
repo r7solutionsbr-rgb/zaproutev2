@@ -3,6 +3,7 @@ export interface TenantConfig {
   deliveryWorkflow?: 'SIMPLE' | 'STANDARD' | 'DETAILED';
   displaySettings?: {
     showValuesOnMobile: boolean;
+    showVolumeOnMobile: boolean;
     requireProofOfDelivery: boolean;
     allowPartialDelivery: boolean;
   };
@@ -159,6 +160,7 @@ export interface Delivery {
   arrivedAt?: string;
   unloadingStartedAt?: string;
   unloadingEndedAt?: string;
+  deliveredAt?: string;
 }
 
 export interface Route {

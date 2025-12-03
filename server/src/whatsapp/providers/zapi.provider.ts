@@ -71,4 +71,87 @@ export class ZapiProvider implements WhatsappProvider {
         const text = `[Template: ${template}] Params: ${variables.join(', ')}`;
         await this.sendText(to, text);
     }
+
+    async sendImage(to: string, url: string, caption?: string): Promise<void> {
+        await this.sendMedia('send-image', to, url, caption);
+    }
+
+    async sendAudio(to: string, url: string): Promise<void> {
+        await this.sendMedia('send-audio', to, url);
+    }
+
+    async sendLink(to: string, linkUrl: string, title?: string): Promise<void> {
+        if (!this.instanceId || !this.token) return;
+        try {
+            const cleanPhone = to.replace(/\D/g, '');
+            const endpoint = `${this.baseUrl}/${this.instanceId}/token/${this.token}/send-link`;
+
+            this.logger.log(`📡 Enviando Link Z-API para ${cleanPhone}...`);
+
+            const config: any = { headers: {} };
+            if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
+
+            await axios.post(endpoint, {
+                phone: cleanPhone,
+                message: title || linkUrl,
+                image: 'https://cdn-icons-png.flaticon.com/512/281/281769.png', // Ícone genérico
+                linkUrl: linkUrl,
+                title: title || 'Link',
+                linkDescription: linkUrl
+            }, config);
+
+        } catch (error: any) {
+            this.logger.error(`❌ FALHA Z-API Link: ${error.message}`);
+        }
+    }
+
+    async sendLocation(to: string, lat: number, lng: number, title?: string, address?: string): Promise<void> {
+        if (!this.instanceId || !this.token) return;
+        try {
+            const cleanPhone = to.replace(/\D/g, '');
+            const endpoint = `${this.baseUrl}/${this.instanceId}/token/${this.token}/send-location`;
+
+            this.logger.log(`📡 Enviando Localização Z-API para ${cleanPhone}...`);
+
+            const config: any = { headers: {} };
+            if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
+
+            await axios.post(endpoint, {
+                phone: cleanPhone,
+                latitude: lat,
+                longitude: lng,
+                title: title || 'Localização',
+                address: address || ''
+            }, config);
+
+        } catch (error: any) {
+            this.logger.error(`❌ FALHA Z-API Location: ${error.message}`);
+        }
+    }
+
+    private async sendMedia(type: 'send-image' | 'send-audio', to: string, url: string, caption?: string): Promise<void> {
+        if (!this.instanceId || !this.token) return;
+        try {
+            const cleanPhone = to.replace(/\D/g, '');
+            const endpoint = `${this.baseUrl}/${this.instanceId}/token/${this.token}/${type}`;
+
+            this.logger.log(`📡 Enviando ${type} Z-API para ${cleanPhone}...`);
+
+            const config: any = { headers: {} };
+            if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
+
+            const payload: any = { phone: cleanPhone };
+            if (type === 'send-image') {
+                payload.image = url;
+                if (caption) payload.caption = caption;
+            } else {
+                payload.audio = url;
+            }
+
+            await axios.post(endpoint, payload, config);
+
+        } catch (error: any) {
+            this.logger.error(`❌ FALHA Z-API ${type}: ${error.message}`);
+        }
+    }
 }

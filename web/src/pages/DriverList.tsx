@@ -4,7 +4,8 @@ import { Edit2, Plus, Search, Upload, FileText, CheckCircle, X, AlertCircle, Arr
 import { JourneyHistoryModal } from '../components/JourneyHistoryModal';
 import { api } from '../services/api';
 import * as XLSX from 'xlsx';
-import { cleanDigits, maskCpfCnpj, maskPhone } from '../utils/inputMasks';
+import { cleanDigits, maskCpfCnpj, maskPhone } from '../utils/masks';
+import { isValidCpf, isValidPhone, hasMask } from '../utils/validators';
 
 import { useData } from '../contexts/DataContext';
 
@@ -215,15 +216,60 @@ export const DriverList: React.FC = () => {
                 const workbook = XLSX.read(data, { type: 'binary' });
                 const rows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                 if (rows.length === 0) throw new Error("Planilha vazia.");
-                const driversToImport = rows.map((row: any) => ({
-                    name: row['Nome'],
-                    cpf: cleanDigits(String(row['CPF'] || '')),
-                    cnh: cleanDigits(String(row['CNH'] || '')),
-                    cnhCategory: String(row['Categoria'] || 'B'),
-                    cnhExpiration: row['Validade'] || new Date().toISOString(),
-                    phone: cleanDigits(String(row['Telefone'] || '')),
-                    email: row['Email']
-                }));
+
+                const driversToImport: any[] = [];
+                const validationErrors: string[] = [];
+
+                rows.forEach((row: any, index: number) => {
+                    const line = index + 2;
+                    const rawCpf = String(row['CPF'] || '');
+                    const rawPhone = String(row['Telefone'] || '');
+                    const name = row['Nome'];
+
+                    // Validações
+                    if (!name) {
+                        validationErrors.push(`Linha ${line}: Nome é obrigatório.`);
+                        return;
+                    }
+
+                    // Validação de Máscara (Estrita)
+                    if (hasMask(rawCpf)) {
+                        validationErrors.push(`Linha ${line}: CPF contém pontuação (${rawCpf}). Use apenas números.`);
+                        return;
+                    }
+                    if (hasMask(rawPhone)) {
+                        validationErrors.push(`Linha ${line}: Telefone contém pontuação (${rawPhone}). Use apenas números.`);
+                        return;
+                    }
+
+                    const cpf = cleanDigits(rawCpf);
+                    const phone = cleanDigits(rawPhone);
+
+                    if (cpf && !isValidCpf(cpf)) {
+                        validationErrors.push(`Linha ${line}: CPF inválido (${row['CPF']}).`);
+                        return;
+                    }
+                    if (phone && !isValidPhone(phone)) {
+                        validationErrors.push(`Linha ${line}: Telefone inválido (${row['Telefone']}).`);
+                        return;
+                    }
+
+                    driversToImport.push({
+                        name: name,
+                        cpf: cpf,
+                        cnh: cleanDigits(String(row['CNH'] || '')),
+                        cnhCategory: String(row['Categoria'] || 'B'),
+                        cnhExpiration: row['Validade'] || new Date().toISOString(),
+                        phone: phone,
+                        email: row['Email']
+                    });
+                });
+
+                if (validationErrors.length > 0) {
+                    setNotification({ type: 'ERROR', message: `Erros de validação:\n${validationErrors.slice(0, 3).join('\n')}${validationErrors.length > 3 ? '\n...' : ''}` });
+                    // Idealmente, usaríamos um modal de feedback aqui também, mas por enquanto vamos de notificação
+                    return;
+                }
                 await api.drivers.import(user.tenantId, driversToImport);
                 setNotification({ type: 'SUCCESS', message: `${driversToImport.length} motoristas importados com sucesso!` });
                 setTimeout(() => window.location.reload(), 1500);

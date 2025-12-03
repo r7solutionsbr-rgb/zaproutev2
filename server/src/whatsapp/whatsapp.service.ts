@@ -58,13 +58,7 @@ export class WhatsappService {
   }
 
   async sendText(phone: string, message: string, config?: ProviderConfig) {
-    // Fallback para variáveis de ambiente globais se não vier config (retrocompatibilidade)
-    const effectiveConfig: ProviderConfig = config || {
-      type: 'ZAPI',
-      zapiInstanceId: process.env.ZAPI_INSTANCE_ID,
-      zapiToken: process.env.ZAPI_TOKEN,
-      zapiClientToken: process.env.ZAPI_CLIENT_TOKEN,
-    };
+    const effectiveConfig = this.getEffectiveConfig(config);
 
     this.logger.log(`📢 Solicitado envio de mensagem. Provider Config: ${effectiveConfig.type}`);
 
@@ -79,12 +73,7 @@ export class WhatsappService {
   }
 
   async sendTemplate(phone: string, template: string, variables: any[], config?: ProviderConfig) {
-    const effectiveConfig: ProviderConfig = config || {
-      type: 'ZAPI',
-      zapiInstanceId: process.env.ZAPI_INSTANCE_ID,
-      zapiToken: process.env.ZAPI_TOKEN,
-      zapiClientToken: process.env.ZAPI_CLIENT_TOKEN,
-    };
+    const effectiveConfig = this.getEffectiveConfig(config);
 
     this.logger.log(`📢 Solicitado envio de TEMPLATE (${template}). Provider: ${effectiveConfig.type}`);
 
@@ -96,5 +85,42 @@ export class WhatsappService {
     }
 
     await provider.sendTemplate(phone, template, variables);
+  }
+
+  async sendImage(phone: string, url: string, caption?: string, config?: ProviderConfig) {
+    const effectiveConfig = this.getEffectiveConfig(config);
+    const provider = this.getProvider(effectiveConfig);
+    if (!provider) return;
+    await provider.sendImage(phone, url, caption);
+  }
+
+  async sendAudio(phone: string, url: string, config?: ProviderConfig) {
+    const effectiveConfig = this.getEffectiveConfig(config);
+    const provider = this.getProvider(effectiveConfig);
+    if (!provider) return;
+    await provider.sendAudio(phone, url);
+  }
+
+  async sendLocation(phone: string, lat: number, lng: number, title?: string, address?: string, config?: ProviderConfig) {
+    const effectiveConfig = this.getEffectiveConfig(config);
+    const provider = this.getProvider(effectiveConfig);
+    if (!provider) return;
+    await provider.sendLocation(phone, lat, lng, title, address);
+  }
+
+  async sendLink(phone: string, linkUrl: string, title?: string, config?: ProviderConfig) {
+    const effectiveConfig = this.getEffectiveConfig(config);
+    const provider = this.getProvider(effectiveConfig);
+    if (!provider) return;
+    await provider.sendLink(phone, linkUrl, title);
+  }
+
+  private getEffectiveConfig(config?: ProviderConfig): ProviderConfig {
+    return config || {
+      type: 'ZAPI',
+      zapiInstanceId: process.env.ZAPI_INSTANCE_ID,
+      zapiToken: process.env.ZAPI_TOKEN,
+      zapiClientToken: process.env.ZAPI_CLIENT_TOKEN,
+    };
   }
 }

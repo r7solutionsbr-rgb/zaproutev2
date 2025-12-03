@@ -222,4 +222,21 @@ export class SendpulseProvider implements WhatsappProvider {
             this.logger.error(`❌ FALHA Template SendPulse: ${errorData}`);
         }
     }
+
+    async sendImage(to: string, url: string, caption?: string): Promise<void> {
+        this.logger.warn('⚠️ SendPulse: sendImage não implementado ainda.');
+    }
+
+    async sendAudio(to: string, url: string): Promise<void> {
+        this.logger.warn('⚠️ SendPulse: sendAudio não implementado ainda.');
+    }
+
+    async sendLocation(to: string, lat: number, lng: number, title?: string, address?: string): Promise<void> {
+        this.logger.warn('⚠️ SendPulse: sendLocation não implementado ainda.');
+    }
+
+    async sendLink(to: string, linkUrl: string, title?: string): Promise<void> {
+        // Fallback: Enviar como texto
+        await this.sendText(to, `${title ? title + ': ' : ''}${linkUrl}`);
+    }
 }

@@ -4,7 +4,8 @@ import { Users, Search, MessageCircle, Building, Plus, FileSpreadsheet, Loader2,
 import { api } from '../services/api';
 import * as XLSX from 'xlsx';
 import { CustomerFormModal } from '../components/CustomerFormModal';
-import { cleanDigits, maskCpfCnpj, maskPhone } from '../utils/inputMasks';
+import { cleanDigits, maskCpfCnpj, maskPhone } from '../utils/masks';
+import { isValidCnpj, isValidPhone, hasMask } from '../utils/validators';
 import { ImportFeedbackModal, ImportSummary } from '../components/ImportFeedbackModal';
 
 export const CustomerList: React.FC = () => {
@@ -188,29 +189,85 @@ export const CustomerList: React.FC = () => {
 
                 if (rows.length === 0) throw new Error("O arquivo está vazio.");
 
-                // 1. Preparar dados
-                const allCustomers = rows.map((row: any) => ({
-                    legalName: row['RazaoSocial'] || row['NomeFantasia'],
-                    tradeName: row['NomeFantasia'] || row['RazaoSocial'],
-                    cnpj: cleanDigits(String(row['CNPJ'] || '')),
-                    email: row['Email'],
-                    phone: cleanDigits(String(row['Telefone'] || '')),
-                    whatsapp: cleanDigits(String(row['WhatsApp'] || row['Telefone'] || '')),
-                    salesperson: row['Vendedor'],
-                    addressDetails: {
-                        street: row['Rua'] || '',
-                        number: String(row['Numero'] || ''),
-                        neighborhood: row['Bairro'] || '',
-                        city: row['Cidade'] || '',
-                        state: row['Estado'] || row['UF'] || '',
-                        zipCode: cleanDigits(String(row['CEP'] || ''))
-                    },
-                    location: {
-                        lat: row['Latitude'] ? Number(row['Latitude']) : 0,
-                        lng: row['Longitude'] ? Number(row['Longitude']) : 0,
-                        address: `${row['Rua'] || ''}, ${row['Numero'] || ''}`
+                // 1. Preparar e Validar dados
+                const allCustomers: any[] = [];
+                const validationErrors: string[] = [];
+
+                rows.forEach((row: any, index: number) => {
+                    const line = index + 2; // +1 header +1 zero-based
+                    const rawCnpj = String(row['CNPJ'] || '');
+                    const rawPhone = String(row['Telefone'] || '');
+                    const rawZip = String(row['CEP'] || '');
+                    const legalName = row['RazaoSocial'] || row['NomeFantasia'];
+
+                    // Validações
+                    if (!legalName) {
+                        validationErrors.push(`Linha ${line}: Nome/Razão Social é obrigatório.`);
+                        return;
                     }
-                }));
+
+                    // Validação de Máscara (Estrita)
+                    if (hasMask(rawCnpj)) {
+                        validationErrors.push(`Linha ${line}: CNPJ contém pontuação (${rawCnpj}). Use apenas números.`);
+                        return;
+                    }
+                    if (hasMask(rawPhone)) {
+                        validationErrors.push(`Linha ${line}: Telefone contém pontuação (${rawPhone}). Use apenas números.`);
+                        return;
+                    }
+                    if (hasMask(rawZip)) {
+                        validationErrors.push(`Linha ${line}: CEP contém pontuação (${rawZip}). Use apenas números.`);
+                        return;
+                    }
+
+                    const cnpj = cleanDigits(rawCnpj);
+                    const phone = cleanDigits(rawPhone);
+
+                    if (cnpj && !isValidCnpj(cnpj)) {
+                        validationErrors.push(`Linha ${line}: CNPJ inválido (${row['CNPJ']}).`);
+                        return;
+                    }
+                    if (phone && !isValidPhone(phone)) {
+                        validationErrors.push(`Linha ${line}: Telefone inválido (${row['Telefone']}).`);
+                        return;
+                    }
+
+                    allCustomers.push({
+                        legalName: legalName,
+                        tradeName: row['NomeFantasia'] || row['RazaoSocial'],
+                        cnpj: cnpj,
+                        email: row['Email'],
+                        phone: phone,
+                        whatsapp: cleanDigits(String(row['WhatsApp'] || row['Telefone'] || '')),
+                        salesperson: row['Vendedor'],
+                        addressDetails: {
+                            street: row['Rua'] || '',
+                            number: String(row['Numero'] || ''),
+                            neighborhood: row['Bairro'] || '',
+                            city: row['Cidade'] || '',
+                            state: row['Estado'] || row['UF'] || '',
+                            zipCode: cleanDigits(rawZip)
+                        },
+                        location: {
+                            lat: row['Latitude'] ? Number(row['Latitude']) : 0,
+                            lng: row['Longitude'] ? Number(row['Longitude']) : 0,
+                            address: `${row['Rua'] || ''}, ${row['Numero'] || ''}`
+                        }
+                    });
+                });
+
+                // Se houver erros de validação, para tudo e mostra
+                if (validationErrors.length > 0) {
+                    setImportSummary({
+                        total: rows.length,
+                        success: 0,
+                        errors: validationErrors.length,
+                        errorDetails: validationErrors
+                    });
+                    setImportStatus('COMPLETED');
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                    return;
+                }
 
                 const totalItems = allCustomers.length;
                 const BATCH_SIZE = 50; // Tamanho do lote
