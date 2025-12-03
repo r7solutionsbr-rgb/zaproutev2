@@ -60,7 +60,7 @@ const RouteMapModal: React.FC<RouteMapModalProps> = ({ route, deliveries, onClos
   const markerRefs = useRef<{ [key: string]: L.Marker | null }>({});
 
   // Filtra as entregas desta rota
-  const routeDeliveries = deliveries.filter(d => route.deliveries.some(rd => rd.id === d.id));
+  const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
 
   // Extrai pontos válidos (lat/lng)
   const points = routeDeliveries
@@ -344,7 +344,7 @@ export const RouteList: React.FC = () => {
   };
 
   const getRouteStats = (route: Route) => {
-    const routeDeliveries = deliveries.filter(d => route.deliveries.some(rd => rd.id === d.id));
+    const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
 
     const totalVolume = routeDeliveries.reduce((acc, d) => acc + Number(d.volume || 0), 0);
     const totalValue = routeDeliveries.reduce((acc, d) => acc + Number(d.value || 0), 0);
@@ -393,7 +393,7 @@ export const RouteList: React.FC = () => {
     const route = routes.find(r => r.id === selectedRouteId);
     if (!route) return <div>Rota não encontrada</div>;
 
-    const routeDeliveries = deliveries.filter(d => route.deliveries.some(rd => rd.id === d.id));
+    const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
     const stats = getRouteStats(route);
 
     return (

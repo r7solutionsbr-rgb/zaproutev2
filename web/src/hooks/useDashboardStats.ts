@@ -19,7 +19,7 @@ export const useDashboardStats = ({ deliveries, routes, drivers }: UseDashboardS
         const relevantRoutes = routes.filter(r => r.status === 'ACTIVE' || r.status === 'PLANNED' || r.status === 'COMPLETED');
 
         return relevantRoutes.map(route => {
-            const routeDeliveries = deliveries.filter(d => route.deliveries.some(rd => rd.id === d.id));
+            const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
 
             const totalOps = routeDeliveries.length;
             const completedOps = routeDeliveries.filter(d => d.status === 'DELIVERED').length;

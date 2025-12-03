@@ -179,7 +179,7 @@ export interface Route {
   vehicleId?: string;
   vehicle?: Vehicle;
 
-  deliveries: Delivery[];
+  deliveries: string[];
 
   tenantId: string;
   createdAt: string;
