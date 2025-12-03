@@ -89,23 +89,18 @@ export class DriversService {
       }
     });
 
-    // Envia Boas-vindas
+    // Envia Boas-vindas via TEXTO (não template)
     if (driver.phone) {
       const whatsappConfig = this.getWhatsappConfig(tenant);
       this.logger.log(`Criando motorista para tenant: ${tenant.name} via ${whatsappConfig.type}`);
 
-      // Lógica de Template vs Texto
-      // Se for SendPulse, DEVE ser template para iniciar conversa (se não houver janela de 24h).
-      // Se for Z-API, o provider faz fallback para texto.
-
-      const templateName = (tenant.config as any)?.whatsappTemplates?.welcome || 'welcome_driver';
       const firstName = driver.name.split(' ')[0];
+      const welcomeMessage = `Olá, ${firstName}! 👋\n\nSeja bem-vindo(a) à equipe *${tenant.name}*!\n\nVocê foi cadastrado(a) como motorista em nosso sistema.\n\nEm breve você receberá suas rotas e entregas por aqui.\n\nQualquer dúvida, estamos à disposição!`;
 
-      // Tenta enviar Template
-      await this.whatsapp.sendTemplate(
+      // Envia como texto simples
+      await this.whatsapp.sendText(
         driver.phone,
-        templateName,
-        [firstName], // Variável {{1}}
+        welcomeMessage,
         whatsappConfig
       );
     }
@@ -181,15 +176,15 @@ export class DriversService {
           }
         });
 
+        // Envia Boas-vindas via TEXTO (não template)
         if (created.phone) {
-          const templateName = (tenant.config as any)?.whatsappTemplates?.welcome || 'welcome_driver';
           const firstName = created.name.split(' ')[0];
+          const welcomeMessage = `Olá, ${firstName}! 👋\n\nSeja bem-vindo(a) à equipe *${tenant.name}*!\n\nVocê foi cadastrado(a) como motorista em nosso sistema.\n\nEm breve você receberá suas rotas e entregas por aqui.\n\nQualquer dúvida, estamos à disposição!`;
 
-          // Tenta enviar Template
-          await this.whatsapp.sendTemplate(
+          // Envia como texto simples
+          await this.whatsapp.sendText(
             created.phone,
-            templateName,
-            [firstName],
+            welcomeMessage,
             whatsappConfig
           );
         }
