@@ -92,8 +92,19 @@ export class MailService {
     if (process.env.SENDPULSE_CLIENT_ID && process.env.SENDPULSE_CLIENT_SECRET) {
       try {
         const token = await this.getSendPulseToken();
-        const fromEmail = process.env.EMAIL_FROM_ADDRESS || 'suporte@zaproute.com.br';
-        const fromName = process.env.EMAIL_FROM_NAME || 'ZapRoute';
+
+        let fromName = process.env.EMAIL_FROM_NAME || 'ZapRoute';
+        let fromEmail = process.env.EMAIL_FROM_ADDRESS || 'suporte@zaproute.com.br';
+
+        // Tenta extrair do EMAIL_FROM se as variáveis específicas não existirem
+        // Formato esperado: "Nome" <email@dominio.com>
+        if (process.env.EMAIL_FROM && (!process.env.EMAIL_FROM_NAME || !process.env.EMAIL_FROM_ADDRESS)) {
+          const match = process.env.EMAIL_FROM.match(/["']?([^"']*)["']?\s*<([^>]*)>/);
+          if (match) {
+            fromName = match[1].trim();
+            fromEmail = match[2].trim();
+          }
+        }
 
         // SendPulse API expects base64 for HTML content
         const htmlBase64 = Buffer.from(html).toString('base64');

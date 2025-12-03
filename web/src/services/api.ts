@@ -176,9 +176,9 @@ export const api = {
     // --- CLIENTES ---
     customers: {
         // AGORA COM PAGINAÇÃO
-        getAll: async (tenantId: string, page = 1, limit = 10, search = '') => {
+        getAll: async (tenantId: string, page = 1, limit = 10, search = '', status = '') => {
             const response = await client.get(`/customers`, {
-                params: { tenantId, page, limit, search }
+                params: { tenantId, page, limit, search, status }
             });
             return response.data;
         },

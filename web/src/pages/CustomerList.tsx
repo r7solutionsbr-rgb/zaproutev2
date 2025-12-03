@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Customer } from '../types';
-import { Users, Search, MessageCircle, Building, Plus, FileSpreadsheet, Loader2, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Eye, Edit2, User, X, Phone } from 'lucide-react';
+import { Users, Search, MessageCircle, Building, Plus, FileSpreadsheet, Loader2, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, Eye, Edit2, User, X, Phone, Filter, MapPin } from 'lucide-react';
 import { api } from '../services/api';
 import * as XLSX from 'xlsx';
 import { CustomerFormModal } from '../components/CustomerFormModal';
@@ -18,6 +18,7 @@ export const CustomerList: React.FC = () => {
     const [totalItems, setTotalItems] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string>('');
 
     // Estados de Modal e Seleção
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -31,10 +32,10 @@ export const CustomerList: React.FC = () => {
     const [notification, setNotification] = useState<{ type: 'SUCCESS' | 'ERROR', message: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Debounce da busca (espera parar de digitar para chamar API)
+    // Debounce da busca
     useEffect(() => {
         const timer = setTimeout(() => {
-            setPage(1); // Reseta para página 1 ao buscar
+            setPage(1);
             setDebouncedSearch(searchTerm);
         }, 500);
         return () => clearTimeout(timer);
@@ -47,8 +48,7 @@ export const CustomerList: React.FC = () => {
             const userStr = localStorage.getItem('zaproute_user');
             if (userStr) {
                 const user = JSON.parse(userStr);
-                // Chama a API com paginação
-                const response = await api.customers.getAll(user.tenantId, page, 10, debouncedSearch);
+                const response = await api.customers.getAll(user.tenantId, page, 10, debouncedSearch, statusFilter);
 
                 setCustomers(response.data);
                 setTotalPages(response.meta.lastPage);
@@ -62,10 +62,10 @@ export const CustomerList: React.FC = () => {
         }
     };
 
-    // Recarrega quando muda página ou busca
+    // Recarrega quando muda página, busca ou filtro
     useEffect(() => {
         fetchCustomers();
-    }, [page, debouncedSearch]);
+    }, [page, debouncedSearch, statusFilter]);
 
     // Auto-dismiss notificação
     useEffect(() => {
@@ -79,7 +79,7 @@ export const CustomerList: React.FC = () => {
     const openCreateModal = () => {
         setFormData({
             legalName: '', tradeName: '', cnpj: '', stateRegistration: '',
-            email: '', phone: '', whatsapp: '', salesperson: '',
+            email: '', phone: '', whatsapp: '', salesperson: '', sellerId: '',
             status: 'ACTIVE', creditLimit: 0,
             addressDetails: { street: '', number: '', neighborhood: '', city: '', state: '', zipCode: '' },
             location: { lat: 0, lng: 0, address: '' }
@@ -112,7 +112,6 @@ export const CustomerList: React.FC = () => {
             const userStr = localStorage.getItem('zaproute_user');
             const user = userStr ? JSON.parse(userStr) : null;
 
-            // Limpa dados antes de enviar
             const payload = {
                 ...formData,
                 cnpj: cleanDigits(formData.cnpj || ''),
@@ -134,7 +133,6 @@ export const CustomerList: React.FC = () => {
             } else {
                 if (formData.id) {
                     await api.customers.update(formData.id, payload);
-                    // Se estiver editando o selecionado, atualiza a view de detalhe
                     if (selectedCustomer && selectedCustomer.id === formData.id) {
                         setSelectedCustomer({ ...selectedCustomer, ...payload } as Customer);
                     }
@@ -142,7 +140,7 @@ export const CustomerList: React.FC = () => {
                 }
             }
             setIsModalOpen(false);
-            fetchCustomers(); // Recarrega a lista
+            fetchCustomers();
         } catch (error) {
             console.error(error);
             setFormError('Erro ao salvar. Verifique os dados.');
@@ -151,10 +149,6 @@ export const CustomerList: React.FC = () => {
         }
     };
 
-
-
-    // ... (dentro do componente CustomerList)
-
     // Estados de Importação
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [importStatus, setImportStatus] = useState<'PROCESSING' | 'COMPLETED'>('PROCESSING');
@@ -162,14 +156,10 @@ export const CustomerList: React.FC = () => {
     const [importChunkInfo, setImportChunkInfo] = useState({ current: 0, total: 0 });
     const [importSummary, setImportSummary] = useState<ImportSummary>({ total: 0, success: 0, errors: 0, errorDetails: [] });
 
-    // ...
-
-    // --- IMPORTAÇÃO EM LOTES (BATCH) ---
     const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        // Resetar estados
         setImportSummary({ total: 0, success: 0, errors: 0, errorDetails: [] });
         setImportProgress(0);
         setImportStatus('PROCESSING');
@@ -189,24 +179,21 @@ export const CustomerList: React.FC = () => {
 
                 if (rows.length === 0) throw new Error("O arquivo está vazio.");
 
-                // 1. Preparar e Validar dados
                 const allCustomers: any[] = [];
                 const validationErrors: string[] = [];
 
                 rows.forEach((row: any, index: number) => {
-                    const line = index + 2; // +1 header +1 zero-based
+                    const line = index + 2;
                     const rawCnpj = String(row['CNPJ'] || '');
                     const rawPhone = String(row['Telefone'] || '');
                     const rawZip = String(row['CEP'] || '');
                     const legalName = row['RazaoSocial'] || row['NomeFantasia'];
 
-                    // Validações
                     if (!legalName) {
                         validationErrors.push(`Linha ${line}: Nome/Razão Social é obrigatório.`);
                         return;
                     }
 
-                    // Validação de Máscara (Estrita)
                     if (hasMask(rawCnpj)) {
                         validationErrors.push(`Linha ${line}: CNPJ contém pontuação (${rawCnpj}). Use apenas números.`);
                         return;
@@ -256,7 +243,6 @@ export const CustomerList: React.FC = () => {
                     });
                 });
 
-                // Se houver erros de validação, para tudo e mostra
                 if (validationErrors.length > 0) {
                     setImportSummary({
                         total: rows.length,
@@ -270,14 +256,13 @@ export const CustomerList: React.FC = () => {
                 }
 
                 const totalItems = allCustomers.length;
-                const BATCH_SIZE = 50; // Tamanho do lote
+                const BATCH_SIZE = 50;
                 const totalChunks = Math.ceil(totalItems / BATCH_SIZE);
 
                 let successCount = 0;
                 let errorCount = 0;
                 let errors: string[] = [];
 
-                // 2. Processar em Lotes
                 for (let i = 0; i < totalChunks; i++) {
                     const start = i * BATCH_SIZE;
                     const end = start + BATCH_SIZE;
@@ -286,28 +271,19 @@ export const CustomerList: React.FC = () => {
                     setImportChunkInfo({ current: i + 1, total: totalChunks });
 
                     try {
-                        // Envia lote para API
-                        const response = await api.customers.import(user.tenantId, chunk);
-
-                        // Assume que o backend retorna { success: number, errors: number, details: [] } ou apenas sucesso total
-                        // Ajuste conforme sua API real. Aqui assumindo sucesso total do lote se não der erro 500.
+                        await api.customers.import(user.tenantId, chunk);
                         successCount += chunk.length;
-
                     } catch (err: any) {
                         console.error(`Erro no lote ${i + 1}:`, err);
                         errorCount += chunk.length;
                         errors.push(`Lote ${i + 1}: Falha ao processar ${chunk.length} itens. (${err.message})`);
                     }
 
-                    // Atualiza progresso
                     const currentProgress = Math.round(((i + 1) / totalChunks) * 100);
                     setImportProgress(currentProgress);
-
-                    // Pequeno delay para a UI respirar e a barra animar
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
 
-                // 3. Finalizar
                 setImportSummary({
                     total: totalItems,
                     success: successCount,
@@ -315,7 +291,7 @@ export const CustomerList: React.FC = () => {
                     errorDetails: errors
                 });
                 setImportStatus('COMPLETED');
-                fetchCustomers(); // Atualiza a tabela no fundo
+                fetchCustomers();
 
             } catch (error: any) {
                 console.error("Erro fatal na importação:", error);
@@ -356,7 +332,6 @@ export const CustomerList: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Notificação no Detalhe */}
                 {notification && (
                     <div className={`mb-6 p-4 rounded-xl border flex items-center gap-3 ${notification.type === 'SUCCESS' ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
                         {notification.type === 'SUCCESS' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
@@ -384,7 +359,8 @@ export const CustomerList: React.FC = () => {
                             <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><Building size={18} /> Dados Cadastrais</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div><span className="text-xs text-slate-400 uppercase font-bold">CNPJ</span><p className="font-medium text-slate-700">{maskCpfCnpj(selectedCustomer.cnpj)}</p></div>
-                                <div><span className="text-xs text-slate-400 uppercase font-bold">Vendedor</span><p className="font-medium text-slate-700 text-blue-600">{selectedCustomer.salesperson || 'N/A'}</p></div>
+                                <div><span className="text-xs text-slate-400 uppercase font-bold">Vendedor</span><p className="font-medium text-slate-700 text-blue-600">{selectedCustomer.seller?.name || selectedCustomer.salesperson || 'N/A'}</p></div>
+                                <div><span className="text-xs text-slate-400 uppercase font-bold">Limite de Crédito</span><p className="font-medium text-slate-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedCustomer.creditLimit || 0)}</p></div>
                             </div>
                         </div>
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -396,7 +372,7 @@ export const CustomerList: React.FC = () => {
                         </div>
                     </div>
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                        <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><Building size={18} /> Endereço</h3>
+                        <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><MapPin size={18} /> Endereço</h3>
                         <p className="text-slate-700 font-medium">{selectedCustomer.addressDetails?.street}, {selectedCustomer.addressDetails?.number}</p>
                         <p className="text-slate-500 text-sm">{selectedCustomer.addressDetails?.neighborhood} - {selectedCustomer.addressDetails?.city}/{selectedCustomer.addressDetails?.state}</p>
                     </div>
@@ -409,26 +385,46 @@ export const CustomerList: React.FC = () => {
 
     // --- LIST VIEW ---
     return (
-        <div className="p-6 max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                <div><h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3"><Users className="text-blue-600" /> Clientes</h1><p className="text-slate-500 mt-1">Base de clientes ({totalItems} total).</p></div>
+        <div className="p-4 md:p-6 max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3"><Users className="text-blue-600" /> Clientes</h1>
+                    <p className="text-slate-500 mt-1 text-sm md:text-base">Base de clientes ({totalItems} total).</p>
+                </div>
 
-                <div className="flex gap-3 items-center">
-                    {/* BUSCA SERVIDOR */}
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                        <input
-                            type="text"
-                            placeholder="Buscar nome ou CNPJ..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
+                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                    {/* FILTROS */}
+                    <div className="flex gap-2 w-full md:w-auto">
+                        <div className="relative flex-1 md:w-40">
+                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white text-sm"
+                            >
+                                <option value="">Todos Status</option>
+                                <option value="ACTIVE">Ativos</option>
+                                <option value="BLOCKED">Bloqueados</option>
+                                <option value="INACTIVE">Inativos</option>
+                            </select>
+                        </div>
+                        <div className="relative flex-1 md:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Buscar nome ou CNPJ..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            />
+                        </div>
                     </div>
 
-                    <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx, .xls, .csv" />
-                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium"><FileSpreadsheet size={18} /> Importar</button>
-                    <button onClick={openCreateModal} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-sm"><Plus size={18} /> Novo</button>
+                    <div className="flex gap-2 w-full md:w-auto">
+                        <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx, .xls, .csv" />
+                        <button onClick={() => fileInputRef.current?.click()} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm"><FileSpreadsheet size={18} /> Importar</button>
+                        <button onClick={openCreateModal} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-sm text-sm"><Plus size={18} /> Novo</button>
+                    </div>
                 </div>
             </div>
 
@@ -441,7 +437,7 @@ export const CustomerList: React.FC = () => {
                 </div>
             )}
 
-            {/* TABELA */}
+            {/* CONTEÚDO */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-[400px]">
                 {loading ? (
                     <div className="flex-1 flex items-center justify-center text-slate-400 gap-2">
@@ -449,7 +445,8 @@ export const CustomerList: React.FC = () => {
                     </div>
                 ) : (
                     <>
-                        <div className="overflow-x-auto">
+                        {/* DESKTOP TABLE */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left text-sm text-slate-600">
                                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-xs uppercase">
                                     <tr>
@@ -463,7 +460,7 @@ export const CustomerList: React.FC = () => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {customers.map(c => (
-                                        <tr key={c.id} className="hover:bg-slate-50 group">
+                                        <tr key={c.id} className="hover:bg-slate-50 group transition-colors">
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold border border-slate-200">
@@ -477,8 +474,14 @@ export const CustomerList: React.FC = () => {
                                             </td>
                                             <td className="p-4"><div className="text-slate-600 text-sm">{maskCpfCnpj(c.cnpj)}</div><div className="text-xs text-slate-400">{c.addressDetails?.city} - {c.addressDetails?.state}</div></td>
                                             <td className="p-4"><div className="flex items-center gap-1 text-green-600 font-medium text-sm"><MessageCircle size={14} /> {maskPhone(c.whatsapp)}</div></td>
-                                            <td className="p-4"><div className="flex items-center gap-2 text-sm"><User size={14} className="text-slate-400" /><span>{c.salesperson || '---'}</span></div></td>
-                                            <td className="p-4 text-center"><span className={`px-2.5 py-1 rounded-full text-xs font-bold ${c.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{c.status === 'ACTIVE' ? 'ATIVO' : 'BLOQUEADO'}</span></td>
+                                            <td className="p-4"><div className="flex items-center gap-2 text-sm"><User size={14} className="text-slate-400" /><span>{c.seller?.name || c.salesperson || '---'}</span></div></td>
+                                            <td className="p-4 text-center">
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${c.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
+                                                        c.status === 'BLOCKED' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                    {c.status === 'ACTIVE' ? 'ATIVO' : c.status === 'BLOCKED' ? 'BLOQUEADO' : 'INATIVO'}
+                                                </span>
+                                            </td>
                                             <td className="p-4 text-center">
                                                 <div className="flex items-center justify-center gap-2">
                                                     <button onClick={() => setSelectedCustomer(c)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="Ver Detalhes">
@@ -496,6 +499,43 @@ export const CustomerList: React.FC = () => {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* MOBILE CARDS */}
+                        <div className="md:hidden p-4 space-y-4">
+                            {customers.map(c => (
+                                <div key={c.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm active:scale-[0.99] transition-transform" onClick={() => setSelectedCustomer(c)}>
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold border border-slate-200">
+                                                {c.tradeName.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-slate-800 text-sm">{c.tradeName}</div>
+                                                <div className="text-xs text-slate-500">{maskCpfCnpj(c.cnpj)}</div>
+                                            </div>
+                                        </div>
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${c.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
+                                                c.status === 'BLOCKED' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
+                                            }`}>
+                                            {c.status === 'ACTIVE' ? 'ATIVO' : c.status === 'BLOCKED' ? 'BLOQUEADO' : 'INATIVO'}
+                                        </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mb-3">
+                                        <div className="flex items-center gap-1"><MapPin size={12} className="text-slate-400" /> {c.addressDetails?.city}/{c.addressDetails?.state}</div>
+                                        <div className="flex items-center gap-1"><User size={12} className="text-slate-400" /> {c.seller?.name || '---'}</div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-2 border-t pt-3">
+                                        <button onClick={(e) => { e.stopPropagation(); openEditModal(c); }} className="px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold border border-slate-200">Editar</button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSelectedCustomer(c); }} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100">Detalhes</button>
+                                    </div>
+                                </div>
+                            ))}
+                            {customers.length === 0 && !loading && (
+                                <div className="text-center py-8 text-slate-400">Nenhum cliente encontrado.</div>
+                            )}
                         </div>
 
                         {/* PAGINAÇÃO */}

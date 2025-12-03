@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import axios from 'axios';
 import { validateCNPJ, validateCPF } from '../common/validators';
@@ -10,13 +10,14 @@ export class CustomersService {
   constructor(private prisma: PrismaService) { }
 
   // --- BUSCA COM PAGINAÇÃO E FILTRO ---
-  async findAll(tenantId: string, page: number, limit: number, search: string) {
+  async findAll(tenantId: string, page: number, limit: number, search: string, status?: string) {
     if (!tenantId) return { data: [], total: 0, pages: 0 };
 
     const skip = (page - 1) * limit;
 
     const whereClause: any = {
       tenantId,
+      ...(status ? { status } : {}),
       OR: search ? [
         { tradeName: { contains: search, mode: 'insensitive' } },
         { legalName: { contains: search, mode: 'insensitive' } },
@@ -45,27 +46,87 @@ export class CustomersService {
     };
   }
 
+  async findOne(id: string) {
+    const customer = await (this.prisma as any).customer.findUnique({
+      where: { id },
+      include: { seller: true }
+    });
+
+    if (!customer) throw new NotFoundException('Cliente não encontrado');
+    return customer;
+  }
+
   async create(data: any) {
-    const { tenantId, id, ...rest } = data;
+    const { tenantId, id, seller, sellerId, ...rest } = data;
+
+    // 1. Validação Estrita (Obrigatório 100% preenchido, exceto creditLimit)
+    const requiredFields = [
+      'legalName', 'tradeName', 'cnpj', 'stateRegistration',
+      'email', 'phone', 'whatsapp', 'communicationPreference'
+    ];
+
+    for (const field of requiredFields) {
+      if (!rest[field] && !data[field]) {
+        throw new BadRequestException(`O campo ${field} é obrigatório.`);
+      }
+    }
+
+    if (!sellerId) {
+      throw new BadRequestException('O vendedor (sellerId) é obrigatório.');
+    }
+
+    // Validação de Endereço
+    if (!rest.addressDetails ||
+      !rest.addressDetails.street ||
+      !rest.addressDetails.number ||
+      !rest.addressDetails.neighborhood ||
+      !rest.addressDetails.city ||
+      !rest.addressDetails.state ||
+      !rest.addressDetails.zipCode) {
+      throw new BadRequestException('Todos os campos do endereço são obrigatórios.');
+    }
+
+    // Validação de Localização
+    if (!rest.location || !rest.location.address) {
+      throw new BadRequestException('A localização (Google Maps) é obrigatória.');
+    }
+
     const cleanData = this.prepareData(rest);
 
-    return (this.prisma as any).customer.create({
-      data: {
-        ...cleanData,
-        status: cleanData.status || 'ACTIVE',
-        tenant: { connect: { id: tenantId } }
-      }
-    });
+    try {
+      return await (this.prisma as any).customer.create({
+        data: {
+          ...cleanData,
+          status: cleanData.status || 'ACTIVE',
+          communicationPreference: data.communicationPreference || 'WHATSAPP',
+          tenant: { connect: { id: tenantId } },
+          seller: { connect: { id: sellerId } }
+        }
+      });
+    } catch (error: any) {
+      this.logger.error(`Erro ao criar cliente: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async update(id: string, data: any) {
-    const { id: _id, tenantId, tenant, deliveries, ...rest } = data;
+    const { id: _id, tenantId, tenant, deliveries, seller, sellerId, ...rest } = data;
     const cleanData = this.prepareData(rest);
 
-    return (this.prisma as any).customer.update({
-      where: { id },
-      data: cleanData,
-    });
+    // Handle sellerId directly (simpler approach)
+    if (sellerId !== undefined) {
+      cleanData.sellerId = sellerId || null;
+    }
+
+    try {
+      return await (this.prisma as any).customer.update({
+        where: { id },
+        data: cleanData,
+      });
+    } catch (error: any) {
+      this.logger.error(`Erro ao atualizar cliente ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async geocodeCustomer(id: string) {
@@ -277,6 +338,19 @@ export class CustomersService {
         lat: parseFloat(clean.location.lat || 0),
         lng: parseFloat(clean.location.lng || 0)
       };
+    }
+
+    // Handle sellerId - convert empty string to null
+    if (clean.sellerId === '') {
+      clean.sellerId = null;
+    }
+
+    // Ensure communicationPreference is valid if present
+    if (clean.communicationPreference) {
+      const valid = ['EMAIL', 'WHATSAPP'];
+      if (!valid.includes(clean.communicationPreference)) {
+        delete clean.communicationPreference; // Fallback to default or ignore
+      }
     }
 
     return clean;

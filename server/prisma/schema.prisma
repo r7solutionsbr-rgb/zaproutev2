@@ -141,6 +141,7 @@ model Customer {
   phone             String
   whatsapp          String?
   salesperson       String? // Mantido como legado (texto simples)
+  communicationPreference String? @default("WHATSAPP") // "EMAIL" or "WHATSAPP"
   
   status            String   
   creditLimit       Float?

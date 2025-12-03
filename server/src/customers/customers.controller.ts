@@ -12,9 +12,15 @@ export class CustomersController {
     @Req() req: any,
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
-    @Query('search') search: string = ''
+    @Query('search') search: string = '',
+    @Query('status') status: string = ''
   ) {
-    return this.customersService.findAll(req.user.tenantId, Number(page), Number(limit), search);
+    return this.customersService.findAll(req.user.tenantId, Number(page), Number(limit), search, status);
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    return this.customersService.findOne(id);
   }
 
   // ... (outros métodos: create, update, geocode, import mantêm-se iguais)
