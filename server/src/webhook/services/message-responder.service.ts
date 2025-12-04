@@ -33,6 +33,11 @@ export class MessageResponder {
         await this.whatsapp.sendText(to, message, config);
     }
 
+    async sendLocation(to: string, lat: number, lng: number, title: string, address: string, tenant: any) {
+        const config = this.getWhatsappConfig(tenant);
+        await this.whatsapp.sendLocation(to, lat, lng, title, address, config);
+    }
+
     getGreeting(): string {
         const hour = parseInt(new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false }));
         if (hour < 12) return 'Bom dia';
