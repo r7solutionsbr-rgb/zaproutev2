@@ -25,10 +25,9 @@ export class ZapiProvider implements WhatsappProvider {
             this.logger.log(`📡 Enviando Z-API para ${cleanPhone}...`);
 
             const config: any = { headers: {} };
-            // Client-Token é apenas para webhooks (entrada), não para API (saída)
-            // if (this.clientToken) {
-            //     config.headers['Client-Token'] = this.clientToken;
-            // }
+            if (this.clientToken) {
+                config.headers['Client-Token'] = this.clientToken;
+            }
 
             const response = await axios.post(
                 url,
@@ -73,7 +72,7 @@ export class ZapiProvider implements WhatsappProvider {
             this.logger.log(`📡 Enviando Link Z-API para ${cleanPhone}...`);
 
             const config: any = { headers: {} };
-            // if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
+            if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
 
             await axios.post(endpoint, {
                 phone: cleanPhone,
@@ -98,7 +97,7 @@ export class ZapiProvider implements WhatsappProvider {
             this.logger.log(`📡 Enviando Localização Z-API para ${cleanPhone}...`);
 
             const config: any = { headers: {} };
-            // if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
+            if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
 
             await axios.post(endpoint, {
                 phone: cleanPhone,
@@ -133,7 +132,7 @@ export class ZapiProvider implements WhatsappProvider {
             this.logger.log(`🔘 Enviando botões Z-API para ${cleanPhone}...`);
 
             const config: any = { headers: {} };
-            // if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
+            if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
 
             await axios.post(url, {
                 phone: cleanPhone,
@@ -161,7 +160,7 @@ export class ZapiProvider implements WhatsappProvider {
             this.logger.log(`📡 Enviando ${type} Z-API para ${cleanPhone}...`);
 
             const config: any = { headers: {} };
-            // if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
+            if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
 
             const payload: any = { phone: cleanPhone };
             if (type === 'send-image') {
