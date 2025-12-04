@@ -50,24 +50,7 @@ export class ZapiProvider implements WhatsappProvider {
     async sendTemplate(to: string, template: string, variables: any[]): Promise<void> {
         // Z-API (via QR Code) não usa Templates oficiais do WhatsApp Business API.
         // Fallback: Montamos uma mensagem de texto substituindo as variáveis.
-        // Ex: "Olá {{1}}!" -> "Olá João!"
-
-        let message = template; // Aqui assumimos que 'template' pode ser o texto ou o nome. 
-        // Se for só o nome (ex: 'welcome'), precisaríamos de um mapa de templates.
-        // Para simplificar e manter compatibilidade, vamos assumir que o caller
-        // pode passar o texto formatado OU lidamos com isso no Service.
-
-        // Mas seguindo o contrato estrito onde 'template' é o NOME do template (slug):
-        // Como Z-API não tem templates, vamos logar e enviar um texto genérico ou 
-        // o caller deve garantir que para Z-API ele mande texto.
-
-        // MELHOR ABORDAGEM: O WhatsappService vai decidir. 
-        // Se cair aqui, é porque o Service mandou.
-        // Vamos tentar interpolar se vier um texto com placeholders, ou apenas logar.
-
         this.logger.warn(`⚠️ Z-API não suporta Templates Nativos. Tentando enviar como texto simples.`);
-
-        // Simples concatenação para debug
         const text = `[Template: ${template}] Params: ${variables.join(', ')}`;
         await this.sendText(to, text);
     }
@@ -126,6 +109,45 @@ export class ZapiProvider implements WhatsappProvider {
 
         } catch (error: any) {
             this.logger.error(`❌ FALHA Z-API Location: ${error.message}`);
+        }
+    }
+
+    async sendButtons(to: string, title: string, footer: string, buttons: { id: string, label: string }[]): Promise<void> {
+        if (!this.instanceId || !this.token) return;
+
+        try {
+            const cleanPhone = to.replace(/\D/g, '');
+            const endpoint = `${this.baseUrl}/${this.instanceId}/token/${this.token}/send-button-list`; // Alterado para button-list que é mais comum ou button-actions dependendo da doc, mas button-list costuma ser mais estável para menus simples
+
+            // Nota: A Z-API tem endpoints diferentes para botões (send-button-actions, send-option-list).
+            // Para botões simples de resposta, 'send-button-actions' ou 'send-buttons' (dependendo da versão).
+            // Vamos usar o endpoint genérico de botões se disponível, ou adaptar.
+            // Assumindo 'send-button-list' ou similar para compatibilidade. 
+            // Se a versão da Z-API for recente, 'send-button-list' envia botões de lista.
+            // Para botões de ação rápida (sim/não), use 'send-button-actions'.
+
+            // Vamos usar 'send-button-actions' que é para botões clicáveis simples.
+            const url = `${this.baseUrl}/${this.instanceId}/token/${this.token}/send-button-actions`;
+
+            this.logger.log(`🔘 Enviando botões Z-API para ${cleanPhone}...`);
+
+            const config: any = { headers: {} };
+            if (this.clientToken) config.headers['Client-Token'] = this.clientToken;
+
+            await axios.post(url, {
+                phone: cleanPhone,
+                message: title,
+                buttonActions: buttons.map(btn => ({
+                    id: btn.id,
+                    label: btn.label
+                }))
+            }, config);
+
+        } catch (error: any) {
+            this.logger.error(`❌ FALHA Z-API Buttons: ${error.message}`);
+            // Fallback para texto
+            const optionsText = buttons.map(b => `[${b.label}]`).join(' ou ');
+            await this.sendText(to, `${title}\n\n(Responda com: ${optionsText})`);
         }
     }
 
