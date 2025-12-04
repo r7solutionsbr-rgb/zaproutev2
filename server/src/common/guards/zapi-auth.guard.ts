@@ -7,11 +7,11 @@ export class ZApiAuthGuard implements CanActivate {
         context: ExecutionContext,
     ): boolean | Promise<boolean> | Observable<boolean> {
         const request = context.switchToHttp().getRequest();
-        const clientToken = request.headers['client-token'];
-        const secureToken = process.env.ZAPI_SECURE_TOKEN;
+        const clientToken = request.headers['client-token'] || request.query['token'];
+        const secureToken = process.env.ZAPI_CLIENT_TOKEN;
 
         if (!secureToken) {
-            console.error('⛔ ZAPI_SECURE_TOKEN não configurado! Bloqueando acesso por segurança.');
+            console.error('⛔ ZAPI_CLIENT_TOKEN não configurado! Bloqueando acesso por segurança.');
             throw new UnauthorizedException('Configuração de segurança incompleta no servidor.');
         }
 
