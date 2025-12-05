@@ -6,6 +6,7 @@ import { DriverIdentificationService } from './services/driver-identification.se
 import { RouteCommandService } from './services/route-command.service';
 import { MessageResponder } from './services/message-responder.service';
 import { MessageType } from './dto/incoming-message.dto';
+import { JourneyService } from '../journey/journey.service';
 
 @Injectable()
 export class WebhookService {
@@ -17,7 +18,8 @@ export class WebhookService {
         private normalization: NormalizationService,
         private driverIdentification: DriverIdentificationService,
         private routeCommand: RouteCommandService,
-        private responder: MessageResponder
+        private responder: MessageResponder,
+        private journeyService: JourneyService
     ) { }
 
     async processSendPulseMessage(event: any) {
@@ -99,7 +101,63 @@ export class WebhookService {
 
         // --- AÇÕES ---
 
+        // --- CONTROLE DE JORNADA ---
+        const journeyActions: Record<string, any> = {
+            'INICIO_JORNADA': 'JOURNEY_START',
+            'FIM_JORNADA': 'JOURNEY_END',
+            'INICIO_ALMOCO': 'MEAL_START',
+            'FIM_ALMOCO': 'MEAL_END',
+            'INICIO_DESCANSO': 'REST_START',
+            'FIM_DESCANSO': 'REST_END',
+            'INICIO_ESPERA': 'WAIT_START',
+            'FIM_ESPERA': 'WAIT_END',
+            'PAUSA': 'REST_START', // Mapeando PAUSA genérica para descanso
+            'RETOMADA': 'REST_END'
+        };
+
+        if (journeyActions[action]) {
+            try {
+                const eventType = journeyActions[action];
+                await this.journeyService.createEvent(driver.tenant.id, driver.id, {
+                    type: eventType,
+                    latitude: message.type === MessageType.LOCATION ? message.payload.latitude : undefined,
+                    longitude: message.type === MessageType.LOCATION ? message.payload.longitude : undefined,
+                    locationAddress: message.type === MessageType.LOCATION ? message.payload.address : undefined,
+                    notes: reason
+                });
+
+                const messages: Record<string, string> = {
+                    'JOURNEY_START': '☀️ Jornada iniciada! Bom trabalho.',
+                    'JOURNEY_END': '🌙 Jornada encerrada. Bom descanso!',
+                    'MEAL_START': '🍽️ Bom almoço! (Mínimo 1h)',
+                    'MEAL_END': '🔋 De volta do almoço.',
+                    'REST_START': 'zzZ Bom descanso.',
+                    'REST_END': '▶️ De volta ao trabalho.',
+                    'WAIT_START': '⏳ Espera iniciada.',
+                    'WAIT_END': '✅ Espera finalizada.'
+                };
+
+                await send(messages[eventType] || '✅ Status atualizado.');
+                return { status: 'journey_updated', type: eventType };
+
+            } catch (error: any) {
+                await send(`⚠️ ${error.message}`);
+                return { status: 'journey_error', error: error.message };
+            }
+        }
+
+        // --- AÇÕES DE ROTA ---
+
         if (action === 'INICIO') {
+            // Validação de Jornada: Só pode iniciar rota se estiver em jornada (SE a empresa exigir)
+            const config = driver.tenant.config as any;
+            const journeyControlEnabled = config?.journeyControlEnabled !== false; // Padrão true se não definido, ou ajustar conforme regra de negócio
+
+            if (journeyControlEnabled && driver.currentJourneyStatus !== 'JOURNEY_START') {
+                await send(`🚫 Você precisa iniciar sua jornada antes de sair para a rota.\n\nDigite *"Iniciar jornada"* ou *"Bater ponto"*.`);
+                return { status: 'journey_required' };
+            }
+
             if (activeRoutes.some((r: any) => r.status === 'ACTIVE')) {
                 await send(`⚠️ Já existe uma rota em andamento.`);
                 return { status: 'already_started' };

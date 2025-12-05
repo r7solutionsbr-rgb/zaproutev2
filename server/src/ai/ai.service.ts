@@ -128,11 +128,18 @@ export class AiService {
               20. CHEGADA: Chegou no cliente. (Ex: "Cheguei", "Estou na porta", "No local", "Cheguei no cliente X")
               21. INICIO_DESCARGA: Começou a baixar. (Ex: "Começando a baixar", "Iniciando descarga", "Vou descarregar")
               22. FIM_DESCARGA: Terminou de baixar. (Ex: "Terminei de baixar", "Descarga finalizada", "Acabei de descarregar")
-              23. OUTRO: Conversa fiada ou assuntos não relacionados à logística.
+              24. INICIO_JORNADA: Começar o dia de trabalho. (Ex: "Vou começar", "Bater ponto", "Iniciar jornada", "Começando o dia")
+              25. INICIO_ALMOCO: Parada para refeição. (Ex: "Vou almoçar", "Parada para almoço", "Hora do rango")
+              26. FIM_ALMOCO: Voltar do almoço. (Ex: "Voltei do almoço", "Acabei de almoçar", "Fim do intervalo")
+              27. INICIO_DESCANSO: Parada para descanso. (Ex: "Vou descansar um pouco", "Parada para descanso", "Pausa de 15 min")
+              28. FIM_DESCANSO: Voltar do descanso. (Ex: "Voltei do descanso", "Fim da pausa")
+              29. INICIO_ESPERA: Tempo de espera no cliente. (Ex: "Estou na fila", "Aguardando nota", "Esperando para descarregar")
+              30. FIM_ESPERA: Fim da espera. (Ex: "Sai da fila", "Acabou a espera", "Liberaram a descarga")
+              31. FIM_JORNADA: Encerrar o dia de trabalho. (Ex: "Encerrar por hoje", "Fim do expediente", "Bater ponto final")
 
               SAÍDA JSON (Sem markdown):
               {
-                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "AJUDA" | "SAUDACAO" | "FINALIZAR" | "VENDEDOR" | "SUPERVISOR" | "LISTAR" | "SINISTRO" | "SAIR_ROTA" | "CHEGADA" | "INICIO_DESCARGA" | "FIM_DESCARGA" | "OUTRO" | "UNKNOWN",
+                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "AJUDA" | "SAUDACAO" | "FINALIZAR" | "VENDEDOR" | "SUPERVISOR" | "LISTAR" | "SINISTRO" | "SAIR_ROTA" | "CHEGADA" | "INICIO_DESCARGA" | "FIM_DESCARGA" | "INICIO_JORNADA" | "INICIO_ALMOCO" | "FIM_ALMOCO" | "INICIO_DESCANSO" | "FIM_DESCANSO" | "INICIO_ESPERA" | "FIM_ESPERA" | "FIM_JORNADA" | "OUTRO" | "UNKNOWN",
                 "identifier": "numero nota, nome cliente ou nome da rota",
                 "reason": "motivo, tempo de atraso ou detalhe"
               }

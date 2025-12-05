@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 @Controller('sellers')
 @UseGuards(JwtAuthGuard)
 export class SellersController {
-  constructor(private readonly sellersService: SellersService) {}
+  constructor(private readonly sellersService: SellersService) { }
 
   @Get()
   async findAll(@Query('tenantId') tenantId: string) {

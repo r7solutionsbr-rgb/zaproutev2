@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class SellersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async findAll(tenantId: string) {
     return (this.prisma as any).seller.findMany({
@@ -26,10 +26,17 @@ export class SellersService {
   }
 
   async update(id: string, data: any) {
-    const { id: _id, tenantId, ...cleanData } = data;
+    // Filtrar apenas os campos permitidos para evitar erro do Prisma com campos extras (ex: _count, createdAt)
+    const { name, phone, email, status } = data;
+
     return (this.prisma as any).seller.update({
       where: { id },
-      data: cleanData
+      data: {
+        name,
+        phone,
+        email,
+        status
+      }
     });
   }
 
