@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import axios from 'axios';
 
@@ -9,21 +10,24 @@ export class MailService {
   private token: string | null = null;
   private tokenExpiresAt: number = 0;
 
-  constructor() {
+  constructor(private configService: ConfigService) {
     this.initTransport();
   }
 
   private async initTransport() {
+    const sendpulseId = this.configService.get<string>('SENDPULSE_CLIENT_ID');
+    const sendpulseSecret = this.configService.get<string>(
+      'SENDPULSE_CLIENT_SECRET',
+    );
+    const emailHost = this.configService.get<string>('EMAIL_HOST');
+
     // Se tivermos credenciais de API do SendPulse, usamos o modo HTTP
-    if (
-      process.env.SENDPULSE_CLIENT_ID &&
-      process.env.SENDPULSE_CLIENT_SECRET
-    ) {
+    if (sendpulseId && sendpulseSecret) {
       this.logger.log('🚀 Modo de Envio: SendPulse HTTP API (Port 443)');
-    } else if (process.env.SMTP_HOST) {
+    } else if (emailHost) {
       // Fallback para SMTP (se configurado, mas sem API)
-      this.logger.warn(
-        '⚠️ Modo de Envio: SMTP (Pode ser bloqueado em produção)',
+      this.logger.log(
+        `📧 Modo de Envio: SMTP (${emailHost})`,
       );
       this.setupSmtp();
     } else {
@@ -33,27 +37,24 @@ export class MailService {
   }
 
   private setupSmtp() {
-    const host = process.env.SMTP_HOST;
-    const port = Number(process.env.SMTP_PORT) || 2525;
-    const secure =
-      process.env.SMTP_SECURE !== undefined
-        ? process.env.SMTP_SECURE === 'true'
-        : port === 465;
+    const host = this.configService.get<string>('EMAIL_HOST');
+    const port = this.configService.get<number>('EMAIL_PORT') || 587;
+    const user = this.configService.get<string>('EMAIL_USER');
+    const pass = this.configService.get<string>('EMAIL_PASS');
+    const secure = this.configService.get<boolean>('MAIL_SECURE') || port === 465;
 
     this.transporter = nodemailer.createTransport({
       host,
       port,
       secure,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user,
+        pass,
       },
       tls: {
-        rejectUnauthorized: process.env.SMTP_IGNORE_TLS !== 'true',
+        rejectUnauthorized: false, // Permite certificados auto-assinados se necessário
       },
-      family: 4,
-      connectionTimeout: 60000,
-    } as any);
+    });
   }
 
   private async setupEthereal() {
@@ -77,12 +78,17 @@ export class MailService {
     }
 
     try {
+      const clientId = this.configService.get<string>('SENDPULSE_CLIENT_ID');
+      const clientSecret = this.configService.get<string>(
+        'SENDPULSE_CLIENT_SECRET',
+      );
+
       const response = await axios.post(
         'https://api.sendpulse.com/oauth/access_token',
         {
           grant_type: 'client_credentials',
-          client_id: process.env.SENDPULSE_CLIENT_ID,
-          client_secret: process.env.SENDPULSE_CLIENT_SECRET,
+          client_id: clientId,
+          client_secret: clientSecret,
         },
       );
 
@@ -100,27 +106,26 @@ export class MailService {
   }
 
   private async sendEmail(to: string, subject: string, html: string) {
+    const sendpulseId = this.configService.get<string>('SENDPULSE_CLIENT_ID');
+    const sendpulseSecret = this.configService.get<string>(
+      'SENDPULSE_CLIENT_SECRET',
+    );
+
     // 1. Tenta via API HTTP (Prioridade)
-    if (
-      process.env.SENDPULSE_CLIENT_ID &&
-      process.env.SENDPULSE_CLIENT_SECRET
-    ) {
+    if (sendpulseId && sendpulseSecret) {
       try {
         const token = await this.getSendPulseToken();
 
-        let fromName = process.env.EMAIL_FROM_NAME || 'ZapRoute';
+        let fromName =
+          this.configService.get<string>('EMAIL_FROM_NAME') || 'ZapRoute';
         let fromEmail =
-          process.env.EMAIL_FROM_ADDRESS || 'suporte@zaproute.com.br';
+          this.configService.get<string>('EMAIL_FROM') ||
+          'noreply@zaproute.com';
 
         // Tenta extrair do EMAIL_FROM se as variáveis específicas não existirem
         // Formato esperado: "Nome" <email@dominio.com>
-        if (
-          process.env.EMAIL_FROM &&
-          (!process.env.EMAIL_FROM_NAME || !process.env.EMAIL_FROM_ADDRESS)
-        ) {
-          const match = process.env.EMAIL_FROM.match(
-            /["']?([^"']*)["']?\s*<([^>]*)>/,
-          );
+        if (fromEmail.includes('<')) {
+          const match = fromEmail.match(/["']?([^"']*)["']?\s*<([^>]*)>/);
           if (match) {
             fromName = match[1].trim();
             fromEmail = match[2].trim();
@@ -173,8 +178,11 @@ export class MailService {
 
     // 2. Fallback para Nodemailer (SMTP ou Ethereal)
     if (this.transporter) {
+      const from =
+        this.configService.get<string>('EMAIL_FROM') ||
+        '"ZapRoute" <noreply@zaproute.com>';
       const info = await this.transporter.sendMail({
-        from: process.env.EMAIL_FROM || '"ZapRoute" <noreply@zaproute.com>',
+        from,
         to,
         subject,
         html,
