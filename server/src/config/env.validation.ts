@@ -42,19 +42,19 @@ export const envValidationSchema = Joi.object({
 
   MAIL_PORT: Joi.number().port().optional(),
 
-  EMAIL_USER: Joi.string().email().optional().messages({
+  EMAIL_USER: Joi.string().email().empty('').optional().messages({
     'string.email': 'EMAIL_USER deve ser um email válido',
   }),
 
-  MAIL_USER: Joi.string().email().optional(),
+  MAIL_USER: Joi.string().email().empty('').optional(),
 
   EMAIL_PASS: Joi.string().optional(),
 
   MAIL_PASSWORD: Joi.string().optional(),
 
-  EMAIL_FROM: Joi.string().email().optional().default('noreply@zaproute.com'),
+  EMAIL_FROM: Joi.string().email().empty('').default('noreply@zaproute.com'),
 
-  MAIL_FROM: Joi.string().email().optional(),
+  MAIL_FROM: Joi.string().email().empty('').optional(),
 
   MAIL_FROM_NAME: Joi.string().optional(),
 
@@ -100,7 +100,7 @@ export const envValidationSchema = Joi.object({
     .optional()
     .description('Chave de acesso para endpoints administrativos'),
 
-  ADMIN_EMAIL: Joi.string().email().optional(),
+  ADMIN_EMAIL: Joi.string().email().empty('').optional(),
 
   ADMIN_PASSWORD: Joi.string().optional(),
 
