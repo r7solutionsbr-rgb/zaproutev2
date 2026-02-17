@@ -10,8 +10,25 @@ export class DriversService {
 
   constructor(
     private prisma: PrismaService,
-    private whatsapp: WhatsappService
-  ) { }
+    private whatsapp: WhatsappService,
+  ) {}
+
+  // Armazenamento em memória para localização em tempo real (POC)
+  private activeLocations = new Map<
+    string,
+    { lat: number; lng: number; timestamp: Date }
+  >();
+
+  async updateLocation(driverId: string, lat: number, lng: number) {
+    this.activeLocations.set(driverId, { lat, lng, timestamp: new Date() });
+    // Opcional: Logar apenas a cada X atualizações para não spammar
+    // this.logger.debug(`Location updated for ${driverId}: ${lat}, ${lng}`);
+    return { success: true };
+  }
+
+  async getLocation(driverId: string) {
+    return this.activeLocations.get(driverId) || null;
+  }
 
   // Helper para limpar dados
   private prepareData(data: any) {
@@ -37,19 +54,27 @@ export class DriversService {
         type: 'SENDPULSE',
         sendpulseClientId: process.env.SENDPULSE_ID,
         sendpulseClientSecret: process.env.SENDPULSE_SECRET,
-        sendpulseBotId: tenant.config?.whatsappProvider?.sendpulseBotId || process.env.SENDPULSE_BOT_ID
+        sendpulseBotId:
+          tenant.config?.whatsappProvider?.sendpulseBotId ||
+          process.env.SENDPULSE_BOT_ID,
       };
     }
 
     // Default: Z-API
     return {
       type: 'ZAPI',
-      zapiInstanceId: tenant.config?.whatsappProvider?.zapiInstanceId || process.env.ZAPI_INSTANCE_ID,
-      zapiToken: tenant.config?.whatsappProvider?.zapiToken || process.env.ZAPI_TOKEN,
-      zapiClientToken: tenant.config?.whatsappProvider?.zapiClientToken || process.env.ZAPI_CLIENT_TOKEN
+      zapiInstanceId:
+        tenant.config?.whatsappProvider?.zapiInstanceId ||
+        process.env.ZAPI_INSTANCE_ID,
+      zapiToken:
+        tenant.config?.whatsappProvider?.zapiToken || process.env.ZAPI_TOKEN,
+      zapiClientToken:
+        tenant.config?.whatsappProvider?.zapiClientToken ||
+        process.env.ZAPI_CLIENT_TOKEN,
     };
   }
 
+  // Retorna TODOS (para selects/contexto)
   async findAll(tenantId: string, search?: string) {
     if (!tenantId) return [];
 
@@ -59,18 +84,78 @@ export class DriversService {
       const cleanSearch = search.replace(/\D/g, '');
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
-        ...(cleanSearch ? [
-          { cpf: { contains: cleanSearch } },
-          { cnh: { contains: cleanSearch } }
-        ] : [])
+        ...(cleanSearch
+          ? [
+              { cpf: { contains: cleanSearch } },
+              { cnh: { contains: cleanSearch } },
+            ]
+          : []),
       ];
     }
 
     return this.prisma.driver.findMany({
       where,
-      include: { vehicle: true },
-      orderBy: { name: 'asc' }
+      include: { vehicles: true }, // Corrigido para vehicles (plural)
+      orderBy: { name: 'asc' },
     });
+  }
+
+  async findOne(id: string, tenantId: string) {
+    const driver = await this.prisma.driver.findFirst({
+      where: { id, tenantId },
+      include: { vehicles: true },
+    });
+
+    if (!driver) return null;
+    return driver;
+  }
+
+  // Retorna PAGINADO (para lista principal)
+  async findAllPaginated(
+    tenantId: string,
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+  ) {
+    if (!tenantId)
+      return { data: [], meta: { total: 0, page, limit, totalPages: 0 } };
+
+    const skip = (page - 1) * limit;
+    const where: Prisma.DriverWhereInput = { tenantId };
+
+    if (search) {
+      const cleanSearch = search.replace(/\D/g, '');
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        ...(cleanSearch
+          ? [
+              { cpf: { contains: cleanSearch } },
+              { cnh: { contains: cleanSearch } },
+            ]
+          : []),
+      ];
+    }
+
+    const [total, drivers] = await Promise.all([
+      this.prisma.driver.count({ where }),
+      this.prisma.driver.findMany({
+        where,
+        take: limit,
+        skip,
+        include: { vehicles: true }, // Corrigido para vehicles (plural)
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+
+    return {
+      data: drivers,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   // Criação Individual
@@ -78,21 +163,26 @@ export class DriversService {
     const { tenantId, ...rest } = this.prepareData(data);
 
     // 1. Busca Tenant para saber a config
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
-    if (!tenant) throw new Error("Empresa não encontrada");
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+    if (!tenant) throw new Error('Empresa não encontrada');
 
     const driver = await this.prisma.driver.create({
       data: {
         ...rest,
         status: 'IDLE',
-        tenant: { connect: { id: tenantId } }
-      }
+        updatedAt: new Date(),
+        tenant: { connect: { id: tenantId } },
+      },
     });
 
     // Envia Boas-vindas via TEXTO (não template)
     if (driver.phone) {
       const whatsappConfig = this.getWhatsappConfig(tenant);
-      this.logger.log(`Criando motorista para tenant: ${tenant.name} via ${whatsappConfig.type}`);
+      this.logger.log(
+        `Criando motorista para tenant: ${tenant.name} via ${whatsappConfig.type}`,
+      );
 
       const firstName = driver.name.split(' ')[0];
       const welcomeMessage = `Olá, ${firstName}! 👋\n\nSeja bem-vindo(a) à equipe *${tenant.name}*!\n\nVocê foi cadastrado(a) como motorista em nosso sistema.\n\nEm breve você receberá suas rotas e entregas por aqui.\n\nQualquer dúvida, estamos à disposição!`;
@@ -101,7 +191,7 @@ export class DriversService {
       await this.whatsapp.sendText(
         driver.phone,
         welcomeMessage,
-        whatsappConfig
+        whatsappConfig,
       );
     }
 
@@ -111,16 +201,26 @@ export class DriversService {
   // Edição
   // Edição
   async update(id: string, tenantId: string, data: any) {
-    const { id: _id, tenantId: _tId, tenant, vehicle, deliveries, routes, ...rawData } = data;
+    const {
+      id: _id,
+      tenantId: _tId,
+      tenant,
+      vehicle,
+      deliveries,
+      routes,
+      ...rawData
+    } = data;
     const cleanData = this.prepareData(rawData);
 
     // Verifica se existe e pertence ao tenant
-    const exists = await this.prisma.driver.findFirst({ where: { id, tenantId } });
-    if (!exists) throw new Error("Motorista não encontrado ou acesso negado.");
+    const exists = await this.prisma.driver.findFirst({
+      where: { id, tenantId },
+    });
+    if (!exists) throw new Error('Motorista não encontrado ou acesso negado.');
 
     return this.prisma.driver.update({
       where: { id },
-      data: cleanData,
+      data: { ...cleanData, updatedAt: new Date() },
     });
   }
 
@@ -129,11 +229,15 @@ export class DriversService {
     const results = [];
 
     // 1. Busca Tenant UMA VEZ para saber a config
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
-    if (!tenant) throw new Error("Empresa não encontrada");
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+    if (!tenant) throw new Error('Empresa não encontrada');
 
     const whatsappConfig = this.getWhatsappConfig(tenant);
-    this.logger.log(`Importação massiva para tenant: ${tenant.name} via ${whatsappConfig.type}`);
+    this.logger.log(
+      `Importação massiva para tenant: ${tenant.name} via ${whatsappConfig.type}`,
+    );
 
     for (const rawDriver of drivers) {
       const d = this.prepareData(rawDriver);
@@ -143,8 +247,8 @@ export class DriversService {
       const existingDriver = await this.prisma.driver.findFirst({
         where: {
           cpf: d.cpf,
-          tenantId: tenantId
-        }
+          tenantId: tenantId,
+        },
       });
 
       let expirationDate = new Date();
@@ -162,7 +266,8 @@ export class DriversService {
             cnh: d.cnh,
             cnhCategory: d.cnhCategory,
             cnhExpiration: expirationDate,
-          }
+            updatedAt: new Date(),
+          },
         });
         results.push(updated);
       } else {
@@ -177,8 +282,9 @@ export class DriversService {
             cnhExpiration: expirationDate,
             status: 'IDLE',
             avatarUrl: `https://ui-avatars.com/api/?name=${d.name}&background=random`,
-            tenant: { connect: { id: tenantId } }
-          }
+            updatedAt: new Date(),
+            tenant: { connect: { id: tenantId } },
+          },
         });
 
         // Envia Boas-vindas via TEXTO (não template)
@@ -190,7 +296,7 @@ export class DriversService {
           await this.whatsapp.sendText(
             created.phone,
             welcomeMessage,
-            whatsappConfig
+            whatsappConfig,
           );
         }
 
@@ -203,10 +309,10 @@ export class DriversService {
   async getDriverPerformance(driverId: string, tenantId: string) {
     const driver = await this.prisma.driver.findFirst({
       where: { id: driverId, tenantId },
-      include: { vehicle: true }
+      include: { vehicles: true },
     });
 
-    if (!driver) throw new Error("Motorista não encontrado");
+    if (!driver) throw new Error('Motorista não encontrado');
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -215,30 +321,36 @@ export class DriversService {
       where: {
         driverId,
         updatedAt: { gte: thirtyDaysAgo },
-        status: { in: ['DELIVERED', 'FAILED', 'RETURNED'] }
-      }
+        status: { in: ['DELIVERED', 'FAILED', 'RETURNED'] },
+      },
     });
 
     const totalDeliveries = deliveries.length;
-    const deliveredCount = deliveries.filter(d => d.status === 'DELIVERED').length;
-    const failedCount = deliveries.filter(d => d.status !== 'DELIVERED').length;
+    const deliveredCount = deliveries.filter(
+      (d) => d.status === 'DELIVERED',
+    ).length;
+    const failedCount = deliveries.filter(
+      (d) => d.status !== 'DELIVERED',
+    ).length;
 
-    const successRate = totalDeliveries > 0
-      ? ((deliveredCount / totalDeliveries) * 100).toFixed(1)
-      : "0.0";
+    const successRate =
+      totalDeliveries > 0
+        ? ((deliveredCount / totalDeliveries) * 100).toFixed(1)
+        : '0.0';
 
     const recentFailures = await this.prisma.delivery.findMany({
       where: {
         driverId,
-        status: { in: ['FAILED', 'RETURNED'] }
+        status: { in: ['FAILED', 'RETURNED'] },
       },
       orderBy: { updatedAt: 'desc' },
       take: 3,
-      select: { failureReason: true, updatedAt: true }
+      select: { failureReason: true, updatedAt: true },
     });
 
-    const recentIssues = recentFailures.map(f =>
-      `${new Date(f.updatedAt).toLocaleDateString()}: ${f.failureReason || 'Sem motivo'}`
+    const recentIssues = recentFailures.map(
+      (f) =>
+        `${new Date(f.updatedAt).toLocaleDateString()}: ${f.failureReason || 'Sem motivo'}`,
     );
 
     return {
@@ -246,7 +358,7 @@ export class DriversService {
       totalDeliveries,
       successRate,
       failedCount,
-      recentIssues
+      recentIssues,
     };
   }
 }

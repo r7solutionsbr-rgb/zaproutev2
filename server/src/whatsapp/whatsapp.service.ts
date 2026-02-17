@@ -22,9 +22,10 @@ export class WhatsappService {
 
   private getProvider(config: ProviderConfig): WhatsappProvider | null {
     // Chave única para cache baseada na config
-    const key = config.type === 'ZAPI'
-      ? `zapi_${config.zapiInstanceId}`
-      : `sendpulse_${config.sendpulseClientId}`;
+    const key =
+      config.type === 'ZAPI'
+        ? `zapi_${config.zapiInstanceId}`
+        : `sendpulse_${config.sendpulseClientId}`;
 
     if (this.providers.has(key)) {
       return this.providers.get(key)!;
@@ -45,7 +46,7 @@ export class WhatsappService {
         provider = new SendpulseProvider(
           config.sendpulseClientId,
           config.sendpulseClientSecret,
-          config.sendpulseBotId // Passando o Bot ID
+          config.sendpulseBotId, // Passando o Bot ID
         );
       }
     }
@@ -60,34 +61,52 @@ export class WhatsappService {
   async sendText(phone: string, message: string, config?: ProviderConfig) {
     const effectiveConfig = this.getEffectiveConfig(config);
 
-    this.logger.log(`📢 Solicitado envio de mensagem. Provider Config: ${effectiveConfig.type}`);
+    this.logger.log(
+      `📢 Solicitado envio de mensagem. Provider Config: ${effectiveConfig.type}`,
+    );
 
     const provider = this.getProvider(effectiveConfig);
 
     if (!provider) {
-      this.logger.error(`❌ Erro: Nenhum provider configurado ou credenciais ausentes para ${effectiveConfig.type}`);
+      this.logger.error(
+        `❌ Erro: Nenhum provider configurado ou credenciais ausentes para ${effectiveConfig.type}`,
+      );
       return;
     }
 
     await provider.sendText(phone, message);
   }
 
-  async sendTemplate(phone: string, template: string, variables: any[], config?: ProviderConfig) {
+  async sendTemplate(
+    phone: string,
+    template: string,
+    variables: any[],
+    config?: ProviderConfig,
+  ) {
     const effectiveConfig = this.getEffectiveConfig(config);
 
-    this.logger.log(`📢 Solicitado envio de TEMPLATE (${template}). Provider: ${effectiveConfig.type}`);
+    this.logger.log(
+      `📢 Solicitado envio de TEMPLATE (${template}). Provider: ${effectiveConfig.type}`,
+    );
 
     const provider = this.getProvider(effectiveConfig);
 
     if (!provider) {
-      this.logger.error(`❌ Erro: Nenhum provider configurado para ${effectiveConfig.type}`);
+      this.logger.error(
+        `❌ Erro: Nenhum provider configurado para ${effectiveConfig.type}`,
+      );
       return;
     }
 
     await provider.sendTemplate(phone, template, variables);
   }
 
-  async sendImage(phone: string, url: string, caption?: string, config?: ProviderConfig) {
+  async sendImage(
+    phone: string,
+    url: string,
+    caption?: string,
+    config?: ProviderConfig,
+  ) {
     const effectiveConfig = this.getEffectiveConfig(config);
     const provider = this.getProvider(effectiveConfig);
     if (!provider) return;
@@ -101,14 +120,26 @@ export class WhatsappService {
     await provider.sendAudio(phone, url);
   }
 
-  async sendLocation(phone: string, lat: number, lng: number, title?: string, address?: string, config?: ProviderConfig) {
+  async sendLocation(
+    phone: string,
+    lat: number,
+    lng: number,
+    title?: string,
+    address?: string,
+    config?: ProviderConfig,
+  ) {
     const effectiveConfig = this.getEffectiveConfig(config);
     const provider = this.getProvider(effectiveConfig);
     if (!provider) return;
     await provider.sendLocation(phone, lat, lng, title, address);
   }
 
-  async sendLink(phone: string, linkUrl: string, title?: string, config?: ProviderConfig) {
+  async sendLink(
+    phone: string,
+    linkUrl: string,
+    title?: string,
+    config?: ProviderConfig,
+  ) {
     const effectiveConfig = this.getEffectiveConfig(config);
     const provider = this.getProvider(effectiveConfig);
     if (!provider) return;
@@ -116,11 +147,13 @@ export class WhatsappService {
   }
 
   private getEffectiveConfig(config?: ProviderConfig): ProviderConfig {
-    return config || {
-      type: 'ZAPI',
-      zapiInstanceId: process.env.ZAPI_INSTANCE_ID,
-      zapiToken: process.env.ZAPI_TOKEN,
-      zapiClientToken: process.env.ZAPI_CLIENT_TOKEN,
-    };
+    return (
+      config || {
+        type: 'ZAPI',
+        zapiInstanceId: process.env.ZAPI_INSTANCE_ID,
+        zapiToken: process.env.ZAPI_TOKEN,
+        zapiClientToken: process.env.ZAPI_CLIENT_TOKEN,
+      }
+    );
   }
 }

@@ -18,10 +18,9 @@ async function main() {
       tenant = await prisma.tenant.create({
         data: {
           name: 'System Admin',
-          slug: 'system-admin',
-          plan: 'ENTERPRISE',
-          status: 'ACTIVE'
-        }
+          cnpj: '00.000.000/0001-00',
+          status: 'ACTIVE',
+        },
       });
     }
     console.log(`Using Tenant: ${tenant.name} (${tenant.id})`);
@@ -32,21 +31,20 @@ async function main() {
       update: {
         password: hashedPassword,
         role: 'SUPER_ADMIN',
-        tenantId: tenant.id,
-        status: 'ACTIVE'
+        tenant: { connect: { id: tenant.id } },
       },
       create: {
         email,
         password: hashedPassword,
         name: 'Super Admin',
         role: 'SUPER_ADMIN',
-        tenantId: tenant.id,
-        status: 'ACTIVE'
-      }
+        tenant: { connect: { id: tenant.id } },
+      },
     });
 
-    console.log(`SUCCESS: User ${user.email} is now SUPER_ADMIN with ID: ${user.id}`);
-
+    console.log(
+      `SUCCESS: User ${user.email} is now SUPER_ADMIN with ID: ${user.id}`,
+    );
   } catch (e) {
     console.error('ERROR: Could not upsert super admin.');
     console.error(e);

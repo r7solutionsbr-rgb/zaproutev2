@@ -19,7 +19,11 @@ export class StorageService {
     });
   }
 
-  async uploadFile(file: Buffer, fileName: string, mimeType: string): Promise<string> {
+  async uploadFile(
+    file: Buffer,
+    fileName: string,
+    mimeType: string,
+  ): Promise<string> {
     const fileExtension = fileName.split('.').pop();
     const uniqueFileName = `${uuidv4()}.${fileExtension}`;
 
@@ -35,7 +39,7 @@ export class StorageService {
       );
 
       // Retorna a URL pública
-      const publicUrl = process.env.AWS_PUBLIC_URL 
+      const publicUrl = process.env.AWS_PUBLIC_URL
         ? `${process.env.AWS_PUBLIC_URL}/${uniqueFileName}`
         : `${process.env.AWS_ENDPOINT}/${this.bucketName}/${uniqueFileName}`; // Fallback genérico
 

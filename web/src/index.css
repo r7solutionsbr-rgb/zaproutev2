@@ -3,7 +3,9 @@
 @tailwind utilities;
 
 /* Reset Global para garantir altura total */
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   padding: 0;
@@ -15,14 +17,14 @@ html, body, #root {
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #1e293b; 
+  background: #1e293b;
 }
 ::-webkit-scrollbar-thumb {
-  background: #475569; 
+  background: #475569;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748b; 
+  background: #64748b;
 }
 
 /* Animações utilitárias */
@@ -31,6 +33,12 @@ html, body, #root {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

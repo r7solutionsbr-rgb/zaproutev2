@@ -8,266 +8,559 @@ datasource db {
 }
 
 model Tenant {
-  id           String   @id @default(uuid())
-  name         String
-  slug         String   @unique
-  plan         String
-  status       String   @default("ACTIVE") // ACTIVE, BLOCKED, TRIAL
-  subscriptionEndsAt DateTime?
-  
-  // --- CAMPOS DE CONFIGURAÇÃO ---
-  cnpj         String?
-  address      String?
-  logoUrl      String?
-  primaryColor String?  @default("#2563eb")
-  config       Json?    @default("{}") // <--- NOVO
+  id                   String                 @id @default(uuid())
+  name                 String
+  cnpj                 String                 @unique
+  logoUrl              String?
+  primaryColor         String                 @default("#3b82f6")
+  config               Json?
+  status               String                 @default("ACTIVE")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  audit_logs           audit_logs[]
+  customers            Customer[]
+  drivers              Driver[]
+  fueling_transactions fueling_transactions[]
+  invoices             invoices[]
+  maintenance_plans    maintenance_plans[]
+  maintenance_records  maintenance_records[]
+  payment_requests     payment_requests[]
+  sellers              Seller[]
+  service_orders       service_orders[]
+  tanks                tanks[]
+  tires                tires[]
+  users                User[]
+  vehicles             Vehicle[]
+  Route                Route[]
+  Occurrence           Occurrence[]
+  DriverJourneyEvent   DriverJourneyEvent[]
 
-  // --- RELACIONAMENTOS ---
-  users        User[]
-  drivers      Driver[]
-  vehicles     Vehicle[]
-  routes       Route[]
-  customers    Customer[]
-  sellers      Seller[]   // <--- NOVO (Relacionamento inverso)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  occurrences  Occurrence[]
-  journeyEvents DriverJourneyEvent[]
-  currentJourneyStatus JourneyEventType?
-  lastJourneyEvent     DateTime?
   @@index([status])
+  @@map("tenants")
 }
 
-
-
 model User {
-  id                String   @id @default(uuid())
-  email             String   @unique
-  password          String   
+  id                String       @id @default(uuid())
   name              String
-  role              String   
-  
-  phone             String?
-  avatarUrl         String?
-  status            String   @default("ACTIVE")
-  
-  resetToken        String?
-  resetTokenExpires DateTime?
-
+  email             String       @unique
+  password          String
   tenantId          String
-  tenant            Tenant   @relation(fields: [tenantId], references: [id])
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  role              String
+  avatarUrl         String?
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  resetToken        String?      @unique
+  resetTokenExpires DateTime?
+  audit_logs        audit_logs[]
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   @@index([tenantId]) // Performance: FK
-  @@index([email])    // Performance: Login
+  @@index([email]) // Performance: Login
+  @@map("users")
 }
 
 model Driver {
-  id              String   @id @default(uuid())
-  name            String
-  cpf             String
-  externalId      String?
-  cnh             String
-  cnhCategory     String
-  cnhExpiration   DateTime
-  phone           String
-  email           String
-  status          String   
-  avatarUrl       String?
-  rating          Float?   @default(5.0)
-  totalDeliveries Int      @default(0)
-  
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  
-  vehicleId       String?
-  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id])
-  
-  routes          Route[]
-  deliveries      Delivery[]
-  occurrences     Occurrence[]
-  journeyEvents   DriverJourneyEvent[]
-  currentJourneyStatus JourneyEventType?
-  lastJourneyEvent     DateTime?
+  id                   String                 @id @default(uuid())
+  name                 String
+  cpf                  String?
+  email                String?
+  phone                String?
+  cnh                  String?
+  cnhCategory          String?
+  cnhExpiration        DateTime?
+  avatarUrl            String?
+  rating               Float?                 @default(5.0)
+  totalDeliveries      Int                    @default(0)
+  externalId           String?
+  status               String                 @default("IDLE")
+  vehicleId            String?
+  tenantId             String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  deliveries           Delivery[]
+  tenant               Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fueling_transactions fueling_transactions[]
+  payment_requests     payment_requests[]
+  service_orders       service_orders[]
+  vehicles             Vehicle?
+  Route                Route[]
+  Occurrence           Occurrence[]
+  DriverJourneyEvent   DriverJourneyEvent[]
+
   @@index([tenantId])
   @@index([phone]) // Crítico para o Webhook achar rápido
   @@index([cpf])
   @@index([status])
   @@index([vehicleId]) // Performance: FK
+  @@map("drivers")
 }
 
 model Vehicle {
-  id              String   @id @default(uuid())
-  plate           String
-  brand           String
-  model           String
-  year            Int
-  capacityWeight  Float
-  capacityVolume  Float
-  fuelType        String
-  status          String   
-  lastMaintenance DateTime?
-  nextMaintenance DateTime?
-  imageUrl        String?
+  id                   String                 @id @default(uuid())
+  plate                String                 @unique
+  model                String?
+  brand                String?
+  year                 Int?
+  fuelType             String?
+  capacityWeight       Float?
+  capacityVolume       Float?
+  lastMaintenance      DateTime?
+  nextMaintenance      DateTime?
+  status               String                 @default("AVAILABLE")
+  driverId             String?                @unique
+  tenantId             String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  mileage              Int?                   @default(0)
+  externalId           String?                @unique
+  fueling_transactions fueling_transactions[]
+  maintenance_plans    maintenance_plans[]
+  maintenance_records  maintenance_records[]
+  service_orders       service_orders[]
+  tires                tires[]
+  drivers              Driver?                @relation(fields: [driverId], references: [id])
+  tenant               Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  Route                Route[]
 
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  
-  drivers         Driver[] 
-  routes          Route[]
   @@index([tenantId])
-  @@index([plate])   // Performance: Busca por placa
-  @@index([status])  // Performance: Filtro de ativos
+  @@index([plate])
+  @@index([status]) // Performance: Filtro de ativos
+  @@map("vehicles")
 }
 
-// --- NOVO MODELO: SELLER (VENDEDOR) ---
 model Seller {
-  id        String   @id @default(uuid())
+  id        String     @id @default(uuid())
   name      String
-  phone     String?
   email     String?
-  status    String   @default("ACTIVE")
-  
+  phone     String?
+  status    String     @default("ACTIVE")
   tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  
-  customers Customer[] // Vendedor tem vários clientes
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([tenantId])
-  @@index([name])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  customers Customer[]
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("sellers")
 }
 
 model Customer {
-  id                String   @id @default(uuid())
-  legalName         String
-  tradeName         String
-  cnpj              String
-  stateRegistration String?
-  email             String
-  phone             String
-  whatsapp          String?
-  salesperson       String? // Mantido como legado (texto simples)
-  communicationPreference String? @default("WHATSAPP") // "EMAIL" or "WHATSAPP"
-  
-  status            String   
-  creditLimit       Float?
-  location          Json?
-  addressDetails    Json?
-  
-  // --- VÍNCULO COM VENDEDOR ---
-  sellerId          String?
-  seller            Seller?  @relation(fields: [sellerId], references: [id])
-  // ----------------------------
+  id                      String      @id @default(uuid())
+  legalName               String?
+  tradeName               String
+  cnpj                    String?
+  stateRegistration       String?
+  email                   String?
+  phone                   String?
+  whatsapp                String?
+  communicationPreference String?
+  segment                 String?
+  status                  String      @default("ACTIVE")
+  creditLimit             Float?
+  addressDetails          Json?
+  location                Json?
+  salesperson             String?
+  sellerId                String?
+  tenantId                String
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime
+  externalId              String?     @unique
+  contracts               contracts[]
+  seller                  Seller?     @relation(fields: [sellerId], references: [id])
+  tenant                  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries              Delivery[]
+  invoices                invoices[]
+  tanks                   tanks[]
 
-  tenantId          String
-  tenant            Tenant   @relation(fields: [tenantId], references: [id])
-  
-  deliveries        Delivery[]
   @@index([tenantId])
   @@index([cnpj])
+  @@index([sellerId])
+  @@index([email])
   @@index([tradeName]) // Para busca no import
   @@index([legalName]) // Para busca no import
   @@index([status])
-  @@index([sellerId])  // Performance: FK
+  @@map("customers")
 }
 
-model Route {
-  id                String   @id @default(uuid())
-  name              String
-  date              DateTime
-  status            String   
-  startTime         String?
-  endTime           String?
-  estimatedDistance Float?
-  estimatedTime     Int?
-
-  tenantId          String
-  tenant            Tenant   @relation(fields: [tenantId], references: [id])
-  
-  driverId          String?
-  driver            Driver?  @relation(fields: [driverId], references: [id])
-  
-  vehicleId         String?
-  vehicle           Vehicle? @relation(fields: [vehicleId], references: [id])
-  
-  deliveries        Delivery[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  occurrences       Occurrence[]
-  @@index([tenantId])
-  @@index([driverId])
-  @@index([date]) // Crítico para filtrar rotas do dia
-  @@index([status])
-  @@index([vehicleId]) // Performance: FK
+enum Priority {
+  NORMAL
+  HIGH
 }
 
 model Delivery {
-  id              String   @id @default(uuid())
-  invoiceNumber   String
-  volume          Float
-  weight          Float
-  value           Float
-  priority        String   
-  status          String   
-  
-  product         String?
-  salesperson     String?
+  id                 String       @id @default(uuid())
+  orderId            String
+  date               String
+  product            String
+  volume             Int
+  status             String
+  priority           Priority     @default(NORMAL)
+  routeId            String?
+  driverId           String?
+  customerId         String?
+  deliveryLat        Float
+  deliveryLng        Float
+  deliveryAddress    String
+  proofOfDeliveryUrl String?
+  signatureUrl       String?
+  failureReason      String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  customer           Customer?    @relation(fields: [customerId], references: [id])
+  driver             Driver?      @relation(fields: [driverId], references: [id])
+  route              Route?       @relation(fields: [routeId], references: [id])
+  Occurrence         Occurrence[]
 
-  proofOfDelivery String?
-  failureReason   String?
-
-  customerId      String
-  customer        Customer @relation(fields: [customerId], references: [id])
-  
-  routeId         String?
-  route           Route?   @relation(fields: [routeId], references: [id])
-  
-  driverId        String?
-  driver          Driver?  @relation(fields: [driverId], references: [id])
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // --- AUDITORIA DE WORKFLOW ---
-  arrivedAt          DateTime?
-  unloadingStartedAt DateTime?
-  unloadingEndedAt   DateTime?
-  deliveredAt        DateTime? // <--- NOVO: Data final da entrega (Simples, Padrão ou Detalhado)
-  @@index([routeId])
-  @@index([invoiceNumber]) // Crítico para o motorista baixar nota
-  @@index([customerId])
   @@index([status])
-  @@index([driverId]) // Performance: FK
+  @@index([date])
+  @@index([driverId])
+  @@index([routeId]) // Otimiza includes de route.deliveries
+  @@index([customerId]) // Otimiza joins
+  @@index([driverId, status]) // Otimiza queries de motorista por status
+  @@index([orderId]) // Otimiza buscas por nota fiscal (invoiceNumber -> orderId)
+  @@index([priority]) // Otimiza filtro de prioridade
+  @@map("deliveries")
 }
 
-model AiLearning {
-  id        String   @id @default(uuid())
-  phrase    String
-  intent    String
-  isActive  Boolean  @default(true)
+model Route {
+  id     String   @id @default(uuid())
+  name   String
+  date   DateTime
+  status String   @default("PLANNED") // PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  driverId String?
+  driver   Driver? @relation(fields: [driverId], references: [id])
+
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
+
+  deliveries  Delivery[]
+  occurrences Occurrence[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([tenantId, date(sort: Desc)]) // Otimiza findAll com ordenação
+  @@index([tenantId, status]) // Otimiza filtros por status
+  @@index([driverId]) // Otimiza joins e queries de motorista
+  @@index([vehicleId]) // Otimiza joins
+  @@index([date]) // Otimiza filtros por data
+  @@map("routes")
+}
+
+model audit_logs {
+  id        String   @id
+  action    String
+  entity    String
+  entityId  String
+  oldValues Json?
+  newValues Json?
+  ipAddress String?
+  userAgent String?
+  userId    String
+  tenantId  String
+  createdAt DateTime @default(now())
+  tenants   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@index([tenantId])
+}
+
+model bot_messages {
+  id        Int      @id @default(autoincrement())
+  sender    String
+  text      String
+  timestamp String
   createdAt DateTime @default(now())
 }
 
-model Occurrence {
-  id          String   @id @default(uuid())
-  type        String   
+model contracts {
+  id             String   @id
+  customerId     String
+  contractNumber String   @unique
+  startDate      String
+  endDate        String
+  totalVolume    Float
+  consumedVolume Float
+  unitPrice      Float
+  product        String
+  fileUrl        String?
+  status         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  customers      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model fueling_transactions {
+  id           String   @id
+  date         DateTime @default(now())
+  volume       Float
+  odometer     Int
+  hourmeter    Float?
+  fullTank     Boolean  @default(false)
+  unitPrice    Float?
+  totalCost    Float?
+  vehicleId    String
+  driverId     String?
+  originTankId String
+  tenantId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  drivers      Driver?  @relation(fields: [driverId], references: [id])
+  tanks        tanks    @relation(fields: [originTankId], references: [id], onDelete: Cascade)
+  tenants      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicles     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([tenantId])
+  @@index([vehicleId])
+}
+
+model invoices {
+  id         String    @id
+  issueDate  String
+  dueDate    String
+  amount     Float
+  status     String
+  customerId String?
+  tenantId   String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime
+  customers  Customer? @relation(fields: [customerId], references: [id])
+  tenants    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([dueDate])
+  @@index([status])
+  @@index([tenantId])
+}
+
+model maintenance_plans {
+  id                String    @id
+  vehicleId         String
+  title             String
+  intervalKm        Int?
+  intervalMonths    Int?
+  lastExecutionDate DateTime
+  lastExecutionKm   Int
+  nextTriggerDate   DateTime?
+  nextTriggerKm     Int?
+  status            String    @default("ACTIVE")
+  tenantId          String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime
+  tenants           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicles          Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([tenantId])
+  @@index([vehicleId])
+}
+
+model maintenance_records {
+  id          String   @id
+  type        String
+  date        DateTime
   description String
-  
-  driverId    String
-  driver      Driver   @relation(fields: [driverId], references: [id])
-  
-  routeId     String?
-  route       Route?   @relation(fields: [routeId], references: [id])
-  
+  provider    String
+  cost        Float
+  mileage     Float
+  invoiceUrl  String?
+  vehicleId   String
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  
   createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  tenants     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicles    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([tenantId])
+  @@index([vehicleId])
+}
+
+model payment_requests {
+  id            String   @id
+  type          String?
+  amount        Float
+  description   String
+  status        String   @default("PENDING")
+  receiptUrl    String?
+  driverId      String?
+  tenantId      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  attachmentUrl String?
+  beneficiary   String?
+  category      String?
+  dueDate       String?
+  invoiceId     String?
+  priority      String?
+  requestDate   String?
+  requester     String?
+  drivers       Driver?  @relation(fields: [driverId], references: [id])
+  tenants       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([tenantId])
+}
+
+model people {
+  id        String   @id
+  name      String
+  role      String
+  contact   String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model service_orders {
+  id             String   @id
+  code           String   @unique
+  vehicleId      String
+  driverId       String?
+  status         String   @default("OPEN")
+  priority       String   @default("MEDIUM")
+  description    String
+  provider       String?
+  budgetAmount   Float?
+  finalAmount    Float?
+  budgetFileUrl  String?
+  invoiceFileUrl String?
+  tenantId       String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  drivers        Driver?  @relation(fields: [driverId], references: [id])
+  tenants        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicles       Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([status])
+  @@index([tenantId])
+  @@index([vehicleId])
+}
+
+model tanks {
+  id                   String                 @id
+  name                 String
+  fuelType             String
+  capacity             Float
+  currentLevel         Float
+  location             String?
+  installationPhotos   Json?
+  customerId           String?
+  status               String                 @default("ACTIVE")
+  tenantId             String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  externalId           String?                @unique
+  fueling_transactions fueling_transactions[]
+  customers            Customer?              @relation(fields: [customerId], references: [id])
+  tenants              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([tenantId])
+}
+
+model tire_logs {
+  id          String     @id
+  tireId      String
+  action      TireAction
+  vehicleId   String?
+  position    String?
+  treadDepth  Float?
+  pressure    Float?
+  notes       String?
+  performedBy String?
+  createdAt   DateTime   @default(now())
+  tires       tires      @relation(fields: [tireId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([tireId])
+}
+
+model tires {
+  id               String        @id
+  serialNumber     String        @unique
+  brand            String
+  model            String
+  size             String
+  status           TireStatus    @default(STOCK)
+  condition        TireCondition @default(NEW)
+  treadDepth       Float
+  pressure         Float?
+  cost             Float
+  purchaseDate     DateTime
+  currentVehicleId String?
+  position         String?
+  tenantId         String
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime
+  tire_logs        tire_logs[]
+  vehicles         Vehicle?      @relation(fields: [currentVehicleId], references: [id])
+  tenants          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([currentVehicleId])
+  @@index([serialNumber])
+  @@index([status])
+  @@index([tenantId])
+}
+
+enum TireAction {
+  PURCHASED
+  MOUNTED
+  DISMOUNTED
+  ROTATED
+  MEASURED
+  SENT_TO_RETREAD
+  RETREADED
+  SCRAPPED
+}
+
+enum TireCondition {
+  NEW
+  USED
+  RETREADED
+}
+
+enum TireStatus {
+  STOCK
+  MOUNTED
+  RETREAD
+  SCRAP
+}
+
+model Occurrence {
+  id          String @id @default(uuid())
+  type        String
+  description String
+
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id])
+
+  routeId String?
+  route   Route?  @relation(fields: [routeId], references: [id])
+
+  deliveryId String?
+  delivery   Delivery? @relation(fields: [deliveryId], references: [id])
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+
   @@index([driverId]) // Performance: FK
-  @@index([routeId])  // Performance: FK
+  @@index([routeId]) // Performance: FK
+  @@index([deliveryId]) // Performance: FK
   @@index([tenantId]) // Performance: FK
-  @@index([type])     // Performance: Filtro por tipo
+  @@index([type]) // Performance: Filtro por tipo
+  @@map("occurrences")
 }
 
 enum JourneyEventType {
@@ -294,8 +587,9 @@ model DriverJourneyEvent {
   locationAddress String?
   notes           String?
 
-  createdAt       DateTime         @default(now())
+  createdAt DateTime @default(now())
 
   @@index([driverId])
   @@index([tenantId])
+  @@map("driver_journey_events")
 }

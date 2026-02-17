@@ -1,26 +1,79 @@
-import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import {
+  HashRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  Link,
+} from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
-import { Dashboard } from './pages/Dashboard';
-import { RoutePlanner } from './pages/RoutePlanner';
-import { RouteList } from './pages/RouteList';
-import { DeliveryList } from './pages/DeliveryList';
-import { OccurrenceList } from './pages/OccurrenceList';
-import { CustomerList } from './pages/CustomerList';
-import { DriverList } from './pages/DriverList';
-import { VehicleList } from './pages/VehicleList';
-import { SellerList } from './pages/SellerList';
-import { Reports } from './pages/Reports';
-import { Settings } from './pages/Settings';
-import { DriverApp } from './pages/DriverApp';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { CepSearch } from './pages/CepSearch';
-import { ForgotPassword } from './pages/ForgotPassword';
-import { ResetPassword } from './pages/ResetPassword';
 import { LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { api } from './services/api';
 import { DataProvider, useData } from './contexts/DataContext';
 import { AiChatWidget } from './components/AiChatWidget';
+
+// Lazy loading de páginas (carregadas sob demanda)
+const Dashboard = lazy(() =>
+  import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })),
+);
+const RoutePlanner = lazy(() =>
+  import('./pages/RoutePlanner').then((m) => ({ default: m.RoutePlanner })),
+);
+const RouteList = lazy(() =>
+  import('./pages/RouteList').then((m) => ({ default: m.RouteList })),
+);
+const DeliveryList = lazy(() =>
+  import('./pages/DeliveryList').then((m) => ({ default: m.DeliveryList })),
+);
+const OccurrenceList = lazy(() =>
+  import('./pages/OccurrenceList').then((m) => ({ default: m.OccurrenceList })),
+);
+const CustomerList = lazy(() =>
+  import('./pages/CustomerList').then((m) => ({ default: m.CustomerList })),
+);
+const DriverList = lazy(() =>
+  import('./pages/DriverList').then((m) => ({ default: m.DriverList })),
+);
+const VehicleList = lazy(() =>
+  import('./pages/VehicleList').then((m) => ({ default: m.VehicleList })),
+);
+const SellerList = lazy(() =>
+  import('./pages/SellerList').then((m) => ({ default: m.SellerList })),
+);
+const Reports = lazy(() =>
+  import('./pages/Reports').then((m) => ({ default: m.Reports })),
+);
+const Settings = lazy(() =>
+  import('./pages/Settings').then((m) => ({ default: m.Settings })),
+);
+const DriverApp = lazy(() =>
+  import('./pages/DriverApp').then((m) => ({ default: m.DriverApp })),
+);
+const AdminDashboard = lazy(() =>
+  import('./pages/admin/AdminDashboard').then((m) => ({
+    default: m.AdminDashboard,
+  })),
+);
+const CepSearch = lazy(() =>
+  import('./pages/CepSearch').then((m) => ({ default: m.CepSearch })),
+);
+const ForgotPassword = lazy(() =>
+  import('./pages/ForgotPassword').then((m) => ({ default: m.ForgotPassword })),
+);
+const ResetPassword = lazy(() =>
+  import('./pages/ResetPassword').then((m) => ({ default: m.ResetPassword })),
+);
+
+// Componente de Loading
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-screen bg-slate-50">
+    <div className="text-center">
+      <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
+      <p className="text-slate-600 font-medium">Carregando...</p>
+    </div>
+  </div>
+);
 
 // --- COMPONENTE DE LOGIN ---
 const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
@@ -55,28 +108,63 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
     <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-8">
         <div className="flex justify-center mb-6">
-          <img src="/logo.png" alt="ZapRoute" className="w-64 h-auto object-contain" />
+          <img
+            src="/logo.png"
+            alt="ZapRoute"
+            className="w-64 h-auto object-contain"
+          />
         </div>
-        <p className="text-center text-slate-500 mb-8 font-medium">Acesso Seguro</p>
+        <p className="text-center text-slate-500 mb-8 font-medium">
+          Acesso Seguro
+        </p>
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              E-mail
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Senha
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
           </div>
           <div className="flex justify-end">
-            <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">Esqueceu a senha?</Link>
+            <Link
+              to="/forgot-password"
+              className="text-sm text-blue-600 hover:underline"
+            >
+              Esqueceu a senha?
+            </Link>
           </div>
           {error && (
             <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2">
               <AlertCircle size={16} /> {error}
             </div>
           )}
-          <button type="submit" disabled={loading} className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
-            {loading ? <Loader2 className="animate-spin" /> : <LogIn size={20} />}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {loading ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <LogIn size={20} />
+            )}
             {loading ? 'Entrando...' : 'Acessar Sistema'}
           </button>
         </form>
@@ -95,7 +183,15 @@ const ProtectedLayoutContent = ({ user, logout }: any) => {
 
   // Se for Motorista, mostra App Simplificado
   if (user.role === 'DRIVER') {
-    return <DriverApp driverId={user.id} deliveries={deliveries} updateDeliveryStatus={() => { }} />;
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <DriverApp
+          driverId={user.id}
+          deliveries={deliveries}
+          updateDeliveryStatus={() => {}}
+        />
+      </Suspense>
+    );
   }
 
   // Se for Super Admin, redireciona para o painel admin
@@ -106,9 +202,14 @@ const ProtectedLayoutContent = ({ user, logout }: any) => {
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar
-        currentPage={currentPage} setPage={setCurrentPage}
-        isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen}
-        userRole={user.role} userName={user.name} tenantName={user.tenantName} logout={logout}
+        currentPage={currentPage}
+        setPage={setCurrentPage}
+        isOpen={isSidebarOpen}
+        setIsOpen={setIsSidebarOpen}
+        userRole={user.role}
+        userName={user.name}
+        tenantName={user.tenantName}
+        logout={logout}
       />
 
       <main className="flex-1 min-w-0 overflow-hidden relative p-4 overflow-y-auto h-screen">
@@ -119,20 +220,21 @@ const ProtectedLayoutContent = ({ user, logout }: any) => {
           </div>
         )}
 
-        {/* Roteamento Interno do Dashboard - SEM PROP DRILLING */}
-        {currentPage === 'dashboard' && <Dashboard />}
-        {currentPage === 'routes' && <RoutePlanner />}
-        {currentPage === 'route-list' && <RouteList />}
-        {currentPage === 'deliveries' && <DeliveryList />}
-        {currentPage === 'occurrences' && <OccurrenceList />}
-        {currentPage === 'customers' && <CustomerList />}
-        {currentPage === 'drivers' && <DriverList />}
-        {currentPage === 'vehicles' && <VehicleList />}
-        {currentPage === 'sellers' && <SellerList />}
-        {currentPage === 'reports' && <Reports />}
-        {currentPage === 'settings' && <Settings />}
-        {currentPage === 'cep-search' && <CepSearch />}
-        {currentPage === 'cep-search' && <CepSearch />}
+        {/* Roteamento Interno do Dashboard - COM LAZY LOADING */}
+        <Suspense fallback={<PageLoader />}>
+          {currentPage === 'dashboard' && <Dashboard />}
+          {currentPage === 'routes' && <RoutePlanner />}
+          {currentPage === 'route-list' && <RouteList />}
+          {currentPage === 'deliveries' && <DeliveryList />}
+          {currentPage === 'occurrences' && <OccurrenceList />}
+          {currentPage === 'customers' && <CustomerList />}
+          {currentPage === 'drivers' && <DriverList />}
+          {currentPage === 'vehicles' && <VehicleList />}
+          {currentPage === 'sellers' && <SellerList />}
+          {currentPage === 'reports' && <Reports />}
+          {currentPage === 'settings' && <Settings />}
+          {currentPage === 'cep-search' && <CepSearch />}
+        </Suspense>
 
         {/* WIDGET FLUTUANTE DO LEÔNIDAS */}
         <AiChatWidget />
@@ -148,7 +250,13 @@ const ProtectedLayout = (props: any) => (
 );
 
 // --- ROTA PROTEGIDA SUPER ADMIN ---
-const SuperAdminRoute = ({ user, children }: { user: any, children: JSX.Element }) => {
+const SuperAdminRoute = ({
+  user,
+  children,
+}: {
+  user: any;
+  children: JSX.Element;
+}) => {
   if (!user) return <Navigate to="/login" />;
   if (user.role !== 'SUPER_ADMIN') return <Navigate to="/" />;
   return children;
@@ -180,19 +288,45 @@ const App = () => {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/login" element={!user ? <LoginScreen onLogin={refreshUser} /> : <Navigate to="/" />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        {/* <Route path="/driver-app" element={<DriverApp />} /> */}
+        <Route
+          path="/login"
+          element={
+            !user ? <LoginScreen onLogin={refreshUser} /> : <Navigate to="/" />
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <ForgotPassword />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <ResetPassword />
+            </Suspense>
+          }
+        />
 
-        <Route path="/admin" element={
-          <SuperAdminRoute user={user}>
-            <AdminDashboard onLogout={handleLogout} />
-          </SuperAdminRoute>
-        } />
+        <Route
+          path="/admin"
+          element={
+            <SuperAdminRoute user={user}>
+              <Suspense fallback={<PageLoader />}>
+                <AdminDashboard onLogout={handleLogout} />
+              </Suspense>
+            </SuperAdminRoute>
+          }
+        />
 
         {/* Rota Protegida (Dashboard) */}
-        <Route path="/*" element={<ProtectedLayout user={user} logout={handleLogout} />} />
+        <Route
+          path="/*"
+          element={<ProtectedLayout user={user} logout={handleLogout} />}
+        />
       </Routes>
     </HashRouter>
   );

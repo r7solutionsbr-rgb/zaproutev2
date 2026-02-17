@@ -1,17 +1,26 @@
-import { Controller, Post, HttpException, HttpStatus, Headers as RequestHeaders } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  HttpException,
+  HttpStatus,
+  Headers as RequestHeaders,
+} from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { exec } from 'child_process';
 import * as bcrypt from 'bcryptjs';
 
 @Controller('setup')
 export class SetupController {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   private checkAuth(headers: any) {
     // Em produção, exigimos a chave de administração
     const adminKey = headers['x-admin-key'];
     if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
-      throw new HttpException('Acesso negado: Chave de administração inválida', HttpStatus.FORBIDDEN);
+      throw new HttpException(
+        'Acesso negado: Chave de administração inválida',
+        HttpStatus.FORBIDDEN,
+      );
     }
   }
 
@@ -45,8 +54,8 @@ export class SetupController {
           id: tenantId,
           name: 'Logística Acme Ltda',
           slug: 'acme-logistica',
-          plan: 'ENTERPRISE'
-        }
+          plan: 'ENTERPRISE',
+        },
       });
 
       // 2. Criar Hash da Senha
@@ -60,28 +69,27 @@ export class SetupController {
       const user = await (this.prisma as any).user.upsert({
         where: { email },
         update: {
-          password: hashedPassword
+          password: hashedPassword,
         },
         create: {
           email,
           password: hashedPassword,
           name: 'Administrador Principal',
           role: 'ADMIN',
-          tenantId: tenant.id
-        }
+          tenantId: tenant.id,
+        },
       });
 
       return {
         success: true,
         message: 'Banco resetado e Admin recriado com senha "123456"',
-        user: { email: user.email }
+        user: { email: user.email },
       };
-
     } catch (error: any) {
       console.error('Erro no Seed:', error);
       throw new HttpException(
         `Erro ao inicializar sistema: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

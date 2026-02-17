@@ -3,76 +3,83 @@ import { PrismaService } from '../../prisma.service';
 
 @Injectable()
 export class RouteCommandService {
-    private readonly logger = new Logger(RouteCommandService.name);
+  private readonly logger = new Logger(RouteCommandService.name);
 
-    constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
-    async handleStartRoute(driverId: string, routeId: string) {
-        await this.prisma.route.update({
-            where: { id: routeId },
-            data: { status: 'ACTIVE', startTime: new Date().toLocaleTimeString('pt-BR') }
-        });
+  async handleStartRoute(driverId: string, routeId: string) {
+    await this.prisma.route.update({
+      where: { id: routeId },
+      data: { status: 'ACTIVE' },
+    });
 
-        await this.prisma.delivery.updateMany({
-            where: { routeId: routeId, status: 'PENDING' },
-            data: { status: 'IN_TRANSIT' }
-        });
+    await this.prisma.delivery.updateMany({
+      where: { routeId: routeId, status: 'PENDING' },
+      data: { status: 'IN_TRANSIT' },
+    });
 
-        return { status: 'route_started' };
-    }
+    return { status: 'route_started' };
+  }
 
-    async handleExitRoute(routeId: string) {
-        await this.prisma.route.update({
-            where: { id: routeId },
-            data: { status: 'PLANNED', startTime: null }
-        });
+  async handleExitRoute(routeId: string) {
+    await this.prisma.route.update({
+      where: { id: routeId },
+      data: { status: 'PLANNED' },
+    });
 
-        await this.prisma.delivery.updateMany({
-            where: { routeId: routeId, status: 'IN_TRANSIT' },
-            data: { status: 'PENDING' }
-        });
+    await this.prisma.delivery.updateMany({
+      where: { routeId: routeId, status: 'IN_TRANSIT' },
+      data: { status: 'PENDING' },
+    });
 
-        return { status: 'route_exited' };
-    }
+    return { status: 'route_exited' };
+  }
 
-    async handleDeliveryUpdate(deliveryId: string, status: 'DELIVERED' | 'FAILED', reason?: string, proofUrl?: string) {
-        const updateResult = await this.prisma.delivery.updateMany({
-            where: {
-                id: deliveryId,
-                status: { in: ['PENDING', 'IN_TRANSIT'] }
-            },
-            data: {
-                status,
-                failureReason: reason,
-                proofOfDelivery: proofUrl,
-                updatedAt: new Date()
-            }
-        });
+  async handleDeliveryUpdate(
+    deliveryId: string,
+    status: 'DELIVERED' | 'FAILED',
+    reason?: string,
+    proofUrl?: string,
+  ) {
+    const updateResult = await this.prisma.delivery.updateMany({
+      where: {
+        id: deliveryId,
+        status: { in: ['PENDING', 'IN_TRANSIT'] },
+      },
+      data: {
+        status,
+        failureReason: reason,
+        proofOfDeliveryUrl: proofUrl,
+        updatedAt: new Date(),
+      },
+    });
 
-        return updateResult.count > 0;
-    }
+    return updateResult.count > 0;
+  }
 
-    async handleWorkflowStep(deliveryId: string, step: 'CHEGADA' | 'INICIO_DESCARGA' | 'FIM_DESCARGA') {
-        const updateData: any = {};
-        const now = new Date();
+  async handleWorkflowStep(
+    deliveryId: string,
+    step: 'CHEGADA' | 'INICIO_DESCARGA' | 'FIM_DESCARGA',
+  ) {
+    const updateData: any = {};
+    const now = new Date();
 
-        if (step === 'CHEGADA') updateData.arrivedAt = now;
-        else if (step === 'INICIO_DESCARGA') updateData.unloadingStartedAt = now;
-        else if (step === 'FIM_DESCARGA') updateData.unloadingEndedAt = now;
+    if (step === 'CHEGADA') updateData.arrivedAt = now;
+    else if (step === 'INICIO_DESCARGA') updateData.unloadingStartedAt = now;
+    else if (step === 'FIM_DESCARGA') updateData.unloadingEndedAt = now;
 
-        await this.prisma.delivery.update({
-            where: { id: deliveryId },
-            data: updateData
-        });
+    await (this.prisma as any).delivery.update({
+      where: { id: deliveryId },
+      data: updateData,
+    });
 
-        return { status: 'workflow_step_updated', step };
-    }
-
-    async handleFinishRoute(routeId: string) {
-        await this.prisma.route.update({
-            where: { id: routeId },
-            data: { status: 'COMPLETED', endTime: new Date().toLocaleTimeString('pt-BR') }
-        });
-        return { status: 'route_completed' };
-    }
+    return { status: 'workflow_step_updated', step };
+  }
+  async handleFinishRoute(routeId: string) {
+    await this.prisma.route.update({
+      where: { id: routeId },
+      data: { status: 'COMPLETED' },
+    });
+    return { status: 'route_completed' };
+  }
 }

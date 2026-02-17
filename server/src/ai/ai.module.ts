@@ -6,6 +6,6 @@ import { PrismaService } from '../prisma.service'; // <--- Importar
 @Module({
   controllers: [AiController],
   providers: [AiService, PrismaService], // <--- Adicionar PrismaService aqui
-  exports: [AiService]
+  exports: [AiService],
 })
-export class AiModule { }
+export class AiModule {}

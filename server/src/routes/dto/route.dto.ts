@@ -1,4 +1,10 @@
-import { IsString, IsArray, IsNumber, IsOptional, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsEnum,
+} from 'class-validator';
 
 export class CreateRouteDto {
   @IsString()

@@ -1,8 +1,5 @@
 {
   "name": "ZapRoute SaaS",
   "description": "Uma plataforma SaaS completa de gestão logística e de entregas com otimização de rotas, PWA para motoristas e rastreamento em tempo real.",
-  "requestFramePermissions": [
-    "camera",
-    "geolocation"
-  ]
+  "requestFramePermissions": ["camera", "geolocation"]
 }

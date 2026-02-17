@@ -5,8 +5,8 @@ import { PrismaService } from '../prisma.service';
 import { MailModule } from '../mail/mail.module';
 
 @Module({
-    imports: [MailModule],
-    controllers: [BackofficeController],
-    providers: [BackofficeService, PrismaService],
+  imports: [MailModule],
+  controllers: [BackofficeController],
+  providers: [BackofficeService, PrismaService],
 })
-export class BackofficeModule { }
+export class BackofficeModule {}

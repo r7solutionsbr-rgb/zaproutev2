@@ -1,11 +1,21 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { SellersService } from './sellers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('sellers')
 @UseGuards(JwtAuthGuard)
 export class SellersController {
-  constructor(private readonly sellersService: SellersService) { }
+  constructor(private readonly sellersService: SellersService) {}
 
   @Get()
   async findAll(@Query('tenantId') tenantId: string) {

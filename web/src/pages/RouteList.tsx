@@ -1,9 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Route, Delivery, DeliveryStatus } from '../types';
 import {
-  Waypoints, Truck, User, Package, Clock, ArrowLeft, MapPin, FileText,
-  Map as MapIcon, Camera, Copy, MoreVertical, CheckSquare, AlertTriangle,
-  Search, Filter, ChevronRight
+  Waypoints,
+  Truck,
+  User,
+  Package,
+  Clock,
+  ArrowLeft,
+  MapPin,
+  FileText,
+  Map as MapIcon,
+  Camera,
+  Copy,
+  MoreVertical,
+  CheckSquare,
+  AlertTriangle,
+  Search,
+  Filter,
+  ChevronRight,
+  Loader2,
+  CheckCircle,
+  Calendar,
 } from 'lucide-react';
 
 import { useData } from '../contexts/DataContext';
@@ -13,17 +30,139 @@ import { api } from '../services/api';
 import { ImageModal } from '../components/ImageModal';
 import { ForceDeliveryModal } from '../components/ForceDeliveryModal';
 import { RouteMapModal } from '../components/RouteMapModal';
+import { Skeleton } from '../components/ui/Skeleton';
+import { SkeletonCard } from '../components/ui/SkeletonCard';
+import { EmptyState } from '../components/ui/EmptyState';
+
+type RouteStatus = 'PLANNED' | 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED';
 
 export const RouteList: React.FC = () => {
-  const { routes, deliveries, drivers, vehicles, refreshData } = useData();
+  // --- PAGINAÇÃO REAL (Server-Side) ---
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [deliveries, setDeliveries] = useState<Delivery[]>([]); // Mantido para compatibilidade visual
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Estados de Paginação
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const limit = 10; // Itens por página
+
+  // Filtros de Estado
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(
+    () => new Date().toISOString().split('T')[0],
+  );
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [driverFilter, setDriverFilter] = useState<string>('ALL');
+  const [searchText, setSearchText] = useState('');
+
+  // Debounce para busca
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchText), 500);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  // Mantém apenas dados leves do contexto
+  const { drivers, vehicles } = useData();
+
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
 
   // --- TENANT CONFIG ---
   const [tenantConfig, setTenantConfig] = useState<any>({});
 
+  // Carrega configurações Iniciais
   useEffect(() => {
-    api.tenants.getMe().then(t => setTenantConfig(t.config || {}));
+    api.tenants.getMe().then((t) => setTenantConfig(t.config || {}));
   }, []);
+
+  // Carrega DADOS (Sempre que filtros ou página mudarem)
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const userStr = localStorage.getItem('zaproute_user');
+        const user = userStr ? JSON.parse(userStr) : null;
+        if (!user?.tenantId) return;
+
+        // Filtros para API
+        const filters = {
+          startDate,
+          endDate,
+          status: statusFilter !== 'ALL' ? statusFilter : undefined,
+          driverId: driverFilter !== 'ALL' ? driverFilter : undefined,
+          search: debouncedSearch || undefined,
+        };
+
+        const result = await api.routes.getAllPaginated(
+          user.tenantId,
+          page,
+          limit,
+          filters,
+        );
+
+        // Atualiza Meta de Paginação
+        setTotalPages(result.meta.totalPages);
+        setTotalRecords(result.meta.total);
+
+        // Processa entregas
+        const routesData = result.data;
+        const allDeliveries: Delivery[] = [];
+        const processedRoutes = routesData.map((r: any) => {
+          if (r.deliveries) {
+            r.deliveries.forEach((d: any) => {
+              if (d.customer) {
+                allDeliveries.push({
+                  ...d,
+                  customer: {
+                    ...d.customer,
+                    location: d.customer.location || {
+                      lat: 0,
+                      lng: 0,
+                      address: d.customer.addressDetails?.street || '',
+                    },
+                    addressDetails: d.customer.addressDetails || {
+                      street: '',
+                      number: '',
+                      neighborhood: '',
+                      city: '',
+                      state: '',
+                      zipCode: '',
+                    },
+                  },
+                });
+              }
+            });
+          }
+          return {
+            ...r,
+            deliveries: r.deliveries ? r.deliveries.map((d: any) => d.id) : [],
+          };
+        });
+
+        console.log('Rotas carregadas (paginadas):', processedRoutes.length);
+
+        setRoutes(processedRoutes);
+        setDeliveries(allDeliveries);
+      } catch (error) {
+        console.error('Erro ao carregar dados da lista de rotas:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [page, startDate, endDate, statusFilter, driverFilter, debouncedSearch]);
+
+  // Refresh Local (Reset para página 1)
+  const refreshLocalData = () => {
+    setPage(1); // Isso disparará o useEffect acima
+  };
 
   const showFinancials = tenantConfig.displaySettings?.showFinancials ?? true;
   const showVolume = tenantConfig.displaySettings?.showVolume ?? true;
@@ -31,100 +170,131 @@ export const RouteList: React.FC = () => {
 
   // States for Modals
   const [viewMapRoute, setViewMapRoute] = useState<Route | null>(null);
-  const [focusedDeliveryId, setFocusedDeliveryId] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<{ url: string, title: string } | null>(null);
+  const [focusedDeliveryId, setFocusedDeliveryId] = useState<string | null>(
+    null,
+  );
+  const [selectedImage, setSelectedImage] = useState<{
+    url: string;
+    title: string;
+  } | null>(null);
 
   // Force Delivery State
-  const [deliveryToUpdate, setDeliveryToUpdate] = useState<Delivery | null>(null);
+  const [deliveryToUpdate, setDeliveryToUpdate] = useState<Delivery | null>(
+    null,
+  );
   const [isUpdateLoading, setIsUpdateLoading] = useState(false);
 
-  // Filters
-  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'PLANNED' | 'ALL'>('ACTIVE');
-  const [searchText, setSearchText] = useState('');
-  const [driverFilter, setDriverFilter] = useState<string>('ALL');
-  const [vehicleFilter, setVehicleFilter] = useState<string>('ALL');
+  // Filter UI State (Active Tab visual only now, logic handled by statusFilter)
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'PLANNED' | 'ALL'>(
+    'ACTIVE',
+  );
+
+  // Sync Tab with Status Filter
+  useEffect(() => {
+    if (activeTab === 'ACTIVE') setStatusFilter('ACTIVE');
+    else if (activeTab === 'PLANNED') setStatusFilter('PLANNED');
+    else setStatusFilter('ALL');
+    setPage(1); // Reset page on tab change
+  }, [activeTab]);
 
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
 
-  const handleForceDelivery = async (status: DeliveryStatus, reason?: string) => {
+  const handleForceDelivery = async (
+    status: DeliveryStatus,
+    reason?: string,
+  ) => {
     if (!deliveryToUpdate) return;
 
     setIsUpdateLoading(true);
     try {
-      await api.routes.updateDeliveryStatus(deliveryToUpdate.id, status, undefined, reason);
-      await refreshData();
+      await api.routes.updateDeliveryStatus(
+        deliveryToUpdate.id,
+        status,
+        undefined,
+        reason,
+      );
+      refreshLocalData();
       setDeliveryToUpdate(null);
     } catch (error) {
-      console.error("Erro ao atualizar status:", error);
-      alert("Erro ao atualizar status. Tente novamente.");
+      console.error('Erro ao atualizar status:', error);
+      alert('Erro ao atualizar status. Tente novamente.');
     } finally {
       setIsUpdateLoading(false);
     }
   };
 
-  const getRouteStats = (route: Route) => {
-    const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
-
-    const totalVolume = routeDeliveries.reduce((acc, d) => acc + Number(d.volume || 0), 0);
-    const totalValue = routeDeliveries.reduce((acc, d) => acc + Number(d.value || 0), 0);
-
-    const pendingCount = routeDeliveries.filter(d => d.status === 'PENDING' || d.status === 'IN_TRANSIT').length;
-    const deliveredCount = routeDeliveries.filter(d => d.status === 'DELIVERED').length;
-    const failedCount = routeDeliveries.filter(d => d.status === 'FAILED' || d.status === 'RETURNED').length;
-
-    const total = routeDeliveries.length;
-    const successPct = total > 0 ? (deliveredCount / total) * 100 : 0;
-    const failedPct = total > 0 ? (failedCount / total) * 100 : 0;
-
-    const driver = drivers.find(d => d.id === route.driverId);
-    const vehicle = vehicles.find(v => v.id === route.vehicleId);
-
-    return {
-      totalDeliveries: total,
-      pendingCount,
-      deliveredCount,
-      failedCount,
-      successPct,
-      failedPct,
-      totalVolume,
-      totalValue,
-      driverName: driver ? driver.name : 'Não atribuído',
-      driverAvatar: driver?.avatarUrl,
-      vehiclePlate: vehicle ? vehicle.plate : 'Sem veículo'
-    };
-  };
-
   const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(val);
   };
 
-  // --- FILTER LOGIC ---
-  const filteredRoutes = routes.filter(route => {
-    // 1. Tab Filter
-    if (activeTab !== 'ALL' && route.status !== activeTab) return false;
+  // Badge de Status (Reutilizável)
+  const StatusBadge = ({ status }: { status: string }) => {
+    switch (status) {
+      case 'COMPLETED':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 flex items-center gap-1.5 w-fit">
+            <CheckCircle size={12} /> CONCLUÍDA
+          </span>
+        );
+      case 'IN_PROGRESS':
+      case 'ACTIVE':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 flex items-center gap-1.5 w-fit">
+            <Truck size={12} /> EM ROTA
+          </span>
+        );
+      case 'PLANNED':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 flex items-center gap-1.5 w-fit">
+            <Clock size={12} /> PLANEJADA
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
 
-    // 2. Search Text (Name)
-    if (searchText && !route.name.toLowerCase().includes(searchText.toLowerCase())) return false;
-
-    // 3. Driver Filter
-    if (driverFilter !== 'ALL' && route.driverId !== driverFilter) return false;
-
-    // 4. Vehicle Filter
-    if (vehicleFilter !== 'ALL' && route.vehicleId !== vehicleFilter) return false;
-
-    return true;
-  });
-
-  // --- VIEW: DETAIL (Selected Route) ---
+  // VIEW: DETAIL (Selected Route)
   if (selectedRouteId) {
-    const route = routes.find(r => r.id === selectedRouteId);
+    const route = routes.find((r) => r.id === selectedRouteId);
     if (!route) return <div>Rota não encontrada</div>;
 
-    const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
-    const stats = getRouteStats(route);
+    const routeDeliveries = deliveries.filter((d) =>
+      route.deliveries.some((rd) => rd.id === d.id),
+    );
+
+    // Stats calculation inline for detail view
+    const totalDeliveries = routeDeliveries.length;
+    const deliveredCount = routeDeliveries.filter(
+      (d) => d.status === 'DELIVERED',
+    ).length;
+    const failedCount = routeDeliveries.filter(
+      (d) => d.status === 'FAILED' || d.status === 'RETURNED',
+    ).length;
+    const pendingCount = totalDeliveries - deliveredCount - failedCount;
+    const successPct =
+      totalDeliveries > 0 ? (deliveredCount / totalDeliveries) * 100 : 0;
+    const failedPct =
+      totalDeliveries > 0 ? (failedCount / totalDeliveries) * 100 : 0;
+    const totalVolume = routeDeliveries.reduce(
+      (acc, d) => acc + Number(d.volume || 0),
+      0,
+    );
+    const totalValue = routeDeliveries.reduce(
+      (acc, d) => acc + Number(d.value || 0),
+      0,
+    );
+    const driver = drivers.find((d) => d.id === route.driverId);
+    const vehicle = vehicles.find((v) => v.id === route.vehicleId);
 
     return (
-      <div className="p-4 md:p-6 max-w-7xl mx-auto relative" onClick={() => setActionMenuOpen(null)}>
+      <div
+        className="p-4 md:p-6 max-w-7xl mx-auto relative"
+        onClick={() => setActionMenuOpen(null)}
+      >
         {/* MODALS */}
         {selectedImage && (
           <ImageModal
@@ -179,29 +349,36 @@ export const RouteList: React.FC = () => {
               </h1>
               <div className="flex flex-wrap gap-4 mt-2 text-sm text-slate-600 items-center">
                 <div className="flex items-center gap-1">
-                  {stats.driverAvatar ? (
-                    <img src={stats.driverAvatar} alt="" className="w-5 h-5 rounded-full object-cover border border-slate-300" />
+                  {driver?.avatarUrl ? (
+                    <img
+                      src={driver.avatarUrl}
+                      alt=""
+                      className="w-5 h-5 rounded-full object-cover border border-slate-300"
+                    />
                   ) : (
                     <User size={14} />
                   )}
-                  {stats.driverName}
+                  {driver?.name || 'Sem Motorista'}
                 </div>
-                <span className="flex items-center gap-1"><Truck size={14} /> {stats.vehiclePlate}</span>
-                <span className="flex items-center gap-1"><Clock size={14} /> {route.startTime || '--:--'} - {route.endTime || '--:--'}</span>
+                <span className="flex items-center gap-1">
+                  <Truck size={14} /> {vehicle?.plate || 'Sem Veículo'}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Clock size={14} /> {route.startTime || '--:--'} -{' '}
+                  {route.endTime || '--:--'}
+                </span>
               </div>
             </div>
             <div className="text-left md:text-right w-full md:w-auto flex flex-row md:flex-col justify-between md:justify-start items-center md:items-end">
-              <span className={`px-3 py-1 rounded-full text-sm font-bold ${route.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' :
-                route.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                  'bg-slate-100 text-slate-500'
-                }`}>
-                {route.status === 'ACTIVE' ? 'EM ROTA' :
-                  route.status === 'COMPLETED' ? 'FINALIZADA' : 'PLANEJADA'}
-              </span>
+              <StatusBadge status={route.status} />
               {showFinancials && (
                 <div className="md:mt-2">
-                  <div className="text-xl md:text-2xl font-bold text-slate-800">{formatCurrency(stats.totalValue)}</div>
-                  <div className="text-xs text-slate-500 text-right hidden md:block">Valor Total</div>
+                  <div className="text-xl md:text-2xl font-bold text-slate-800">
+                    {formatCurrency(totalValue)}
+                  </div>
+                  <div className="text-xs text-slate-500 text-right hidden md:block">
+                    Valor Total
+                  </div>
                 </div>
               )}
             </div>
@@ -209,28 +386,52 @@ export const RouteList: React.FC = () => {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t pt-4">
             <div>
-              <span className="block text-xs text-slate-400 uppercase font-bold">Entregas</span>
-              <span className="text-lg font-semibold">{stats.totalDeliveries}</span>
+              <span className="block text-xs text-slate-400 uppercase font-bold">
+                Entregas
+              </span>
+              <span className="text-lg font-semibold">{totalDeliveries}</span>
             </div>
             <div>
-              <span className="block text-xs text-slate-400 uppercase font-bold">Pendentes</span>
-              <span className="text-lg font-semibold text-orange-600">{stats.pendingCount}</span>
+              <span className="block text-xs text-slate-400 uppercase font-bold">
+                Pendentes
+              </span>
+              <span className="text-lg font-semibold text-orange-600">
+                {pendingCount}
+              </span>
             </div>
             {showVolume && (
               <div>
-                <span className="block text-xs text-slate-400 uppercase font-bold">{volumeLabel}</span>
-                <span className="text-lg font-semibold">{stats.totalVolume.toFixed(2)}</span>
+                <span className="block text-xs text-slate-400 uppercase font-bold">
+                  {volumeLabel}
+                </span>
+                <span className="text-lg font-semibold">
+                  {totalVolume.toFixed(2)}
+                </span>
               </div>
             )}
             <div>
-              <span className="block text-xs text-slate-400 uppercase font-bold">Progresso</span>
+              <span className="block text-xs text-slate-400 uppercase font-bold">
+                Progresso
+              </span>
               <div className="w-full bg-slate-100 rounded-full h-3 mt-2 flex overflow-hidden">
-                <div className="bg-green-500 h-full" style={{ width: `${stats.successPct}%` }} title="Entregues"></div>
-                <div className="bg-red-500 h-full" style={{ width: `${stats.failedPct}%` }} title="Falhas"></div>
+                <div
+                  className="bg-green-500 h-full"
+                  style={{ width: `${successPct}%` }}
+                  title="Entregues"
+                ></div>
+                <div
+                  className="bg-red-500 h-full"
+                  style={{ width: `${failedPct}%` }}
+                  title="Falhas"
+                ></div>
               </div>
               <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                <span>{stats.deliveredCount} entregues</span>
-                {stats.failedCount > 0 && <span className="text-red-500 font-bold">{stats.failedCount} falhas</span>}
+                <span>{deliveredCount} entregues</span>
+                {failedCount > 0 && (
+                  <span className="text-red-500 font-bold">
+                    {failedCount} falhas
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -249,7 +450,11 @@ export const RouteList: React.FC = () => {
                   <th className="p-4">Cliente / NF</th>
                   <th className="p-4 hidden md:table-cell">Endereço</th>
                   <th className="p-4">Horário</th>
-                  {showFinancials && <th className="p-4 text-right hidden md:table-cell">Valor</th>}
+                  {showFinancials && (
+                    <th className="p-4 text-right hidden md:table-cell">
+                      Valor
+                    </th>
+                  )}
                   <th className="p-4 text-center">Evidência</th>
                   <th className="p-4 text-center">Status</th>
                   <th className="p-4 text-center w-12"></th>
@@ -258,36 +463,58 @@ export const RouteList: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {routeDeliveries.map((delivery, index) => {
                   const isDelivered = delivery.status === 'DELIVERED';
-                  const isFailed = delivery.status === 'FAILED' || delivery.status === 'RETURNED';
-                  const isNext = !isDelivered && !isFailed && (index === 0 || routeDeliveries[index - 1].status === 'DELIVERED');
+                  const isFailed =
+                    delivery.status === 'FAILED' ||
+                    delivery.status === 'RETURNED';
+                  const isNext =
+                    !isDelivered &&
+                    !isFailed &&
+                    (index === 0 ||
+                      routeDeliveries[index - 1].status === 'DELIVERED');
 
                   return (
-                    <tr key={delivery.id} className="hover:bg-slate-50 group relative">
+                    <tr
+                      key={delivery.id}
+                      className="hover:bg-slate-50 group relative"
+                    >
                       {/* Timeline */}
                       <td className="relative p-0 w-16">
                         {routeDeliveries.length > 1 && (
-                          <div className={`
+                          <div
+                            className={`
                             absolute left-1/2 -ml-px w-0.5 bg-slate-200 -z-10
-                            ${index === 0 ? 'top-1/2 bottom-0' :
-                              index === routeDeliveries.length - 1 ? 'top-0 bottom-1/2' :
-                                'top-0 bottom-0'}
-                          `}></div>
+                            ${index === 0
+                                ? 'top-1/2 bottom-0'
+                                : index === routeDeliveries.length - 1
+                                  ? 'top-0 bottom-1/2'
+                                  : 'top-0 bottom-0'
+                              }
+                          `}
+                          ></div>
                         )}
                         <div className="flex h-full items-center justify-center py-4">
-                          <div className={`
+                          <div
+                            className={`
                             relative z-10 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2
-                            ${isDelivered ? 'bg-green-100 border-green-500 text-green-700' :
-                              isFailed ? 'bg-red-100 border-red-500 text-red-700' :
-                                isNext ? 'bg-blue-100 border-blue-500 text-blue-700' :
-                                  'bg-slate-50 border-slate-300 text-slate-400'}
-                          `}>
+                            ${isDelivered
+                                ? 'bg-green-100 border-green-500 text-green-700'
+                                : isFailed
+                                  ? 'bg-red-100 border-red-500 text-red-700'
+                                  : isNext
+                                    ? 'bg-blue-100 border-blue-500 text-blue-700'
+                                    : 'bg-slate-50 border-slate-300 text-slate-400'
+                              }
+                          `}
+                          >
                             {index + 1}
                           </div>
                         </div>
                       </td>
 
                       <td className="p-4">
-                        <div className="font-medium text-slate-800">{delivery.customer.tradeName}</div>
+                        <div className="font-medium text-slate-800">
+                          {delivery.customer.tradeName}
+                        </div>
                         <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
                           <FileText size={12} /> {delivery.invoiceNumber}
                         </div>
@@ -296,9 +523,13 @@ export const RouteList: React.FC = () => {
                         </div>
                       </td>
 
-                      <td className="p-4 text-slate-500 max-w-xs truncate hidden md:table-cell" title={delivery.customer.location?.address}>
+                      <td
+                        className="p-4 text-slate-500 max-w-xs truncate hidden md:table-cell"
+                        title={delivery.customer.location?.address}
+                      >
                         <div className="flex items-center gap-1">
-                          <MapPin size={14} className="shrink-0" /> {delivery.customer.location?.address}
+                          <MapPin size={14} className="shrink-0" />{' '}
+                          {delivery.customer.location?.address}
                         </div>
                       </td>
 
@@ -306,44 +537,69 @@ export const RouteList: React.FC = () => {
                         {(isDelivered || isFailed) && delivery.updatedAt ? (
                           <div className="flex items-center gap-1.5 text-slate-700 font-medium">
                             <Clock size={14} className="text-slate-400" />
-                            {new Date(delivery.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(delivery.updatedAt).toLocaleTimeString(
+                              'pt-BR',
+                              { hour: '2-digit', minute: '2-digit' },
+                            )}
                           </div>
                         ) : (
                           <span className="text-slate-300">--:--</span>
                         )}
                       </td>
 
-                      {showFinancials && <td className="p-4 text-right hidden md:table-cell">{formatCurrency(Number(delivery.value || 0))}</td>}
+                      {showFinancials && (
+                        <td className="p-4 text-right hidden md:table-cell">
+                          {formatCurrency(Number(delivery.value || 0))}
+                        </td>
+                      )}
 
                       <td className="p-4 text-center">
                         {delivery.proofOfDelivery ? (
                           <button
-                            onClick={() => setSelectedImage({ url: delivery.proofOfDelivery!, title: delivery.customer.tradeName })}
+                            onClick={() =>
+                              setSelectedImage({
+                                url: delivery.proofOfDelivery!,
+                                title: delivery.customer.tradeName,
+                              })
+                            }
                             className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
                             title="Ver Comprovante"
                           >
                             <Camera size={18} />
                           </button>
+                        ) : isDelivered ? (
+                          <div
+                            className="flex justify-center"
+                            title="Sem foto do comprovante"
+                          >
+                            <AlertTriangle
+                              size={18}
+                              className="text-orange-300"
+                            />
+                          </div>
                         ) : (
-                          isDelivered ? (
-                            <div className="flex justify-center" title="Sem foto do comprovante">
-                              <AlertTriangle size={18} className="text-orange-300" />
-                            </div>
-                          ) : (
-                            <span className="text-slate-200">-</span>
-                          )
+                          <span className="text-slate-200">-</span>
                         )}
                       </td>
 
                       <td className="p-4 text-center">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${isDelivered ? 'bg-green-100 text-green-700' :
-                          delivery.status === 'PENDING' ? 'bg-slate-100 text-slate-500' :
-                            delivery.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-700' :
-                              'bg-red-100 text-red-700'
-                          }`}>
-                          {isDelivered ? 'ENTREGUE' :
-                            delivery.status === 'PENDING' ? 'PENDENTE' :
-                              delivery.status === 'IN_TRANSIT' ? 'EM ROTA' : 'FALHA'}
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-bold ${isDelivered
+                              ? 'bg-green-100 text-green-700'
+                              : delivery.status === 'PENDING'
+                                ? 'bg-slate-100 text-slate-500'
+                                : delivery.status === 'IN_TRANSIT'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-red-100 text-red-700'
+                            }`}
+                        >
+                          {isDelivered
+                            ? 'ENTREGUE'
+                            : delivery.status === 'PENDING'
+                              ? 'PENDENTE'
+                              : delivery.status === 'IN_TRANSIT'
+                                ? 'EM ROTA'
+                                : 'FALHA'}
                         </span>
                       </td>
 
@@ -351,7 +607,11 @@ export const RouteList: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setActionMenuOpen(actionMenuOpen === delivery.id ? null : delivery.id);
+                            setActionMenuOpen(
+                              actionMenuOpen === delivery.id
+                                ? null
+                                : delivery.id,
+                            );
                           }}
                           className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
                         >
@@ -395,9 +655,9 @@ export const RouteList: React.FC = () => {
     );
   }
 
-  // --- VIEW: LIST (All Routes) ---
+  // VIEW: LIST (All Routes)
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto relative">
+    <div className="p-6 max-w-7xl mx-auto relative">
       {/* MODAL DE MAPA */}
       {viewMapRoute && (
         <RouteMapModal
@@ -407,32 +667,41 @@ export const RouteList: React.FC = () => {
         />
       )}
 
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
             <Waypoints className="text-blue-600" /> Gestão de Rotas
           </h1>
-          <p className="text-slate-500 mt-1">Acompanhe o progresso e status das rotas em tempo real.</p>
+          <p className="text-slate-500 mt-1">
+            Acompanhe o progresso e status das rotas em tempo real.
+          </p>
         </div>
+        {isLoading && (
+          <div className="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1 rounded-full text-sm font-medium animate-pulse">
+            <Loader2 size={16} className="animate-spin" /> Atualizando...
+          </div>
+        )}
       </div>
 
       {/* TOOLBAR: FILTERS & TABS */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 space-y-4">
-        {/* Top Row: Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+        {/* TABS */}
+        <div className="flex gap-2 border-b border-slate-100 pb-2 overflow-x-auto">
           {[
-            { id: 'ACTIVE', label: 'Em Rota' },
+            { id: 'ACTIVE', label: 'Em Andamento' },
             { id: 'PLANNED', label: 'Planejadas' },
-            { id: 'ALL', label: 'Histórico' }
-          ].map(tab => (
+            { id: 'ALL', label: 'Todas as Rotas' },
+          ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`
-                px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+                px-4 py-2 text-sm font-medium transition-all rounded-lg whitespace-nowrap flex items-center gap-2
                 ${activeTab === tab.id
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20'
-                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'}
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                }
               `}
             >
               {tab.label}
@@ -440,216 +709,359 @@ export const RouteList: React.FC = () => {
           ))}
         </div>
 
-        {/* Bottom Row: Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        {/* FILTROS AVANÇADOS */}
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Busca Textual */}
+          <div className="relative flex-1">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              size={18}
+            />
             <input
               type="text"
-              placeholder="Buscar rota por nome..."
+              placeholder="Buscar rota, motorista ou placa..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             />
           </div>
 
-          {/* Driver Filter */}
-          <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <select
-              value={driverFilter}
-              onChange={(e) => setDriverFilter(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm appearance-none bg-white"
-            >
-              <option value="ALL">Todos os Motoristas</option>
-              {drivers.map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Filtros de Seleção */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Drivers */}
+            <div className="relative min-w-[180px]">
+              <User
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={16}
+              />
+              <select
+                value={driverFilter}
+                onChange={(e) => {
+                  setDriverFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer hover:border-blue-300 transition-colors text-slate-600"
+              >
+                <option value="ALL">Todos Motoristas</option>
+                {drivers.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronRight
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 rotate-90"
+                size={14}
+              />
+            </div>
 
-          {/* Vehicle Filter */}
-          <div className="relative">
-            <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <select
-              value={vehicleFilter}
-              onChange={(e) => setVehicleFilter(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm appearance-none bg-white"
-            >
-              <option value="ALL">Todos os Veículos</option>
-              {vehicles.map(v => (
-                <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>
-              ))}
-            </select>
+            {/* Date Range */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-1">
+              <div className="px-2 text-slate-400 border-r border-slate-200">
+                <Calendar size={16} />
+              </div>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-transparent text-sm text-slate-600 outline-none w-28 cursor-pointer"
+              />
+              <span className="text-slate-300 text-sm">até</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-transparent text-sm text-slate-600 outline-none w-28 cursor-pointer"
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* --- DESKTOP TABLE VIEW --- */}
-      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
-              <tr>
-                <th className="p-4 whitespace-nowrap">Nome da Rota</th>
-                <th className="p-4 whitespace-nowrap">Motorista</th>
-                <th className="p-4 whitespace-nowrap">Veículo</th>
-                <th className="p-4 whitespace-nowrap w-64">Progresso</th>
-                {showVolume && <th className="p-4 text-right whitespace-nowrap">{volumeLabel}</th>}
-                {showFinancials && <th className="p-4 text-right whitespace-nowrap">Valor Total</th>}
-                <th className="p-4 whitespace-nowrap">Início / Fim</th>
-                <th className="p-4 text-center whitespace-nowrap">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredRoutes.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center text-slate-400">
-                    Nenhuma rota encontrada com os filtros atuais.
-                  </td>
-                </tr>
-              ) : (
-                filteredRoutes.map((route) => {
-                  const stats = getRouteStats(route);
-                  return (
-                    <tr key={route.id} className="hover:bg-slate-50 transition-colors group">
-                      <td className="p-4 whitespace-nowrap">
-                        <button
-                          onClick={() => setSelectedRouteId(route.id)}
-                          className="font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                        >
-                          {route.name}
-                        </button>
-                      </td>
-                      <td className="p-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          {stats.driverAvatar ? (
-                            <img
-                              src={stats.driverAvatar}
-                              alt={stats.driverName}
-                              className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-sm"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200">
-                              <User size={16} />
-                            </div>
-                          )}
-                          <span className="font-medium text-slate-700">{stats.driverName}</span>
-                        </div>
-                      </td>
-                      <td className="p-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Truck size={16} className="text-slate-400" />
-                          {stats.vehiclePlate}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col gap-1">
-                          <div className="w-full bg-slate-100 rounded-full h-3 flex overflow-hidden">
-                            <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${stats.successPct}%` }} />
-                            <div className="bg-red-500 h-full transition-all duration-500" style={{ width: `${stats.failedPct}%` }} />
-                          </div>
-                          <div className="flex justify-between text-[10px] text-slate-400">
-                            <span>{stats.deliveredCount} ok</span>
-                            <span>{stats.failedCount} falhas</span>
-                          </div>
-                        </div>
-                      </td>
-                      {showVolume && <td className="p-4 text-right">{stats.totalVolume.toFixed(2)}</td>}
-                      {showFinancials && <td className="p-4 text-right">{formatCurrency(stats.totalValue)}</td>}
-                      <td className="p-4 whitespace-nowrap text-xs text-slate-500">
-                        <div>{route.startTime || '--:--'}</div>
-                        <div>{route.endTime || '--:--'}</div>
-                      </td>
-                      <td className="p-4 text-center">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${route.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' :
-                            route.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                              'bg-slate-100 text-slate-500'
-                          }`}>
-                          {route.status === 'ACTIVE' ? 'EM ROTA' :
-                            route.status === 'COMPLETED' ? 'FINALIZADA' : 'PLANEJADA'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* --- MOBILE CARD VIEW --- */}
-      <div className="md:hidden space-y-4">
-        {filteredRoutes.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
-            Nenhuma rota encontrada.
-          </div>
+      {/* LISTA DE ROTAS (PAGINADA) */}
+      <div className="space-y-4">
+        {isLoading ? (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
         ) : (
-          filteredRoutes.map((route) => {
-            const stats = getRouteStats(route);
+          routes.map((route) => {
+            // Lógica de cálculo de progresso
+            const totalOps = route.deliveries.length;
+            // Como deliveries é um array de objetos Delivery no objeto route, precisamos filtrar do state deliveries global
+            const routeDeliveries = deliveries.filter((d) =>
+              route.deliveries.some((rd) => rd.id === d.id),
+            );
+
+            const completedOps = routeDeliveries.filter(
+              (d) => d.status === 'DELIVERED',
+            ).length;
+            const failedOps = routeDeliveries.filter(
+              (d) => d.status === 'FAILED' || d.status === 'RETURNED',
+            ).length;
+            const pendingOps = totalOps - completedOps - failedOps;
+            const progress =
+              totalOps > 0
+                ? Math.round(((completedOps + failedOps) / totalOps) * 100)
+                : 0;
+
+            const driver = drivers.find((d) => d.id === route.driverId);
+            const vehicle = vehicles.find((v) => v.id === route.vehicleId);
+
             return (
               <div
                 key={route.id}
-                onClick={() => setSelectedRouteId(route.id)}
-                className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 active:scale-[0.98] transition-transform"
+                className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow"
               >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="font-bold text-slate-800">{route.name}</h3>
-                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                      <span className="flex items-center gap-1"><Truck size={12} /> {stats.vehiclePlate}</span>
-                      <span className="flex items-center gap-1"><Clock size={12} /> {route.startTime || '--:--'}</span>
+                <div className="p-5 flex flex-col md:flex-row gap-6">
+                  {/* Esquerda: Info Principal */}
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-lg font-bold text-slate-800">
+                          {route.name}
+                        </h3>
+                        <StatusBadge status={route.status} />
+                      </div>
+                      <span className="text-sm text-slate-500 flex items-center gap-1 font-mono bg-slate-50 px-2 py-1 rounded">
+                        <Calendar size={14} />
+                        {new Date(route.date).toLocaleDateString('pt-BR')}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                      <div className="flex items-center gap-3">
+                        {driver ? (
+                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold border border-slate-200">
+                            {driver.avatarUrl ? (
+                              <img
+                                src={driver.avatarUrl}
+                                className="w-full h-full rounded-full object-cover"
+                              />
+                            ) : (
+                              driver.name.charAt(0)
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300">
+                            <User size={20} />
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-xs text-slate-400 uppercase font-bold block">
+                            Motorista
+                          </span>
+                          <span className="text-sm font-medium text-slate-700">
+                            {driver?.name || 'Não atribuído'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
+                          <Truck size={20} />
+                        </div>
+                        <div>
+                          <span className="text-xs text-slate-400 uppercase font-bold block">
+                            Veículo
+                          </span>
+                          <span className="text-sm font-medium text-slate-700">
+                            {vehicle
+                              ? `${vehicle.model} (${vehicle.plate})`
+                              : 'Não definido'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 rounded text-[10px] font-bold ${route.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' :
-                      route.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                        'bg-slate-100 text-slate-500'
-                    }`}>
-                    {route.status === 'ACTIVE' ? 'EM ROTA' :
-                      route.status === 'COMPLETED' ? 'FIM' : 'PLAN'}
-                  </span>
-                </div>
 
-                <div className="flex items-center gap-3 mb-3 p-2 bg-slate-50 rounded-lg">
-                  {stats.driverAvatar ? (
-                    <img src={stats.driverAvatar} alt="" className="w-8 h-8 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
-                      <User size={16} />
+                  {/* Direita: Progresso e Ações */}
+                  <div className="flex flex-col justify-between min-w-[200px] border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6 gap-4">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-slate-500">Progresso</span>
+                        <span className="font-bold text-blue-600">
+                          {progress}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${progress}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-xs text-slate-400 mt-2">
+                        <span>{completedOps} entregues</span>
+                        <span>{pendingOps} pendentes</span>
+                      </div>
                     </div>
-                  )}
-                  <div>
-                    <p className="text-sm font-medium text-slate-700">{stats.driverName}</p>
-                    <p className="text-xs text-slate-400">Motorista</p>
+
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => setViewMapRoute(route)}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Ver no Mapa"
+                      >
+                        <MapIcon size={20} />
+                      </button>
+                      <button
+                        onClick={() =>
+                          setSelectedRouteId(
+                            route.id === selectedRouteId ? null : route.id,
+                          )
+                        }
+                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2 ${selectedRouteId === route.id
+                            ? 'bg-slate-100 text-slate-600'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow'
+                          }`}
+                      >
+                        {selectedRouteId === route.id
+                          ? 'Ver Detalhes'
+                          : 'Ver Detalhes'}
+                        <ChevronRight
+                          size={16}
+                          className={`transition-transform duration-300 ${selectedRouteId === route.id ? 'rotate-90' : ''}`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-slate-500 font-medium">
-                    <span>Progresso</span>
-                    <span>{stats.successPct.toFixed(0)}%</span>
+                {/* AREA EXPANDIDA DE ENTREGAS (Prévia) */}
+                {selectedRouteId === route.id && (
+                  <div className="border-t border-slate-100 bg-slate-50 p-4 animate-in slide-in-from-top-2 duration-300">
+                    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
+                          <tr>
+                            <th className="p-3">Cliente</th>
+                            <th className="p-3">Endereço</th>
+                            <th className="p-3 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {routeDeliveries.map((dev) => (
+                            <tr key={dev.id} className="hover:bg-slate-50">
+                              <td className="p-3 font-medium text-slate-700">
+                                {dev.customer.tradeName}
+                              </td>
+                              <td className="p-3 text-slate-500 truncate max-w-[200px]">
+                                {dev.customer.location?.address}
+                              </td>
+                              <td className="p-3 text-center">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${dev.status === 'DELIVERED'
+                                      ? 'bg-green-100 text-green-700'
+                                      : dev.status === 'FAILED'
+                                        ? 'bg-red-100 text-red-700'
+                                        : dev.status === 'IN_TRANSIT'
+                                          ? 'bg-blue-100 text-blue-700'
+                                          : 'bg-slate-100 text-slate-500'
+                                    }`}
+                                >
+                                  {dev.status === 'DELIVERED'
+                                    ? 'Entregue'
+                                    : dev.status === 'FAILED'
+                                      ? 'Falha'
+                                      : dev.status === 'IN_TRANSIT'
+                                        ? 'Em Rota'
+                                        : 'Pendente'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {routeDeliveries.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={3}
+                                className="p-4 text-center text-slate-400"
+                              >
+                                Sem entregas nesta rota.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                      <div className="p-2 border-t border-slate-100 text-center bg-slate-50">
+                        <span
+                          className="text-xs text-blue-600 font-medium cursor-pointer hover:underline"
+                          onClick={() => setSelectedRouteId(route.id)}
+                        >
+                          Abrir tela completa desta rota
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2 flex overflow-hidden">
-                    <div className="bg-green-500 h-full" style={{ width: `${stats.successPct}%` }} />
-                    <div className="bg-red-500 h-full" style={{ width: `${stats.failedPct}%` }} />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                    <span>{stats.deliveredCount} entregues</span>
-                    <span>{stats.totalDeliveries} total</span>
-                  </div>
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end">
-                  <button className="text-blue-600 text-sm font-bold flex items-center gap-1">
-                    Ver Detalhes <ChevronRight size={16} />
-                  </button>
-                </div>
+                )}
               </div>
             );
           })
         )}
+
+        {routes.length === 0 && !isLoading && (
+          <EmptyState
+            icon={Waypoints}
+            title="Nenhuma rota encontrada"
+            description="Tente ajustar os filtros ou a busca para encontrar o que procura."
+          />
+        )}
+      </div>
+
+      {/* CONTROLES DE PAGINAÇÃO */}
+      <div className="flex items-center justify-between mt-8 border-t border-slate-200 pt-6">
+        <div className="text-sm text-slate-500">
+          Mostrando página{' '}
+          <span className="font-bold text-slate-800">{page}</span> de{' '}
+          <span className="font-bold text-slate-800">{totalPages}</span> (
+          {totalRecords} registros)
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Anterior
+          </button>
+          <div className="flex items-center gap-1 hidden md:flex">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              // Lógica simples de paginação visual (1 2 3 4 5 ...)
+              let pNum = i + 1;
+              if (totalPages > 5 && page > 3) pNum = page - 2 + i;
+              if (totalPages > 5 && pNum > totalPages)
+                pNum = totalPages - (4 - i);
+              if (pNum < 1) pNum = 1;
+
+              return (
+                <button
+                  key={pNum}
+                  onClick={() => setPage(pNum)}
+                  className={`w-8 h-8 rounded-lg text-sm font-bold flex items-center justify-center transition-colors ${page === pNum
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                >
+                  {pNum}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Próximo
+          </button>
+        </div>
       </div>
     </div>
   );

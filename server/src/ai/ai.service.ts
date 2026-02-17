@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
 import { PrismaService } from '../prisma.service';
 
@@ -24,9 +24,14 @@ export class AiService {
   async interpretAudio(audioUrl: string): Promise<any> {
     try {
       this.logger.log(`🎧 Baixando áudio: ${audioUrl}`);
-      const response = await axios.get(audioUrl, { responseType: 'arraybuffer' });
+      const response = await axios.get(audioUrl, {
+        responseType: 'arraybuffer',
+      });
       const audioBase64 = Buffer.from(response.data).toString('base64');
-      return this.askGemini("Analise este áudio do motorista.", undefined, { mimeType: "audio/ogg", data: audioBase64 });
+      return this.askGemini('Analise este áudio do motorista.', undefined, {
+        mimeType: 'audio/ogg',
+        data: audioBase64,
+      });
     } catch (error) {
       this.logger.error('Erro ao processar áudio', error);
       return { action: 'UNKNOWN', error: 'Falha no download do áudio' };
@@ -36,14 +41,16 @@ export class AiService {
   async interpretImage(imageUrl: string, caption: string = ''): Promise<any> {
     try {
       this.logger.log(`📷 Baixando imagem: ${imageUrl}`);
-      const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+      const response = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+      });
       const imageBase64 = Buffer.from(response.data).toString('base64');
       const mimeType = response.headers['content-type'] || 'image/jpeg';
 
       return this.askGemini(
         `Analise esta imagem (comprovante/ocorrência). Legenda: "${caption}"`,
         undefined,
-        { mimeType, data: imageBase64 }
+        { mimeType, data: imageBase64 },
       );
     } catch (error) {
       this.logger.error('Erro ao processar imagem', error);
@@ -51,7 +58,12 @@ export class AiService {
     }
   }
 
-  async processMessage(driverId: string, text?: string, imageUrl?: string, audioUrl?: string): Promise<any> {
+  async processMessage(
+    driverId: string,
+    text?: string,
+    imageUrl?: string,
+    audioUrl?: string,
+  ): Promise<any> {
     if (imageUrl) {
       return this.interpretImage(imageUrl, text);
     }
@@ -67,7 +79,7 @@ export class AiService {
   private async askGemini(
     context: string,
     _unused?: string,
-    mediaData?: { mimeType: string, data: string }
+    mediaData?: { mimeType: string; data: string },
   ): Promise<any> {
     if (!this.genAI) {
       this.logger.error('❌ Gemini não configurado - API_KEY ausente');
@@ -77,23 +89,30 @@ export class AiService {
     // 1. Buscar exemplos aprendidos no banco (Memória do Bot)
     let learningContext = '';
     try {
-      const examples = await this.prisma.aiLearning.findMany({
+      const examples = await (this.prisma as any).aiLearning.findMany({
         where: { isActive: true },
         take: 50, // Limite para não estourar tokens
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
       });
 
       if (examples.length > 0) {
         learningContext = `
               EXEMPLOS APRENDIDOS (Use estes casos como referência absoluta):
-              ${examples.map(e => `- A frase "${e.phrase}" significa intenção ${e.intent}`).join('\n')}
+              ${examples.map((e) => `- A frase "${e.phrase}" significa intenção ${e.intent}`).join('\n')}
             `;
       }
     } catch (error) {
-      this.logger.warn('Falha ao buscar aprendizado da IA (tabela existe?)', error);
+      this.logger.warn(
+        'Falha ao buscar aprendizado da IA (tabela existe?)',
+        error,
+      );
     }
 
-    const modelsToTry = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash'];
+    const modelsToTry = [
+      'gemini-2.0-flash',
+      'gemini-flash-latest',
+      'gemini-1.5-flash',
+    ];
 
     for (const modelName of modelsToTry) {
       try {
@@ -153,14 +172,20 @@ export class AiService {
 
         parts.push({ text: `\nContexto/Mensagem: "${context}"` });
 
-        const result = await model.generateContent({ contents: [{ role: 'user', parts }] });
+        const result = await model.generateContent({
+          contents: [{ role: 'user', parts }],
+        });
         const responseText = result.response.text();
 
-        this.logger.log(`✅ IA (${modelName}): ${responseText.substring(0, 100)}...`);
+        this.logger.log(
+          `✅ IA (${modelName}): ${responseText.substring(0, 100)}...`,
+        );
 
-        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const cleanJson = responseText
+          .replace(/```json/g, '')
+          .replace(/```/g, '')
+          .trim();
         return JSON.parse(cleanJson);
-
       } catch (error: any) {
         const errorStr = error?.toString() || '';
         const status = error?.status;
@@ -171,23 +196,30 @@ export class AiService {
         }
 
         if (status === 404 || errorStr.includes('404')) {
-          this.logger.warn(`⚠️ Modelo ${modelName} não disponível, tentando próximo...`);
+          this.logger.warn(
+            `⚠️ Modelo ${modelName} não disponível, tentando próximo...`,
+          );
           continue;
         }
 
-        this.logger.error(`❌ Erro na IA (${modelName}): ${error?.message || error}`);
+        this.logger.error(
+          `❌ Erro na IA (${modelName}): ${error?.message || error}`,
+        );
       }
     }
 
     this.logger.error('❌ Todos os modelos falharam - retornando UNKNOWN');
     return { action: 'UNKNOWN', error: 'IA indisponível' };
   }
-  async analyzeDriverPerformance(driverName: string, stats: any): Promise<string> {
+  async analyzeDriverPerformance(
+    driverName: string,
+    stats: any,
+  ): Promise<string> {
     if (!this.genAI) {
-      return "O cérebro do Leônidas (Gemini) não está conectado. Verifique a API Key.";
+      return 'O cérebro do Leônidas (Gemini) não está conectado. Verifique a API Key.';
     }
 
-    const model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const prompt = `
       Você é Leônidas, um gestor de frota experiente, justo e direto.
@@ -201,7 +233,7 @@ export class AiService {
       - Ocorrências (Falhas/Devoluções): ${stats.failedCount}
       
       ÚLTIMAS OCORRÊNCIAS (Contexto):
-      ${stats.recentIssues.length > 0 ? stats.recentIssues.map((i: any) => `- ${i}`).join('\n') : "Nenhuma ocorrência recente."}
+      ${stats.recentIssues.length > 0 ? stats.recentIssues.map((i: any) => `- ${i}`).join('\n') : 'Nenhuma ocorrência recente.'}
 
       INSTRUÇÕES:
       1. Analise os números friamente.
@@ -218,17 +250,20 @@ export class AiService {
       const result = await model.generateContent(prompt);
       return result.response.text();
     } catch (error) {
-      this.logger.error("Erro no Leônidas:", error);
-      return "Leônidas está indisponível no momento. Tente novamente mais tarde.";
+      this.logger.error('Erro no Leônidas:', error);
+      return 'Leônidas está indisponível no momento. Tente novamente mais tarde.';
     }
   }
 
-  async chatWithLeonidas(message: string, context: string = ''): Promise<string> {
+  async chatWithLeonidas(
+    message: string,
+    context: string = '',
+  ): Promise<string> {
     if (!this.genAI) {
-      return "Leônidas está offline (API Key ausente).";
+      return 'Leônidas está offline (API Key ausente).';
     }
 
-    const model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const systemPrompt = `
       Você é Leônidas, o suporte inteligente e proativo da ZapRoute.
@@ -256,16 +291,23 @@ export class AiService {
     try {
       const chat = model.startChat({
         history: [
-          { role: "user", parts: [{ text: systemPrompt }] },
-          { role: "model", parts: [{ text: "Entendido. Estou pronto para atuar como Leônidas, o suporte da ZapRoute. Como posso ajudar?" }] }
-        ]
+          { role: 'user', parts: [{ text: systemPrompt }] },
+          {
+            role: 'model',
+            parts: [
+              {
+                text: 'Entendido. Estou pronto para atuar como Leônidas, o suporte da ZapRoute. Como posso ajudar?',
+              },
+            ],
+          },
+        ],
       });
 
       const result = await chat.sendMessage(message);
       return result.response.text();
     } catch (error) {
-      this.logger.error("Erro no Chat Leônidas:", error);
-      return "Desculpe, tive um problema momentâneo. Tente novamente.";
+      this.logger.error('Erro no Chat Leônidas:', error);
+      return 'Desculpe, tive um problema momentâneo. Tente novamente.';
     }
   }
 }

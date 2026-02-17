@@ -1,7 +1,20 @@
 import React, { useState } from 'react';
 import {
-  LayoutDashboard, Map, Package, AlertTriangle, Users, UserCircle,
-  Truck, FileText, Settings, LogOut, X, Waypoints, ChevronLeft, ChevronRight, Briefcase
+  LayoutDashboard,
+  Map,
+  Package,
+  AlertTriangle,
+  Users,
+  UserCircle,
+  Truck,
+  FileText,
+  Settings,
+  LogOut,
+  X,
+  Waypoints,
+  ChevronLeft,
+  ChevronRight,
+  Briefcase,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -16,10 +29,15 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  currentPage, setPage, isOpen, setIsOpen,
-  userRole, userName, tenantName, logout
+  currentPage,
+  setPage,
+  isOpen,
+  setIsOpen,
+  userRole,
+  userName,
+  tenantName,
+  logout,
 }) => {
-
   const [isCollapsed, setIsCollapsed] = useState(false);
   const appVersion = '1.0.0';
 
@@ -27,17 +45,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'Gestão',
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+        {
+          id: 'dashboard',
+          label: 'Dashboard',
+          icon: <LayoutDashboard size={20} />,
+        },
         { id: 'routes', label: 'Gestão de Rotas', icon: <Map size={20} /> },
-      ]
+      ],
     },
     {
       title: 'Operação',
       items: [
-        { id: 'route-list', label: 'Minhas Rotas', icon: <Waypoints size={20} /> },
+        {
+          id: 'route-list',
+          label: 'Minhas Rotas',
+          icon: <Waypoints size={20} />,
+        },
         { id: 'deliveries', label: 'Entregas', icon: <Package size={20} /> },
-        { id: 'occurrences', label: 'Ocorrências', icon: <AlertTriangle size={20} /> },
-      ]
+        {
+          id: 'occurrences',
+          label: 'Ocorrências',
+          icon: <AlertTriangle size={20} />,
+        },
+      ],
     },
     {
       title: 'Cadastros',
@@ -46,15 +76,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'sellers', label: 'Vendedores', icon: <Briefcase size={20} /> },
         { id: 'drivers', label: 'Motoristas', icon: <UserCircle size={20} /> },
         { id: 'vehicles', label: 'Veículos', icon: <Truck size={20} /> },
-      ]
+      ],
     },
     {
       title: 'Sistema',
       items: [
         // { id: 'reports', label: 'Relatórios', icon: <FileText size={20} /> },
-        { id: 'settings', label: 'Configurações', icon: <Settings size={20} /> },
-      ]
-    }
+        {
+          id: 'settings',
+          label: 'Configurações',
+          icon: <Settings size={20} />,
+        },
+      ],
+    },
   ];
 
   return (
@@ -68,15 +102,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* Sidebar */}
-      <aside className={`
+      <aside
+        className={`
         fixed top-0 left-0 z-30 h-screen bg-slate-900 text-white transition-all duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         md:translate-x-0 md:static md:block flex flex-col
         ${isCollapsed ? 'md:w-20' : 'md:w-64'} 
-      `}>
+      `}
+      >
         {/* HEADER DO MENU */}
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} p-6 border-b border-slate-800 shrink-0 relative transition-all`}>
-
+        <div
+          className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} p-6 border-b border-slate-800 shrink-0 relative transition-all`}
+        >
           {/* LOGO */}
           <div className="flex items-center justify-center w-full overflow-hidden h-12">
             <img
@@ -87,7 +124,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Botão Fechar Mobile */}
-          <button onClick={() => setIsOpen(false)} className="md:hidden text-slate-400 hover:text-white absolute right-4">
+          <button
+            onClick={() => setIsOpen(false)}
+            className="md:hidden text-slate-400 hover:text-white absolute right-4"
+          >
             <X size={24} />
           </button>
 
@@ -96,7 +136,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="hidden md:flex absolute -right-3 top-9 w-6 h-6 bg-slate-800 border border-slate-700 rounded-full items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors z-40 shadow-sm"
           >
-            {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            {isCollapsed ? (
+              <ChevronRight size={14} />
+            ) : (
+              <ChevronLeft size={14} />
+            )}
           </button>
         </div>
 
@@ -127,9 +171,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         }}
                         className={`
                           w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative
-                          ${currentPage === item.id
-                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+                          ${
+                            currentPage === item.id
+                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                              : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                          }
                           ${isCollapsed ? 'justify-center' : ''}
                         `}
                       >
@@ -160,8 +206,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* FOOTER */}
         <div className="p-4 border-t border-slate-800 shrink-0 bg-slate-900">
-          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} mb-4 px-2 transition-all`}>
-            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center shrink-0 font-bold text-slate-300 cursor-default border border-slate-600" title={userName}>
+          <div
+            className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} mb-4 px-2 transition-all`}
+          >
+            <div
+              className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center shrink-0 font-bold text-slate-300 cursor-default border border-slate-600"
+              title={userName}
+            >
               {userName ? userName.charAt(0).toUpperCase() : <UserCircle />}
             </div>
 
@@ -183,7 +234,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className={`w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-red-400 hover:bg-slate-800/50 rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
             >
               <LogOut size={20} />
-              {!isCollapsed && <span className="text-sm font-medium">Sair</span>}
+              {!isCollapsed && (
+                <span className="text-sm font-medium">Sair</span>
+              )}
             </button>
 
             {/* Tooltip Sair */}

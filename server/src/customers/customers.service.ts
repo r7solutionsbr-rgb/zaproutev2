@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import axios from 'axios';
 import { validateCNPJ, validateCPF } from '../common/validators';
@@ -7,10 +12,16 @@ import { validateCNPJ, validateCPF } from '../common/validators';
 export class CustomersService {
   private readonly logger = new Logger(CustomersService.name);
 
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   // --- BUSCA COM PAGINAÇÃO E FILTRO ---
-  async findAll(tenantId: string, page: number, limit: number, search: string, status?: string) {
+  async findAll(
+    tenantId: string,
+    page: number,
+    limit: number,
+    search: string,
+    status?: string,
+  ) {
     if (!tenantId) return { data: [], total: 0, pages: 0 };
 
     const skip = (page - 1) * limit;
@@ -18,11 +29,13 @@ export class CustomersService {
     const whereClause: any = {
       tenantId,
       ...(status ? { status } : {}),
-      OR: search ? [
-        { tradeName: { contains: search, mode: 'insensitive' } },
-        { legalName: { contains: search, mode: 'insensitive' } },
-        { cnpj: { contains: search } }
-      ] : undefined
+      OR: search
+        ? [
+            { tradeName: { contains: search, mode: 'insensitive' } },
+            { legalName: { contains: search, mode: 'insensitive' } },
+            { cnpj: { contains: search } },
+          ]
+        : undefined,
     };
 
     const [total, data] = await Promise.all([
@@ -32,8 +45,8 @@ export class CustomersService {
         skip,
         take: limit,
         orderBy: { tradeName: 'asc' },
-        include: { seller: true }
-      })
+        include: { seller: true },
+      }),
     ]);
 
     return {
@@ -41,15 +54,15 @@ export class CustomersService {
       meta: {
         total,
         page,
-        lastPage: Math.ceil(total / limit)
-      }
+        lastPage: Math.ceil(total / limit),
+      },
     };
   }
 
   async findOne(id: string, tenantId: string) {
     const customer = await (this.prisma as any).customer.findFirst({
       where: { id, tenantId },
-      include: { seller: true }
+      include: { seller: true },
     });
 
     if (!customer) throw new NotFoundException('Cliente não encontrado');
@@ -61,8 +74,14 @@ export class CustomersService {
 
     // 1. Validação Estrita (Obrigatório 100% preenchido, exceto creditLimit)
     const requiredFields = [
-      'legalName', 'tradeName', 'cnpj', 'stateRegistration',
-      'email', 'phone', 'whatsapp', 'communicationPreference'
+      'legalName',
+      'tradeName',
+      'cnpj',
+      'stateRegistration',
+      'email',
+      'phone',
+      'whatsapp',
+      'communicationPreference',
     ];
 
     for (const field of requiredFields) {
@@ -76,19 +95,25 @@ export class CustomersService {
     }
 
     // Validação de Endereço
-    if (!rest.addressDetails ||
+    if (
+      !rest.addressDetails ||
       !rest.addressDetails.street ||
       !rest.addressDetails.number ||
       !rest.addressDetails.neighborhood ||
       !rest.addressDetails.city ||
       !rest.addressDetails.state ||
-      !rest.addressDetails.zipCode) {
-      throw new BadRequestException('Todos os campos do endereço são obrigatórios.');
+      !rest.addressDetails.zipCode
+    ) {
+      throw new BadRequestException(
+        'Todos os campos do endereço são obrigatórios.',
+      );
     }
 
     // Validação de Localização
     if (!rest.location || !rest.location.address) {
-      throw new BadRequestException('A localização (Google Maps) é obrigatória.');
+      throw new BadRequestException(
+        'A localização (Google Maps) é obrigatória.',
+      );
     }
 
     const cleanData = this.prepareData(rest);
@@ -100,8 +125,8 @@ export class CustomersService {
           status: cleanData.status || 'ACTIVE',
           communicationPreference: data.communicationPreference || 'WHATSAPP',
           tenant: { connect: { id: tenantId } },
-          seller: { connect: { id: sellerId } }
-        }
+          seller: { connect: { id: sellerId } },
+        },
       });
     } catch (error: any) {
       this.logger.error(`Erro ao criar cliente: ${error.message}`, error.stack);
@@ -110,7 +135,15 @@ export class CustomersService {
   }
 
   async update(id: string, tenantId: string, data: any) {
-    const { id: _id, tenantId: _tId, tenant, deliveries, seller, sellerId, ...rest } = data;
+    const {
+      id: _id,
+      tenantId: _tId,
+      tenant,
+      deliveries,
+      seller,
+      sellerId,
+      ...rest
+    } = data;
     const cleanData = this.prepareData(rest);
 
     // Handle sellerId directly (simpler approach)
@@ -120,21 +153,29 @@ export class CustomersService {
 
     try {
       // Verifica se existe e pertence ao tenant
-      const exists = await (this.prisma as any).customer.findFirst({ where: { id, tenantId } });
-      if (!exists) throw new NotFoundException('Cliente não encontrado ou acesso negado.');
+      const exists = await (this.prisma as any).customer.findFirst({
+        where: { id, tenantId },
+      });
+      if (!exists)
+        throw new NotFoundException('Cliente não encontrado ou acesso negado.');
 
       return await (this.prisma as any).customer.update({
         where: { id },
         data: cleanData,
       });
     } catch (error: any) {
-      this.logger.error(`Erro ao atualizar cliente ${id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erro ao atualizar cliente ${id}: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   async geocodeCustomer(id: string, tenantId: string) {
-    const customer = await (this.prisma as any).customer.findFirst({ where: { id, tenantId } });
+    const customer = await (this.prisma as any).customer.findFirst({
+      where: { id, tenantId },
+    });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
 
     const details = customer.addressDetails || {};
@@ -143,17 +184,22 @@ export class CustomersService {
       details.number,
       details.city,
       details.state,
-      "Brasil"
-    ].filter(Boolean).join(', ');
+      'Brasil',
+    ]
+      .filter(Boolean)
+      .join(', ');
 
-    if (addressStr.length < 10) throw new Error('Endereço incompleto para geocodificação.');
+    if (addressStr.length < 10)
+      throw new Error('Endereço incompleto para geocodificação.');
 
     // THROTTLE: Espera 1.5s antes de chamar a API
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1500));
 
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressStr)}&limit=1`;
-      const response = await axios.get(url, { headers: { 'User-Agent': 'ZapRoute/1.0' } });
+      const response = await axios.get(url, {
+        headers: { 'User-Agent': 'ZapRoute/1.0' },
+      });
 
       if (response.data && response.data.length > 0) {
         const lat = parseFloat(response.data[0].lat);
@@ -165,9 +211,9 @@ export class CustomersService {
             location: {
               lat,
               lng,
-              address: customer.location?.address || addressStr
-            }
-          }
+              address: customer.location?.address || addressStr,
+            },
+          },
         });
       } else {
         // Salva sem coordenadas para não travar processos futuros
@@ -178,9 +224,9 @@ export class CustomersService {
             location: {
               lat: 0,
               lng: 0,
-              address: addressStr + " (Não localizado)"
-            }
-          }
+              address: addressStr + ' (Não localizado)',
+            },
+          },
         });
       }
     } catch (error: any) {
@@ -198,11 +244,13 @@ export class CustomersService {
 
     // 1. OTIMIZAÇÃO: Carrega todos os vendedores em memória (Cache)
     const existingSellers = await (this.prisma as any).seller.findMany({
-      where: { tenantId }
+      where: { tenantId },
     });
 
     const sellerMap = new Map<string, string>();
-    existingSellers.forEach((s: any) => sellerMap.set(s.name.toUpperCase().trim(), s.id));
+    existingSellers.forEach((s: any) =>
+      sellerMap.set(s.name.toUpperCase().trim(), s.id),
+    );
 
     // PROCESSAMENTO EM LOTES (CHUNKS)
     const BATCH_SIZE = 50;
@@ -225,7 +273,9 @@ export class CustomersService {
 
         if (!docType) {
           // REJEIÇÃO: Não tem documento válido
-          this.logger.warn(`Importação rejeitada (Linha ${rowNumber}): Documento inválido ou ausente (${c.cnpj})`);
+          this.logger.warn(
+            `Importação rejeitada (Linha ${rowNumber}): Documento inválido ou ausente (${c.cnpj})`,
+          );
           // Opcional: Adicionar ao log de erros para retorno
           continue;
         }
@@ -243,8 +293,8 @@ export class CustomersService {
                 data: {
                   name: c.salesperson,
                   tenant: { connect: { id: tenantId } },
-                  status: 'ACTIVE'
-                }
+                  status: 'ACTIVE',
+                },
               });
               sellerId = newSeller.id;
               sellerMap.set(sName, sellerId);
@@ -258,8 +308,8 @@ export class CustomersService {
         const existingCustomer = await (this.prisma as any).customer.findFirst({
           where: {
             tenantId: tenantId,
-            cnpj: rawDoc // O campo no banco chama 'cnpj', mas guardamos CPF lá também se for o caso
-          }
+            cnpj: rawDoc, // O campo no banco chama 'cnpj', mas guardamos CPF lá também se for o caso
+          },
         });
 
         // 4. Prepara Dados
@@ -275,7 +325,7 @@ export class CustomersService {
           location: c.location || { lat: 0, lng: 0, address: 'Não informado' },
           addressDetails: c.addressDetails || {},
           creditLimit: c.creditLimit,
-          status: 'ACTIVE'
+          status: 'ACTIVE',
         };
 
         const customerData = this.prepareData(rawData);
@@ -293,8 +343,8 @@ export class CustomersService {
               where: { id: existingCustomer.id },
               data: {
                 ...customerData,
-                ...relationData
-              }
+                ...relationData,
+              },
             });
             updatedCount++;
           } else {
@@ -302,13 +352,15 @@ export class CustomersService {
               data: {
                 ...customerData,
                 ...relationData,
-                tenant: { connect: { id: tenantId } }
-              }
+                tenant: { connect: { id: tenantId } },
+              },
             });
             createdCount++;
           }
         } catch (error: any) {
-          this.logger.error(`Erro ao salvar cliente ${rawDoc}: ${error.message}`);
+          this.logger.error(
+            `Erro ao salvar cliente ${rawDoc}: ${error.message}`,
+          );
         }
       }
     }
@@ -317,7 +369,7 @@ export class CustomersService {
     return {
       message: `Processamento finalizado! ${createdCount} clientes adicionados e ${updatedCount} atualizados.`,
       created: createdCount,
-      updated: updatedCount
+      updated: updatedCount,
     };
   }
 
@@ -329,7 +381,11 @@ export class CustomersService {
     if (clean.phone) clean.phone = clean.phone.replace(/\D/g, '');
     if (clean.whatsapp) clean.whatsapp = clean.whatsapp.replace(/\D/g, '');
 
-    if (clean.creditLimit === '' || clean.creditLimit === null || clean.creditLimit === undefined) {
+    if (
+      clean.creditLimit === '' ||
+      clean.creditLimit === null ||
+      clean.creditLimit === undefined
+    ) {
       clean.creditLimit = null;
     } else {
       const floatVal = parseFloat(clean.creditLimit);
@@ -340,7 +396,7 @@ export class CustomersService {
       clean.location = {
         ...clean.location,
         lat: parseFloat(clean.location.lat || 0),
-        lng: parseFloat(clean.location.lng || 0)
+        lng: parseFloat(clean.location.lng || 0),
       };
     }
 

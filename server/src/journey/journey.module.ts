@@ -4,9 +4,9 @@ import { JourneyService } from './journey.service';
 import { PrismaService } from '../prisma.service';
 
 @Module({
-    imports: [],
-    controllers: [JourneyController],
-    providers: [JourneyService, PrismaService],
-    exports: [JourneyService],
+  imports: [],
+  controllers: [JourneyController],
+  providers: [JourneyService, PrismaService],
+  exports: [JourneyService],
 })
-export class JourneyModule { }
+export class JourneyModule {}

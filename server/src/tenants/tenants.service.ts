@@ -7,7 +7,7 @@ export class TenantsService {
 
   async findOne(id: string) {
     return (this.prisma as any).tenant.findUnique({
-      where: { id }
+      where: { id },
     });
   }
 
@@ -15,10 +15,10 @@ export class TenantsService {
     // Remove campos sensíveis E campos de sistema (datas)
     // Isso previne o erro de tentar atualizar createdAt/updatedAt manualmente
     const { id: _id, plan, slug, createdAt, updatedAt, ...cleanData } = data;
-    
+
     return (this.prisma as any).tenant.update({
       where: { id },
-      data: cleanData
+      data: cleanData,
     });
   }
 }

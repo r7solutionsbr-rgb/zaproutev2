@@ -15,11 +15,16 @@ export class MailService {
 
   private async initTransport() {
     // Se tivermos credenciais de API do SendPulse, usamos o modo HTTP
-    if (process.env.SENDPULSE_CLIENT_ID && process.env.SENDPULSE_CLIENT_SECRET) {
+    if (
+      process.env.SENDPULSE_CLIENT_ID &&
+      process.env.SENDPULSE_CLIENT_SECRET
+    ) {
       this.logger.log('🚀 Modo de Envio: SendPulse HTTP API (Port 443)');
     } else if (process.env.SMTP_HOST) {
       // Fallback para SMTP (se configurado, mas sem API)
-      this.logger.warn('⚠️ Modo de Envio: SMTP (Pode ser bloqueado em produção)');
+      this.logger.warn(
+        '⚠️ Modo de Envio: SMTP (Pode ser bloqueado em produção)',
+      );
       this.setupSmtp();
     } else {
       // Modo Desenvolvimento (Ethereal)
@@ -30,9 +35,10 @@ export class MailService {
   private setupSmtp() {
     const host = process.env.SMTP_HOST;
     const port = Number(process.env.SMTP_PORT) || 2525;
-    const secure = process.env.SMTP_SECURE !== undefined
-      ? process.env.SMTP_SECURE === 'true'
-      : port === 465;
+    const secure =
+      process.env.SMTP_SECURE !== undefined
+        ? process.env.SMTP_SECURE === 'true'
+        : port === 465;
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -71,35 +77,50 @@ export class MailService {
     }
 
     try {
-      const response = await axios.post('https://api.sendpulse.com/oauth/access_token', {
-        grant_type: 'client_credentials',
-        client_id: process.env.SENDPULSE_CLIENT_ID,
-        client_secret: process.env.SENDPULSE_CLIENT_SECRET,
-      });
+      const response = await axios.post(
+        'https://api.sendpulse.com/oauth/access_token',
+        {
+          grant_type: 'client_credentials',
+          client_id: process.env.SENDPULSE_CLIENT_ID,
+          client_secret: process.env.SENDPULSE_CLIENT_SECRET,
+        },
+      );
 
       this.token = response.data.access_token;
       // Expira em (expires_in - 60) segundos para margem de segurança
       this.tokenExpiresAt = Date.now() + (response.data.expires_in - 60) * 1000;
       return this.token;
     } catch (error) {
-      this.logger.error('❌ Erro ao autenticar no SendPulse API:', error.message);
+      this.logger.error(
+        '❌ Erro ao autenticar no SendPulse API:',
+        error.message,
+      );
       throw error;
     }
   }
 
   private async sendEmail(to: string, subject: string, html: string) {
     // 1. Tenta via API HTTP (Prioridade)
-    if (process.env.SENDPULSE_CLIENT_ID && process.env.SENDPULSE_CLIENT_SECRET) {
+    if (
+      process.env.SENDPULSE_CLIENT_ID &&
+      process.env.SENDPULSE_CLIENT_SECRET
+    ) {
       try {
         const token = await this.getSendPulseToken();
 
         let fromName = process.env.EMAIL_FROM_NAME || 'ZapRoute';
-        let fromEmail = process.env.EMAIL_FROM_ADDRESS || 'suporte@zaproute.com.br';
+        let fromEmail =
+          process.env.EMAIL_FROM_ADDRESS || 'suporte@zaproute.com.br';
 
         // Tenta extrair do EMAIL_FROM se as variáveis específicas não existirem
         // Formato esperado: "Nome" <email@dominio.com>
-        if (process.env.EMAIL_FROM && (!process.env.EMAIL_FROM_NAME || !process.env.EMAIL_FROM_ADDRESS)) {
-          const match = process.env.EMAIL_FROM.match(/["']?([^"']*)["']?\s*<([^>]*)>/);
+        if (
+          process.env.EMAIL_FROM &&
+          (!process.env.EMAIL_FROM_NAME || !process.env.EMAIL_FROM_ADDRESS)
+        ) {
+          const match = process.env.EMAIL_FROM.match(
+            /["']?([^"']*)["']?\s*<([^>]*)>/,
+          );
           if (match) {
             fromName = match[1].trim();
             fromEmail = match[2].trim();
@@ -126,17 +147,24 @@ export class MailService {
           },
         };
 
-        const response = await axios.post('https://api.sendpulse.com/smtp/emails', payload, {
-          headers: {
-            Authorization: `Bearer ${token}`,
+        const response = await axios.post(
+          'https://api.sendpulse.com/smtp/emails',
+          payload,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           },
-        });
+        );
 
-        this.logger.log(`📧 E-mail enviado via HTTP API para ${to} | ID: ${response.data.id || 'OK'}`);
+        this.logger.log(
+          `📧 E-mail enviado via HTTP API para ${to} | ID: ${response.data.id || 'OK'}`,
+        );
         return response.data;
-
       } catch (error) {
-        this.logger.error(`❌ Falha no envio via API HTTP: ${error.response?.data?.message || error.message}`);
+        this.logger.error(
+          `❌ Falha no envio via API HTTP: ${error.response?.data?.message || error.message}`,
+        );
         // Se falhar API, tenta fallback para SMTP se configurado?
         // Por enquanto, apenas lança erro para não mascarar problemas.
         throw error;
@@ -152,15 +180,21 @@ export class MailService {
         html,
       });
 
-      this.logger.log(`📧 E-mail enviado via SMTP para ${to} | ID: ${info.messageId}`);
+      this.logger.log(
+        `📧 E-mail enviado via SMTP para ${to} | ID: ${info.messageId}`,
+      );
 
       if (nodemailer.getTestMessageUrl(info)) {
-        this.logger.log(`📬 [PREVIEW] Veja o e-mail aqui: ${nodemailer.getTestMessageUrl(info)}`);
+        this.logger.log(
+          `📬 [PREVIEW] Veja o e-mail aqui: ${nodemailer.getTestMessageUrl(info)}`,
+        );
       }
       return info;
     }
 
-    this.logger.error('❌ Nenhum método de envio configurado (Sem API Key e sem SMTP).');
+    this.logger.error(
+      '❌ Nenhum método de envio configurado (Sem API Key e sem SMTP).',
+    );
     throw new Error('Email configuration missing');
   }
 

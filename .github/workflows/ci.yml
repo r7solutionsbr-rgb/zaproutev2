@@ -1,0 +1,75 @@
+name: CI - ZapRoute v2
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  backend-validation:
+    name: 🛡️ Backend (NestJS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./server
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: server/package-lock.json
+
+    - name: Install Dependencies
+      run: npm ci
+
+    # Lint (if available) - Commented out until configured
+    # - name: Lint
+    #   run: npm run lint
+
+    # Build Verification
+    - name: Build
+      run: npm run build
+
+    # Unit Tests
+    - name: Run Unit Tests
+      run: npm run test
+      env:
+        CI: true
+        JWT_SECRET: "mock-secret-for-ci"
+
+  frontend-validation:
+    name: 🎨 Frontend (React)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./web
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+
+    - name: Install Dependencies
+      run: npm ci
+
+    # Lint (if available) - Commented out until configured
+    # - name: Lint
+    #   run: npm run lint
+
+    # Type Check (TypeScript)
+    - name: Type Check
+      run: npx tsc --noEmit
+
+    # Build Verification (Vite build)
+    - name: Build
+      run: npm run build
+      env:
+        CI: true

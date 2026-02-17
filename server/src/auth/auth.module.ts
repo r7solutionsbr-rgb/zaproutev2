@@ -32,4 +32,4 @@ import { MailModule } from '../mail/mail.module';
   providers: [AuthService, PrismaService, JwtStrategy],
   exports: [AuthService],
 })
-export class AuthModule { }
+export class AuthModule {}

@@ -25,8 +25,8 @@ export interface TenantConfig {
   };
   journeyRules?: {
     maxDrivingTime: number; // minutos
-    minRestTime: number;    // minutos
-    lunchTime: number;      // minutos
+    minRestTime: number; // minutos
+    lunchTime: number; // minutos
   };
 }
 
@@ -133,7 +133,12 @@ export interface Seller {
   tenantId: string;
 }
 
-export type DeliveryStatus = 'PENDING' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED' | 'RETURNED';
+export type DeliveryStatus =
+  | 'PENDING'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'FAILED'
+  | 'RETURNED';
 
 export interface Delivery {
   id: string;
@@ -180,7 +185,7 @@ export interface Route {
   vehicleId?: string;
   vehicle?: Vehicle;
 
-  deliveries: string[];
+  deliveries: Delivery[];
 
   tenantId: string;
   createdAt: string;

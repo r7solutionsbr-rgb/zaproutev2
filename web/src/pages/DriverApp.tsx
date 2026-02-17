@@ -1,18 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Delivery, DeliveryStatus } from '../types';
 import {
-  CheckCircle, XCircle, MapPin, Camera, Upload, ChevronLeft, Clock, Coffee,
-  Play, Square, Pause, Navigation, Menu, X, AlertTriangle, ChevronDown, ChevronUp
+  CheckCircle,
+  XCircle,
+  MapPin,
+  Camera,
+  Upload,
+  ChevronLeft,
+  Clock,
+  Coffee,
+  Play,
+  Square,
+  Pause,
+  Navigation,
+  Menu,
+  X,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { api } from '../services/api';
 
 interface DriverAppProps {
   driverId: string;
   deliveries: Delivery[];
-  updateDeliveryStatus: (id: string, status: DeliveryStatus, proof?: string) => void;
+  updateDeliveryStatus: (
+    id: string,
+    status: DeliveryStatus,
+    proof?: string,
+  ) => void;
 }
 
-type JourneyStatus = 'JOURNEY_START' | 'JOURNEY_END' | 'MEAL_START' | 'MEAL_END' | 'WAIT_START' | 'WAIT_END' | 'REST_START' | 'REST_END' | null;
+type JourneyStatus =
+  | 'JOURNEY_START'
+  | 'JOURNEY_END'
+  | 'MEAL_START'
+  | 'MEAL_END'
+  | 'WAIT_START'
+  | 'WAIT_END'
+  | 'REST_START'
+  | 'REST_END'
+  | null;
 
 // --- COMPONENTS ---
 
@@ -22,9 +50,9 @@ const ConfirmationModal = ({
   message,
   onConfirm,
   onCancel,
-  confirmText = "Confirmar",
-  cancelText = "Cancelar",
-  isDestructive = false
+  confirmText = 'Confirmar',
+  cancelText = 'Cancelar',
+  isDestructive = false,
 }: any) => {
   if (!isOpen) return null;
   return (
@@ -51,9 +79,15 @@ const ConfirmationModal = ({
   );
 };
 
-export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, updateDeliveryStatus }) => {
+export const DriverApp: React.FC<DriverAppProps> = ({
+  driverId,
+  deliveries,
+  updateDeliveryStatus,
+}) => {
   const [view, setView] = useState<'LIST' | 'DETAIL'>('LIST');
-  const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
+  const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(
+    null,
+  );
   const [proofImage, setProofImage] = useState<string | null>(null);
 
   // Journey State
@@ -86,7 +120,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
           if (me) setJourneyStatus(me.currentJourneyStatus as JourneyStatus);
         }
       } catch (e) {
-        console.error("Failed to fetch data", e);
+        console.error('Failed to fetch data', e);
       }
     };
     fetchData();
@@ -95,42 +129,52 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
   // --- ACTIONS ---
 
   const handleNavigate = (lat?: number, lng?: number) => {
-    if (!lat || !lng) return alert("Localização não disponível");
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+    if (!lat || !lng) return alert('Localização não disponível');
+    window.open(
+      `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
+      '_blank',
+    );
   };
 
   const handleJourneyAction = async (type: JourneyStatus) => {
     if (!type) return;
     setLoadingJourney(true);
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      try {
-        await api.journey.createEvent({
-          driverId,
-          type,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        });
-        setJourneyStatus(type);
-        setShowJourneyMenu(false);
-      } catch (error: any) {
-        alert(`Erro: ${error.message}`);
-      } finally {
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          await api.journey.createEvent({
+            driverId,
+            type,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+          setJourneyStatus(type);
+          setShowJourneyMenu(false);
+        } catch (error: any) {
+          alert(`Erro: ${error.message}`);
+        } finally {
+          setLoadingJourney(false);
+          setConfirmAction(null);
+        }
+      },
+      () => {
+        alert('Erro ao obter GPS.');
         setLoadingJourney(false);
         setConfirmAction(null);
-      }
-    }, () => {
-      alert("Erro ao obter GPS.");
-      setLoadingJourney(false);
-      setConfirmAction(null);
-    });
+      },
+    );
   };
 
   const handleCompleteDelivery = (status: DeliveryStatus) => {
     if (!selectedDelivery) return;
 
     // Validações
-    if (status === 'DELIVERED' && tenantConfig.requireProofOfDelivery && !proofImage) {
-      alert("⚠️ Foto do comprovante é obrigatória!");
+    if (
+      status === 'DELIVERED' &&
+      tenantConfig.requireProofOfDelivery &&
+      !proofImage
+    ) {
+      alert('⚠️ Foto do comprovante é obrigatória!');
       return;
     }
 
@@ -148,11 +192,35 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
       case 'MEAL_END':
       case 'WAIT_END':
       case 'REST_END':
-        return { label: 'EM JORNADA', color: 'bg-green-500', text: 'text-green-400' };
-      case 'MEAL_START': return { label: 'REFEIÇÃO', color: 'bg-orange-500', text: 'text-orange-400' };
-      case 'WAIT_START': return { label: 'ESPERA', color: 'bg-yellow-500', text: 'text-yellow-400' };
-      case 'REST_START': return { label: 'DESCANSO', color: 'bg-blue-500', text: 'text-blue-400' };
-      default: return { label: 'OFFLINE', color: 'bg-slate-500', text: 'text-slate-400' };
+        return {
+          label: 'EM JORNADA',
+          color: 'bg-green-500',
+          text: 'text-green-400',
+        };
+      case 'MEAL_START':
+        return {
+          label: 'REFEIÇÃO',
+          color: 'bg-orange-500',
+          text: 'text-orange-400',
+        };
+      case 'WAIT_START':
+        return {
+          label: 'ESPERA',
+          color: 'bg-yellow-500',
+          text: 'text-yellow-400',
+        };
+      case 'REST_START':
+        return {
+          label: 'DESCANSO',
+          color: 'bg-blue-500',
+          text: 'text-blue-400',
+        };
+      default:
+        return {
+          label: 'OFFLINE',
+          color: 'bg-slate-500',
+          text: 'text-slate-400',
+        };
     }
   };
 
@@ -160,8 +228,10 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
   const isWorking = journeyInfo.label === 'EM JORNADA';
   const isOff = journeyInfo.label === 'OFFLINE';
 
-  const myDeliveries = deliveries.filter(d => d.driverId === driverId);
-  const activeDeliveries = myDeliveries.filter(d => ['PENDING', 'IN_TRANSIT'].includes(d.status));
+  const myDeliveries = deliveries.filter((d) => d.driverId === driverId);
+  const activeDeliveries = myDeliveries.filter((d) =>
+    ['PENDING', 'IN_TRANSIT'].includes(d.status),
+  );
 
   // --- CAMERA ---
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -175,7 +245,7 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
       const { url } = await api.storage.upload(file);
       setProofImage(url);
     } catch (err) {
-      alert("Erro no upload.");
+      alert('Erro no upload.');
     } finally {
       setUploading(false);
     }
@@ -201,25 +271,38 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
           {/* Info Card */}
           <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800 shadow-lg">
             <div className="flex justify-between items-start mb-4">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cliente</span>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Cliente
+              </span>
               {selectedDelivery.priority === 'HIGH' && (
                 <span className="bg-red-500/20 text-red-400 text-xs font-bold px-2 py-1 rounded border border-red-500/30 flex items-center gap-1">
                   <AlertTriangle size={10} /> URGENTE
                 </span>
               )}
             </div>
-            <h2 className="text-2xl font-bold text-white mb-1">{selectedDelivery.customer.tradeName}</h2>
-            <p className="text-slate-400 text-sm mb-4">NF: {selectedDelivery.invoiceNumber}</p>
+            <h2 className="text-2xl font-bold text-white mb-1">
+              {selectedDelivery.customer.tradeName}
+            </h2>
+            <p className="text-slate-400 text-sm mb-4">
+              NF: {selectedDelivery.invoiceNumber}
+            </p>
 
             <div className="flex items-start gap-3 bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
               <MapPin className="text-blue-400 shrink-0 mt-1" size={20} />
               <div className="flex-1">
-                <p className="text-slate-200 leading-snug">{selectedDelivery.customer.location?.address}</p>
+                <p className="text-slate-200 leading-snug">
+                  {selectedDelivery.customer.location?.address}
+                </p>
               </div>
             </div>
 
             <button
-              onClick={() => handleNavigate(selectedDelivery.customer.location?.lat, selectedDelivery.customer.location?.lng)}
+              onClick={() =>
+                handleNavigate(
+                  selectedDelivery.customer.location?.lat,
+                  selectedDelivery.customer.location?.lng,
+                )
+              }
               className="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
             >
               <Navigation size={18} /> Navegar (GPS)
@@ -247,7 +330,11 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
               </div>
             ) : proofImage ? (
               <div className="relative group">
-                <img src={proofImage} alt="Proof" className="w-full h-64 object-cover rounded-xl border border-slate-700" />
+                <img
+                  src={proofImage}
+                  alt="Proof"
+                  className="w-full h-64 object-cover rounded-xl border border-slate-700"
+                />
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
                   <button
                     onClick={() => fileInputRef.current?.click()}
@@ -280,26 +367,32 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
         {/* Footer Actions */}
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900 border-t border-slate-800 flex gap-3 pb-8">
           <button
-            onClick={() => setConfirmAction({
-              type: 'FAIL',
-              title: 'Registrar Falha',
-              message: 'Tem certeza que deseja registrar falha nesta entrega?',
-            })}
+            onClick={() =>
+              setConfirmAction({
+                type: 'FAIL',
+                title: 'Registrar Falha',
+                message:
+                  'Tem certeza que deseja registrar falha nesta entrega?',
+              })
+            }
             className="flex-1 bg-slate-800 hover:bg-slate-700 text-red-400 font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors border border-slate-700"
           >
             <XCircle size={20} /> Falha
           </button>
           <button
-            onClick={() => setConfirmAction({
-              type: 'DELIVERY',
-              title: 'Confirmar Entrega',
-              message: 'Confirma a entrega para este cliente?',
-            })}
+            onClick={() =>
+              setConfirmAction({
+                type: 'DELIVERY',
+                title: 'Confirmar Entrega',
+                message: 'Confirma a entrega para este cliente?',
+              })
+            }
             disabled={!proofImage && tenantConfig.requireProofOfDelivery}
-            className={`flex-[2] font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-green-900/20 ${!proofImage && tenantConfig.requireProofOfDelivery
-              ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-              : 'bg-green-600 hover:bg-green-500 text-white'
-              }`}
+            className={`flex-[2] font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-green-900/20 ${
+              !proofImage && tenantConfig.requireProofOfDelivery
+                ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-500 text-white'
+            }`}
           >
             <CheckCircle size={20} /> Confirmar
           </button>
@@ -313,8 +406,10 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
           isDestructive={confirmAction?.type === 'FAIL'}
           onCancel={() => setConfirmAction(null)}
           onConfirm={() => {
-            if (confirmAction?.type === 'DELIVERY') handleCompleteDelivery('DELIVERED');
-            if (confirmAction?.type === 'FAIL') handleCompleteDelivery('FAILED');
+            if (confirmAction?.type === 'DELIVERY')
+              handleCompleteDelivery('DELIVERED');
+            if (confirmAction?.type === 'FAIL')
+              handleCompleteDelivery('FAILED');
           }}
         />
       </div>
@@ -334,17 +429,27 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
 
           <div className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`w-2 h-2 rounded-full ${journeyInfo.color} animate-pulse`} />
+              <div
+                className={`w-2 h-2 rounded-full ${journeyInfo.color} animate-pulse`}
+              />
               <div>
-                <h1 className="font-bold text-sm text-slate-300">STATUS ATUAL</h1>
-                <div className={`font-black text-lg ${journeyInfo.text}`}>{journeyInfo.label}</div>
+                <h1 className="font-bold text-sm text-slate-300">
+                  STATUS ATUAL
+                </h1>
+                <div className={`font-black text-lg ${journeyInfo.text}`}>
+                  {journeyInfo.label}
+                </div>
               </div>
             </div>
             <button
               onClick={() => setShowJourneyMenu(!showJourneyMenu)}
               className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
             >
-              {showJourneyMenu ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              {showJourneyMenu ? (
+                <ChevronUp size={20} />
+              ) : (
+                <ChevronDown size={20} />
+              )}
             </button>
           </div>
 
@@ -354,7 +459,14 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
               <div className="grid grid-cols-2 gap-3">
                 {isOff ? (
                   <button
-                    onClick={() => setConfirmAction({ type: 'JOURNEY', payload: 'JOURNEY_START', title: 'Iniciar Jornada', message: 'Deseja iniciar sua jornada de trabalho?' })}
+                    onClick={() =>
+                      setConfirmAction({
+                        type: 'JOURNEY',
+                        payload: 'JOURNEY_START',
+                        title: 'Iniciar Jornada',
+                        message: 'Deseja iniciar sua jornada de trabalho?',
+                      })
+                    }
                     className="col-span-2 bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2"
                   >
                     <Play size={20} /> Iniciar Dia
@@ -363,17 +475,33 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
                   <>
                     {isWorking && (
                       <>
-                        <button onClick={() => handleJourneyAction('MEAL_START')} className="bg-orange-600/20 hover:bg-orange-600/30 text-orange-400 border border-orange-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleJourneyAction('MEAL_START')}
+                          className="bg-orange-600/20 hover:bg-orange-600/30 text-orange-400 border border-orange-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+                        >
                           <Coffee size={18} /> Refeição
                         </button>
-                        <button onClick={() => handleJourneyAction('WAIT_START')} className="bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 border border-yellow-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleJourneyAction('WAIT_START')}
+                          className="bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 border border-yellow-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+                        >
                           <Pause size={18} /> Espera
                         </button>
-                        <button onClick={() => handleJourneyAction('REST_START')} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleJourneyAction('REST_START')}
+                          className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+                        >
                           <Clock size={18} /> Descanso
                         </button>
                         <button
-                          onClick={() => setConfirmAction({ type: 'JOURNEY', payload: 'JOURNEY_END', title: 'Encerrar Jornada', message: 'Deseja finalizar seu dia de trabalho?' })}
+                          onClick={() =>
+                            setConfirmAction({
+                              type: 'JOURNEY',
+                              payload: 'JOURNEY_END',
+                              title: 'Encerrar Jornada',
+                              message: 'Deseja finalizar seu dia de trabalho?',
+                            })
+                          }
                           className="bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/50 py-3 rounded-xl font-bold flex items-center justify-center gap-2"
                         >
                           <Square size={18} /> Encerrar
@@ -382,7 +510,15 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
                     )}
                     {!isWorking && (
                       <button
-                        onClick={() => handleJourneyAction(journeyStatus === 'MEAL_START' ? 'MEAL_END' : journeyStatus === 'WAIT_START' ? 'WAIT_END' : 'REST_END')}
+                        onClick={() =>
+                          handleJourneyAction(
+                            journeyStatus === 'MEAL_START'
+                              ? 'MEAL_END'
+                              : journeyStatus === 'WAIT_START'
+                                ? 'WAIT_END'
+                                : 'REST_END',
+                          )
+                        }
                         className="col-span-2 bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2"
                       >
                         <Play size={20} /> Voltar ao Trabalho
@@ -400,7 +536,9 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
       <div className="p-4 space-y-4">
         <div className="flex justify-between items-end px-1">
           <h2 className="text-xl font-bold text-white">Minhas Entregas</h2>
-          <span className="text-slate-400 text-sm">{activeDeliveries.length} pendentes</span>
+          <span className="text-slate-400 text-sm">
+            {activeDeliveries.length} pendentes
+          </span>
         </div>
 
         {activeDeliveries.length === 0 ? (
@@ -426,11 +564,17 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
                     </span>
                   )}
                 </div>
-                <span className="text-xs font-mono text-slate-500">{d.volume}m³</span>
+                <span className="text-xs font-mono text-slate-500">
+                  {d.volume}m³
+                </span>
               </div>
 
-              <h3 className="text-lg font-bold text-white mb-1">{d.customer.tradeName}</h3>
-              <p className="text-slate-400 text-sm mb-4 line-clamp-2">{d.customer.location?.address}</p>
+              <h3 className="text-lg font-bold text-white mb-1">
+                {d.customer.tradeName}
+              </h3>
+              <p className="text-slate-400 text-sm mb-4 line-clamp-2">
+                {d.customer.location?.address}
+              </p>
 
               <div className="grid grid-cols-[1fr_auto] gap-3">
                 <button
@@ -445,7 +589,10 @@ export const DriverApp: React.FC<DriverAppProps> = ({ driverId, deliveries, upda
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleNavigate(d.customer.location?.lat, d.customer.location?.lng);
+                    handleNavigate(
+                      d.customer.location?.lat,
+                      d.customer.location?.lng,
+                    );
                   }}
                   className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-600/50 p-3 rounded-xl transition-colors"
                   title="Navegar"

@@ -1,13 +1,37 @@
-import { NestFactory, HttpAdapterHost } from '@nestjs/core'; // Import HttpAdapterHost
+import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
-import { AllExceptionsFilter } from './common/filters/http-exception.filter'; // Import Filter
+import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import helmet from 'helmet';
+import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
+import * as cookieParser from 'cookie-parser';
+import * as csurf from 'csurf';
+
+import { WinstonLoggerService } from './common/logger/logger.service';
 
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
+  const sentryDsn = process.env.SENTRY_DSN;
+  if (sentryDsn) {
+    Sentry.init({
+      dsn: sentryDsn,
+      integrations: [nodeProfilingIntegration()],
+      // Performance Monitoring
+      tracesSampleRate: 1.0, //  Capture 100% of the transactions
+      // Set sampling rate for profiling - this is relative to tracesSampleRate
+      profilesSampleRate: 1.0,
+      environment: process.env.NODE_ENV || 'development',
+    });
+  }
 
-  const app = await NestFactory.create(AppModule);
+  const logger = new WinstonLoggerService();
+  logger.setContext('Bootstrap');
+
+  const app = await NestFactory.create(AppModule, {
+    logger: logger,
+  });
 
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
@@ -16,17 +40,60 @@ async function bootstrap() {
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
 
-  // 2. Configurações Básicas
+  // 2. SECURITY HEADERS (Helmet.js)
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'"],
+        },
+      },
+      hsts: {
+        maxAge: 31536000, // 1 ano
+        includeSubDomains: true,
+        preload: true,
+      },
+    }),
+  );
+
+  // 3. CSRF PROTECTION - DESABILITADO TEMPORARIAMENTE PARA DEBUG
+  app.use(cookieParser());
+  // app.use(csurf({
+  //   cookie: {
+  //     httpOnly: true,
+  //     secure: process.env.NODE_ENV === 'production',
+  //     sameSite: 'strict',
+  //   }
+  // }));
+
+  // 4. Configurações Básicas
   app.enableCors({
     origin: process.env.CORS_ORIGIN || '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders: 'Content-Type, Accept, Authorization, x-admin-key',
+    allowedHeaders:
+      'Content-Type, Accept, Authorization, x-admin-key, x-csrf-token',
+    credentials: true, // Necessário para CSRF cookies
   });
   app.useGlobalPipes(new ValidationPipe());
 
-  // 3. Filtro Global de Exceções
+  // 5. Filtro Global de Exceções
   const httpAdapter = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
+
+  // --- SWAGGER CONFIG ---
+  const config = new DocumentBuilder()
+    .setTitle('ZapRoute API')
+    .setDescription('API de gestão de rotas e entregas')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+  // ----------------------
 
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
@@ -35,20 +102,32 @@ async function bootstrap() {
   const server = app.getHttpAdapter();
   const router = server.getInstance();
 
-  logger.log(`🚀 Servidor rodando em: http://localhost:${port}/${globalPrefix}`);
+  logger.log(
+    `🚀 Servidor rodando em: http://localhost:${port}/${globalPrefix}`,
+  );
 
   // --- DEBUG DEPLOY (Manter para verificar arquivos no Railway) ---
   const fs = require('fs');
   const path = require('path');
   const staticPath = path.join(process.cwd(), 'dist', 'client');
   if (!fs.existsSync(staticPath)) {
-    logger.warn(`⚠️ Frontend não encontrado em: ${staticPath} (Normal em Localhost)`);
+    logger.warn(
+      `⚠️ Frontend não encontrado em: ${staticPath} (Normal em Localhost)`,
+    );
   }
   // ---------------------------------------------------------------
 
   if (router._router && router._router.stack) {
-    // logger.log('👇 LISTA DE ROTAS REGISTRADAS 👇'); // Comentei para não poluir o log com 1200 linhas se fosse verbose
-    // ... (código de log opcional mantido ou removido, o importante é o limite acima)
+    logger.log('👇 LISTA DE ROTAS REGISTRADAS 👇');
+    router._router.stack
+      .filter((layer: any) => layer.route)
+      .map((layer: any) => ({
+        path: layer.route.path,
+        method: Object.keys(layer.route.methods)[0].toUpperCase(),
+      }))
+      .forEach((route: any) =>
+        logger.log(`📍 [${route.method}] ${globalPrefix}${route.path}`),
+      );
   }
 }
 bootstrap();

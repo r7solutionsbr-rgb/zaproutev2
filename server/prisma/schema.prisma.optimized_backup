@@ -1,0 +1,299 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  plan         String
+  status       String   @default("ACTIVE") // ACTIVE, BLOCKED, TRIAL
+  subscriptionEndsAt DateTime?
+  
+  // --- CAMPOS DE CONFIGURAÇÃO ---
+  cnpj         String?
+  address      String?
+  logoUrl      String?
+  primaryColor String?  @default("#2563eb")
+  config       Json?    @default("{}") // <--- NOVO
+
+  // --- RELACIONAMENTOS ---
+  users        User[]
+  drivers      Driver[]
+  vehicles     Vehicle[]
+  routes       Route[]
+  customers    Customer[]
+  sellers      Seller[]   // <--- NOVO (Relacionamento inverso)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  occurrences  Occurrence[]
+  journeyEvents DriverJourneyEvent[]
+  currentJourneyStatus JourneyEventType?
+  lastJourneyEvent     DateTime?
+  @@index([status])
+}
+
+
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  password          String   
+  name              String
+  role              String   
+  
+  phone             String?
+  avatarUrl         String?
+  status            String   @default("ACTIVE")
+  
+  resetToken        String?
+  resetTokenExpires DateTime?
+
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  @@index([tenantId]) // Performance: FK
+  @@index([email])    // Performance: Login
+}
+
+model Driver {
+  id              String   @id @default(uuid())
+  name            String
+  cpf             String
+  externalId      String?
+  cnh             String
+  cnhCategory     String
+  cnhExpiration   DateTime
+  phone           String
+  email           String
+  status          String   
+  avatarUrl       String?
+  rating          Float?   @default(5.0)
+  totalDeliveries Int      @default(0)
+  
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  
+  vehicleId       String?
+  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id])
+  
+  routes          Route[]
+  deliveries      Delivery[]
+  occurrences     Occurrence[]
+  journeyEvents   DriverJourneyEvent[]
+  currentJourneyStatus JourneyEventType?
+  lastJourneyEvent     DateTime?
+  @@index([tenantId])
+  @@index([phone]) // Crítico para o Webhook achar rápido
+  @@index([cpf])
+  @@index([status])
+  @@index([vehicleId]) // Performance: FK
+}
+
+model Vehicle {
+  id              String   @id @default(uuid())
+  plate           String
+  brand           String
+  model           String
+  year            Int
+  capacityWeight  Float
+  capacityVolume  Float
+  fuelType        String
+  status          String   
+  lastMaintenance DateTime?
+  nextMaintenance DateTime?
+  imageUrl        String?
+
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  
+  drivers         Driver[] 
+  routes          Route[]
+  @@index([tenantId])
+  @@index([plate])   // Performance: Busca por placa
+  @@index([status])  // Performance: Filtro de ativos
+}
+
+// --- NOVO MODELO: SELLER (VENDEDOR) ---
+model Seller {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String?
+  email     String?
+  status    String   @default("ACTIVE")
+  
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  
+  customers Customer[] // Vendedor tem vários clientes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([tenantId])
+  @@index([name])
+}
+
+model Customer {
+  id                String   @id @default(uuid())
+  legalName         String
+  tradeName         String
+  cnpj              String
+  stateRegistration String?
+  email             String
+  phone             String
+  whatsapp          String?
+  salesperson       String? // Mantido como legado (texto simples)
+  communicationPreference String? @default("WHATSAPP") // "EMAIL" or "WHATSAPP"
+  
+  status            String   
+  creditLimit       Float?
+  location          Json?
+  addressDetails    Json?
+  
+  // --- VÍNCULO COM VENDEDOR ---
+  sellerId          String?
+  seller            Seller?  @relation(fields: [sellerId], references: [id])
+  // ----------------------------
+
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  
+  deliveries        Delivery[]
+  @@index([tenantId])
+  @@index([cnpj])
+  @@index([tradeName]) // Para busca no import
+  @@index([legalName]) // Para busca no import
+  @@index([status])
+  @@index([sellerId])  // Performance: FK
+}
+
+model Route {
+  id         String   @id @default(uuid())
+  name       String
+  date       DateTime
+  status     String   @default("PLANNED") // PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
+  
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  
+  driverId   String?
+  driver     Driver?  @relation(fields: [driverId], references: [id])
+  
+  vehicleId  String?
+  vehicle    Vehicle? @relation(fields: [vehicleId], references: [id])
+  
+  deliveries  Delivery[]
+  occurrences Occurrence[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([tenantId, date(sort: Desc)]) // Otimiza findAll com ordenação
+  @@index([tenantId, status])           // Otimiza filtros por status
+  @@index([driverId])                   // Otimiza joins e queries de motorista
+  @@index([vehicleId])                  // Otimiza joins
+  @@index([date])                       // Otimiza filtros por data
+}
+
+model Delivery {
+  id                 String    @id @default(uuid())
+  invoiceNumber      String
+  volume             Int
+  weight             Float
+  value              Float?
+  product            String?
+  salesperson        String?
+  priority           String?   @default("NORMAL")
+  status             String    @default("PENDING") // PENDING, IN_TRANSIT, DELIVERED, FAILED
+  proofOfDelivery    String?   // URL da foto
+  failureReason      String?
+  arrivedAt          DateTime?
+  unloadingStartedAt DateTime?
+  unloadingEndedAt   DateTime?
+  
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  
+  routeId     String
+  route       Route    @relation(fields: [routeId], references: [id])
+  
+  driverId    String?
+  driver      Driver?  @relation(fields: [driverId], references: [id])
+  
+  occurrences Occurrence[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([routeId])                    // Otimiza includes de route.deliveries
+  @@index([customerId])                 // Otimiza joins
+  @@index([driverId, status])           // Otimiza queries de motorista por status
+  @@index([status])                     // Otimiza filtros por status
+  @@index([invoiceNumber])              // Otimiza buscas por nota fiscal
+}
+
+model AiLearning {
+  id        String   @id @default(uuid())
+  phrase    String
+  intent    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Occurrence {
+  id          String   @id @default(uuid())
+  type        String   
+  description String
+  
+  driverId    String
+  driver      Driver   @relation(fields: [driverId], references: [id])
+  
+  routeId     String?
+  route       Route?   @relation(fields: [routeId], references: [id])
+  
+  deliveryId  String?
+  delivery    Delivery? @relation(fields: [deliveryId], references: [id])
+  
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  @@index([driverId]) // Performance: FK
+  @@index([routeId])  // Performance: FK
+  @@index([deliveryId]) // Performance: FK
+  @@index([tenantId]) // Performance: FK
+  @@index([type])     // Performance: Filtro por tipo
+}
+
+enum JourneyEventType {
+  JOURNEY_START
+  JOURNEY_END
+  MEAL_START
+  MEAL_END
+  WAIT_START
+  WAIT_END
+  REST_START
+  REST_END
+}
+
+model DriverJourneyEvent {
+  id              String           @id @default(uuid())
+  driverId        String
+  driver          Driver           @relation(fields: [driverId], references: [id])
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  type            JourneyEventType
+  timestamp       DateTime         @default(now())
+  latitude        Float?
+  longitude       Float?
+  locationAddress String?
+  notes           String?
+
+  createdAt       DateTime         @default(now())
+
+  @@index([driverId])
+  @@index([tenantId])
+}

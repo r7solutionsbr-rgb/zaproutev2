@@ -9,8 +9,8 @@ import { MailService } from '../mail/mail.service';
 export class UsersService {
   constructor(
     private prisma: PrismaService,
-    private mailService: MailService
-  ) { }
+    private mailService: MailService,
+  ) {}
 
   async findAll(tenantId: string) {
     return this.prisma.user.findMany({
@@ -20,12 +20,11 @@ export class UsersService {
         name: true,
         email: true,
         role: true,
-        status: true,
+        isActive: true,
         createdAt: true,
-        phone: true,
-        avatarUrl: true
+        avatarUrl: true,
       },
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
     });
   }
 
@@ -34,7 +33,9 @@ export class UsersService {
     const rawPassword = data.password || '123456';
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
-    const existingUser = await this.prisma.user.findUnique({ where: { email: data.email } });
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: data.email },
+    });
     if (existingUser) {
       throw new BadRequestException('Email já cadastrado.');
     }
@@ -45,15 +46,16 @@ export class UsersService {
         email: data.email,
         password: hashedPassword,
         role: data.role || 'VIEWER',
-        phone: data.phone,
-        status: 'ACTIVE',
-        tenant: { connect: { id: data.tenantId } }
-      }
+        tenant: { connect: { id: data.tenantId } },
+      },
     });
 
     // Envia E-mail de Boas-vindas com a senha original
-    this.mailService.sendWelcomeEmail(user.email, user.name, rawPassword)
-      .catch(err => console.error('Erro ao enviar email de boas-vindas:', err));
+    this.mailService
+      .sendWelcomeEmail(user.email, user.name, rawPassword)
+      .catch((err) =>
+        console.error('Erro ao enviar email de boas-vindas:', err),
+      );
 
     return user;
   }
@@ -64,7 +66,7 @@ export class UsersService {
     }
     return this.prisma.user.update({
       where: { id },
-      data
+      data,
     });
   }
 

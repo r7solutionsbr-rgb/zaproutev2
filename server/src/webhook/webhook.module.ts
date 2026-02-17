@@ -11,11 +11,7 @@ import { RouteCommandService } from './services/route-command.service';
 import { MessageResponder } from './services/message-responder.service';
 
 @Module({
-  imports: [
-    AiModule,
-    WhatsappModule,
-    JourneyModule
-  ],
+  imports: [AiModule, WhatsappModule, JourneyModule],
   controllers: [WebhookController],
   providers: [
     WebhookService,
@@ -23,7 +19,7 @@ import { MessageResponder } from './services/message-responder.service';
     NormalizationService,
     DriverIdentificationService,
     RouteCommandService,
-    MessageResponder
+    MessageResponder,
   ],
 })
-export class WebhookModule { }
+export class WebhookModule {}

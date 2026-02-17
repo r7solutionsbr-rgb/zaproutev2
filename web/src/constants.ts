@@ -1,4 +1,3 @@
-
 import { Driver, Delivery, Route, Customer, Vehicle } from './types';
 
 // --- VEHICLES ---
@@ -16,8 +15,9 @@ export const MOCK_VEHICLES: Vehicle[] = [
     status: 'BUSY',
     lastMaintenance: '2023-12-10',
     nextMaintenance: '2024-06-10',
-    imageUrl: 'https://img.freepik.com/free-vector/white-van-vector-mockup_1051-1089.jpg', // Generic placeholder
-    tenantId: 'tenant-1'
+    imageUrl:
+      'https://img.freepik.com/free-vector/white-van-vector-mockup_1051-1089.jpg', // Generic placeholder
+    tenantId: 'tenant-1',
   },
   {
     id: 'V-002',
@@ -31,7 +31,7 @@ export const MOCK_VEHICLES: Vehicle[] = [
     status: 'AVAILABLE',
     lastMaintenance: '2024-01-15',
     nextMaintenance: '2024-07-15',
-    tenantId: 'tenant-1'
+    tenantId: 'tenant-1',
   },
   {
     id: 'V-003',
@@ -45,7 +45,7 @@ export const MOCK_VEHICLES: Vehicle[] = [
     status: 'MAINTENANCE',
     lastMaintenance: '2023-11-20',
     nextMaintenance: '2024-05-20',
-    tenantId: 'tenant-1'
+    tenantId: 'tenant-1',
   },
   {
     id: 'V-004',
@@ -59,7 +59,7 @@ export const MOCK_VEHICLES: Vehicle[] = [
     status: 'BUSY',
     lastMaintenance: '2024-02-01',
     nextMaintenance: '2024-08-01',
-    tenantId: 'tenant-1'
+    tenantId: 'tenant-1',
   },
 ];
 
@@ -79,7 +79,7 @@ export const MOCK_DRIVERS: Driver[] = [
     status: 'ON_ROUTE',
     rating: 4.8,
     totalDeliveries: 1250,
-    tenantId: 'tenant-1'
+    tenantId: 'tenant-1',
   },
   {
     id: 'd2',
@@ -95,7 +95,7 @@ export const MOCK_DRIVERS: Driver[] = [
     status: 'IDLE',
     rating: 4.9,
     totalDeliveries: 890,
-    tenantId: 'tenant-1'
+    tenantId: 'tenant-1',
   },
   {
     id: 'd3',
@@ -111,7 +111,7 @@ export const MOCK_DRIVERS: Driver[] = [
     status: 'OFFLINE',
     rating: 4.5,
     totalDeliveries: 2100,
-    tenantId: 'tenant-1'
+    tenantId: 'tenant-1',
   },
   {
     id: 'd4',
@@ -127,7 +127,7 @@ export const MOCK_DRIVERS: Driver[] = [
     status: 'ON_ROUTE',
     rating: 5.0,
     totalDeliveries: 450,
-    tenantId: 'tenant-1'
+    tenantId: 'tenant-1',
   },
 ];
 
@@ -137,11 +137,15 @@ const SALESPEOPLE = ['João Vendas', 'Maria Comercial', 'Pedro Representante'];
 const generateCustomers = (count: number): Customer[] => {
   return Array.from({ length: count }).map((_, i) => {
     const isCompany = Math.random() > 0.3;
-    const baseName = isCompany ? `Comercial ${i + 1} Ltda` : `Mercadinho do Bairro ${i + 1}`;
+    const baseName = isCompany
+      ? `Comercial ${i + 1} Ltda`
+      : `Mercadinho do Bairro ${i + 1}`;
 
     return {
       id: `cust-${i}`,
-      legalName: isCompany ? `Comercial de Alimentos Exemplo ${i + 1} Ltda` : `João da Silva ${i + 1} ME`,
+      legalName: isCompany
+        ? `Comercial de Alimentos Exemplo ${i + 1} Ltda`
+        : `João da Silva ${i + 1} ME`,
       tradeName: baseName,
       cnpj: `${Math.floor(Math.random() * 99)}.${Math.floor(Math.random() * 999)}.${Math.floor(Math.random() * 999)}/0001-${Math.floor(Math.random() * 99)}`,
       stateRegistration: `${Math.floor(Math.random() * 999)}.${Math.floor(Math.random() * 999)}.${Math.floor(Math.random() * 999)}`,
@@ -154,7 +158,7 @@ const generateCustomers = (count: number): Customer[] => {
       location: {
         lat: -23.5 + (Math.random() * 0.1 - 0.05),
         lng: -46.6 + (Math.random() * 0.1 - 0.05),
-        address: `Av. Brasil, ${100 + i} - Jardins, São Paulo - SP`
+        address: `Av. Brasil, ${100 + i} - Jardins, São Paulo - SP`,
       },
       addressDetails: {
         street: 'Av. Brasil',
@@ -162,35 +166,37 @@ const generateCustomers = (count: number): Customer[] => {
         neighborhood: 'Jardins',
         city: 'São Paulo',
         state: 'SP',
-        zipCode: `01430-${100 + i}`
+        zipCode: `01430-${100 + i}`,
       },
-      tenantId: 'tenant-1'
+      tenantId: 'tenant-1',
     };
   });
 };
 
 const MOCK_CUSTOMERS_LIST = generateCustomers(20);
 
-export const MOCK_DELIVERIES: Delivery[] = Array.from({ length: 25 }).map((_, i) => {
-  // Assign a random customer from the list
-  const customer = MOCK_CUSTOMERS_LIST[i % MOCK_CUSTOMERS_LIST.length];
+export const MOCK_DELIVERIES: Delivery[] = Array.from({ length: 25 }).map(
+  (_, i) => {
+    // Assign a random customer from the list
+    const customer = MOCK_CUSTOMERS_LIST[i % MOCK_CUSTOMERS_LIST.length];
 
-  return {
-    id: `del-${i + 1}`,
-    invoiceNumber: `NF-${1000 + i}`,
-    customer: customer,
-    customerId: customer.id,
-    volume: Math.floor(Math.random() * 10) + 1,
-    weight: Math.floor(Math.random() * 50) + 5,
-    value: Math.floor(Math.random() * 5000) + 500,
-    priority: Math.random() > 0.8 ? 'HIGH' : 'MEDIUM',
-    status: i < 5 ? 'DELIVERED' : (i < 10 ? 'IN_TRANSIT' : 'PENDING'),
-    routeId: i < 10 ? 'r-1' : (i < 18 ? 'r-2' : undefined),
-    driverId: i < 10 ? 'd1' : (i < 18 ? 'd2' : undefined),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-});
+    return {
+      id: `del-${i + 1}`,
+      invoiceNumber: `NF-${1000 + i}`,
+      customer: customer,
+      customerId: customer.id,
+      volume: Math.floor(Math.random() * 10) + 1,
+      weight: Math.floor(Math.random() * 50) + 5,
+      value: Math.floor(Math.random() * 5000) + 500,
+      priority: Math.random() > 0.8 ? 'HIGH' : 'MEDIUM',
+      status: i < 5 ? 'DELIVERED' : i < 10 ? 'IN_TRANSIT' : 'PENDING',
+      routeId: i < 10 ? 'r-1' : i < 18 ? 'r-2' : undefined,
+      driverId: i < 10 ? 'd1' : i < 18 ? 'd2' : undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  },
+);
 
 export const MOCK_ROUTES: Route[] = [
   {
@@ -207,7 +213,7 @@ export const MOCK_ROUTES: Route[] = [
     estimatedTime: 180,
     tenantId: 'tenant-1',
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   },
   {
     id: 'r-2',
@@ -223,6 +229,6 @@ export const MOCK_ROUTES: Route[] = [
     estimatedTime: 140,
     tenantId: 'tenant-1',
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
+    updatedAt: new Date().toISOString(),
+  },
 ];

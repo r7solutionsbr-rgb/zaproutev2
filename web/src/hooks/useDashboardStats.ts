@@ -1,75 +1,80 @@
-import { useMemo } from 'react';
-import { Delivery, Route, Driver } from '../types';
+import { useState, useEffect } from 'react';
+import { api } from '../services/api';
 
-interface UseDashboardStatsProps {
-    deliveries: Delivery[];
-    routes: Route[];
-    drivers: Driver[];
+interface RouteProgress {
+  id: string;
+  name: string;
+  percentage: number;
+  processed: number;
+  total: number;
+  driverName: string;
+  driverAvatar?: string;
+  status: string;
 }
 
-export const useDashboardStats = ({ deliveries, routes, drivers }: UseDashboardStatsProps) => {
-    // KPI Calculations
-    const total = deliveries.length;
-    const delivered = deliveries.filter(d => d.status === 'DELIVERED').length;
-    const active = deliveries.filter(d => d.status === 'IN_TRANSIT').length;
-    const alerts = deliveries.filter(d => d.status === 'FAILED' || d.status === 'RETURNED').length;
+interface Occurrence {
+  id: string;
+  customerName: string;
+  address: string;
+  driverName: string;
+  routeName: string;
+  status: string;
+  failureReason?: string;
+  updatedAt: string;
+}
 
-    // --- LÓGICA DE EVOLUÇÃO DA ROTA ---
-    const activeRouteProgress = useMemo(() => {
-        const relevantRoutes = routes.filter(r => r.status === 'ACTIVE' || r.status === 'PLANNED' || r.status === 'COMPLETED');
+interface DashboardStatsState {
+  total: number; // Entregas
+  totalRoutes: number; // Rotas
+  active: number;
+  delivered: number;
+  alerts: number;
+  activeRouteProgress: RouteProgress[];
+  occurrences: Occurrence[];
+  weeklyData: { name: string; entregas: number; sucesso: number }[];
+  loading: boolean;
+}
 
-        return relevantRoutes.map(route => {
-            const routeDeliveries = deliveries.filter(d => route.deliveries.includes(d.id));
+export const useDashboardStats = () => {
+  const [stats, setStats] = useState<DashboardStatsState>({
+    total: 0,
+    totalRoutes: 0,
+    active: 0,
+    delivered: 0,
+    alerts: 0,
+    activeRouteProgress: [],
+    occurrences: [],
+    weeklyData: [],
+    loading: true,
+  });
 
-            const totalOps = routeDeliveries.length;
-            const completedOps = routeDeliveries.filter(d => d.status === 'DELIVERED').length;
-            const failedOps = routeDeliveries.filter(d => d.status === 'FAILED' || d.status === 'RETURNED').length;
+  useEffect(() => {
+    const fetchStats = async () => {
+      const userStr = localStorage.getItem('zaproute_user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      if (!user?.tenantId) return;
 
-            const processed = completedOps + failedOps;
-            const percentage = totalOps > 0 ? Math.round((processed / totalOps) * 100) : 0;
-
-            const driver = drivers.find(d => d.id === route.driverId);
-
-            return {
-                id: route.id,
-                name: route.name,
-                percentage,
-                processed,
-                total: totalOps,
-                driverName: driver?.name || 'Sem Motorista',
-                driverAvatar: driver?.avatarUrl,
-                status: route.status,
-                startTime: route.startTime,
-                endTime: route.endTime
-            };
-        }).sort((a, b) => {
-            // 1. Critério: Rotas FINALIZADAS vão para o final da lista
-            if (a.status === 'COMPLETED' && b.status !== 'COMPLETED') return 1;
-            if (a.status !== 'COMPLETED' && b.status === 'COMPLETED') return -1;
-
-            // 2. Critério: Rotas com maior progresso aparecem primeiro (entre as ativas)
-            return b.percentage - a.percentage;
+      try {
+        const data = await api.routes.getDashboardStats(user.tenantId, 7);
+        setStats({
+          total: data.stats.totalDeliveries,
+          totalRoutes: data.totalRoutes,
+          active: data.activeRoutes,
+          delivered: data.stats.delivered,
+          alerts: data.stats.alerts,
+          activeRouteProgress: data.activeRouteProgress || [],
+          occurrences: data.occurrences || [],
+          weeklyData: data.weeklyData || [],
+          loading: false,
         });
-    }, [routes, deliveries, drivers]);
-
-    // --- LÓGICA DE OCORRÊNCIAS ---
-    const occurrences = useMemo(() => {
-        return deliveries.filter(d =>
-            d.status === 'FAILED' ||
-            d.status === 'RETURNED'
-        ).sort((a, b) => {
-            const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-            const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-            return dateB - dateA;
-        });
-    }, [deliveries]);
-
-    return {
-        total,
-        delivered,
-        active,
-        alerts,
-        activeRouteProgress,
-        occurrences
+      } catch (error) {
+        console.error('Erro ao carregar stats', error);
+        setStats((prev) => ({ ...prev, loading: false }));
+      }
     };
+
+    fetchStats();
+  }, []);
+
+  return stats;
 };

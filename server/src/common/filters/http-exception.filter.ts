@@ -1,47 +1,57 @@
 import {
-    ExceptionFilter,
-    Catch,
-    ArgumentsHost,
-    HttpException,
-    HttpStatus,
-    Logger,
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
+import * as Sentry from '@sentry/node';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-    private readonly logger = new Logger(AllExceptionsFilter.name);
+  private readonly logger = new Logger(AllExceptionsFilter.name);
 
-    constructor(private readonly httpAdapterHost: HttpAdapterHost) { }
+  constructor(private readonly httpAdapterHost: HttpAdapterHost) {}
 
-    catch(exception: unknown, host: ArgumentsHost): void {
-        const { httpAdapter } = this.httpAdapterHost;
-        const ctx = host.switchToHttp();
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const { httpAdapter } = this.httpAdapterHost;
+    const ctx = host.switchToHttp();
 
-        const httpStatus =
-            exception instanceof HttpException
-                ? exception.getStatus()
-                : HttpStatus.INTERNAL_SERVER_ERROR;
+    const httpStatus =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
 
-        const exceptionResponse = exception instanceof HttpException ? exception.getResponse() : null;
-        const message = (exceptionResponse as any)?.message || exceptionResponse || 'Internal Server Error';
+    const exceptionResponse =
+      exception instanceof HttpException ? exception.getResponse() : null;
+    const message =
+      (exceptionResponse as any)?.message ||
+      exceptionResponse ||
+      'Internal Server Error';
 
-        const responseBody = {
-            statusCode: httpStatus,
-            timestamp: new Date().toISOString(),
-            path: httpAdapter.getRequestUrl(ctx.getRequest()),
-            message: message,
-        };
+    const responseBody = {
+      statusCode: httpStatus,
+      timestamp: new Date().toISOString(),
+      path: httpAdapter.getRequestUrl(ctx.getRequest()),
+      message: message,
+    };
 
-        if (httpStatus === HttpStatus.INTERNAL_SERVER_ERROR) {
-            this.logger.error(`Critical Error: ${JSON.stringify(exception)}`);
-            if (exception instanceof Error) {
-                this.logger.error(exception.stack);
-            }
-        } else {
-            this.logger.warn(`Http Exception: ${JSON.stringify(responseBody)}`);
-        }
-
-        httpAdapter.reply(ctx.getResponse(), responseBody, httpStatus);
+    if (httpStatus === HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logger.error(
+        `Critical Error: ${message}`,
+        exception instanceof Error
+          ? exception.stack
+          : JSON.stringify(exception),
+        'AllExceptionsFilter',
+      );
+      // Captura no Sentry apenas erros 500 (Críticos)
+      Sentry.captureException(exception);
+    } else {
+      this.logger.warn(`Http Exception: ${message}`, 'AllExceptionsFilter');
     }
+
+    httpAdapter.reply(ctx.getResponse(), responseBody, httpStatus);
+  }
 }
