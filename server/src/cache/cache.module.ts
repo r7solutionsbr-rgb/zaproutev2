@@ -20,7 +20,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         }
 
         // Produção: Redis
-        const redisStore = require('cache-manager-redis-store');
+        const { redisStore } = await import('cache-manager-redis-yet');
         return {
           store: redisStore,
           url: redisUrl,
