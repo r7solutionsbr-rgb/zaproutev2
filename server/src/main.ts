@@ -35,7 +35,10 @@ async function bootstrap() {
   });
 
   // Hide framework signature
-  app.disable('x-powered-by');
+  const appInstance = app.getHttpAdapter().getInstance();
+  if (appInstance?.disable) {
+    appInstance.disable('x-powered-by');
+  }
 
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);

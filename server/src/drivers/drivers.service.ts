@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
+import { CreateDriverDto } from './dto/driver.dto';
 
 import { WhatsappService, ProviderConfig } from '../whatsapp/whatsapp.service';
 
@@ -173,7 +174,7 @@ export class DriversService {
   }
 
   // Criação Individual
-  async create(data: Prisma.DriverCreateInput & { tenantId: string }) {
+  async create(data: CreateDriverDto & { tenantId: string }) {
     const { tenantId, ...rest } = this.prepareData(data);
 
     // 1. Busca Tenant para saber a config
