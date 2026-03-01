@@ -17,6 +17,7 @@ import { GeneralSettings } from '../components/settings/GeneralSettings';
 import { IntegrationSettings } from '../components/settings/IntegrationSettings';
 import { OperationSettings } from '../components/settings/OperationSettings';
 import { UserSettings } from '../components/settings/UserSettings';
+import { getStoredTenantId } from '../utils/tenant';
 
 export const Settings: React.FC = () => {
   const [activeSection, setActiveSection] = useState('GENERAL');
@@ -36,13 +37,12 @@ export const Settings: React.FC = () => {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
-      const userStr = localStorage.getItem('zaproute_user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        const tenantData = await api.tenants.getById(user.tenantId);
-        setTenant(tenantData);
-        setConfig(tenantData.config || {});
-      }
+      const tenantId = getStoredTenantId();
+      if (!tenantId) return;
+
+      const tenantData = await api.tenants.getById(tenantId);
+      setTenant(tenantData);
+      setConfig(tenantData.config || {});
     } catch (error) {
       console.error('Erro ao carregar configurações', error);
       setNotification({

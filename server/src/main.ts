@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import helmet from 'helmet';
+import compression from 'compression';
 import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import * as cookieParser from 'cookie-parser';
@@ -33,12 +34,18 @@ async function bootstrap() {
     logger: logger,
   });
 
+  // Hide framework signature
+  app.disable('x-powered-by');
+
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
 
   // 1. AUMENTAR O LIMITE DE UPLOAD (Para aceitar Excels grandes)
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
+
+  // 1.1 COMPRESSÃO HTTP (gzip/br)
+  app.use(compression());
 
   // 2. SECURITY HEADERS (Helmet.js)
   app.use(
@@ -71,14 +78,27 @@ async function bootstrap() {
   // }));
 
   // 4. Configurações Básicas
+  const allowedOrigins = process.env.ALLOWED_ORIGINS;
+  const corsOrigin = process.env.CORS_ORIGIN || allowedOrigins || '*';
+  const parsedOrigins =
+    corsOrigin === '*'
+      ? '*'
+      : corsOrigin.split(',').map((origin) => origin.trim());
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: parsedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders:
       'Content-Type, Accept, Authorization, x-admin-key, x-csrf-token',
     credentials: true, // Necessário para CSRF cookies
   });
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
   // 5. Filtro Global de Exceções
   const httpAdapter = app.get(HttpAdapterHost);

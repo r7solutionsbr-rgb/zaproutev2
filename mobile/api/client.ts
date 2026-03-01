@@ -17,6 +17,12 @@ export const api = axios.create({
     timeout: 10000,
 });
 
+let unauthorizedHandler: (() => void) | null = null;
+
+export const setUnauthorizedHandler = (handler: (() => void) | null) => {
+    unauthorizedHandler = handler;
+};
+
 // Request Interceptor: Adiciona Token
 api.interceptors.request.use(async (config) => {
     try {
@@ -37,10 +43,11 @@ api.interceptors.request.use(async (config) => {
 // Response Interceptor: Tratamento de Erro Global
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
         if (error.response?.status === 401) {
-            // TODO: Redirecionar para Login ou limpar token
-            SecureStore.deleteItemAsync('token');
+            await SecureStore.deleteItemAsync('token');
+            await SecureStore.deleteItemAsync('driverId');
+            unauthorizedHandler?.();
         }
         return Promise.reject(error);
     }

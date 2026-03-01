@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { BadRequestException, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -17,7 +17,9 @@ import { MailModule } from '../mail/mail.module';
       useFactory: async (configService: ConfigService) => {
         const secret = configService.get<string>('JWT_SECRET');
         if (!secret) {
-          throw new Error('FATAL: JWT_SECRET não definido no ambiente.');
+          throw new BadRequestException(
+            'FATAL: JWT_SECRET não definido no ambiente.',
+          );
         }
         return {
           secret: secret,

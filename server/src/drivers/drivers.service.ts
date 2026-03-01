@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
 
@@ -117,8 +117,19 @@ export class DriversService {
     limit: number = 10,
     search?: string,
   ) {
-    if (!tenantId)
-      return { data: [], meta: { total: 0, page, limit, totalPages: 0 } };
+    if (!tenantId) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
+    }
 
     const skip = (page - 1) * limit;
     const where: Prisma.DriverWhereInput = { tenantId };
@@ -147,13 +158,16 @@ export class DriversService {
       }),
     ]);
 
+    const totalPages = Math.ceil(total / limit);
     return {
       data: drivers,
       meta: {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
     };
   }
@@ -166,7 +180,7 @@ export class DriversService {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
-    if (!tenant) throw new Error('Empresa não encontrada');
+    if (!tenant) throw new NotFoundException('Empresa não encontrada');
 
     const driver = await this.prisma.driver.create({
       data: {
@@ -216,7 +230,9 @@ export class DriversService {
     const exists = await this.prisma.driver.findFirst({
       where: { id, tenantId },
     });
-    if (!exists) throw new Error('Motorista não encontrado ou acesso negado.');
+    if (!exists) {
+      throw new NotFoundException('Motorista não encontrado ou acesso negado.');
+    }
 
     return this.prisma.driver.update({
       where: { id },
@@ -232,7 +248,7 @@ export class DriversService {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
-    if (!tenant) throw new Error('Empresa não encontrada');
+    if (!tenant) throw new NotFoundException('Empresa não encontrada');
 
     const whatsappConfig = this.getWhatsappConfig(tenant);
     this.logger.log(
@@ -312,7 +328,7 @@ export class DriversService {
       include: { vehicles: true },
     });
 
-    if (!driver) throw new Error('Motorista não encontrado');
+    if (!driver) throw new NotFoundException('Motorista não encontrado');
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

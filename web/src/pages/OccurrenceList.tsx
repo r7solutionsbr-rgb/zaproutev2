@@ -18,6 +18,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { api } from '../services/api';
 import { useData } from '../contexts/DataContext';
 import { Delivery, Route } from '../types';
+import { getStoredTenantId } from '../utils/tenant';
 
 export const OccurrenceList: React.FC = () => {
   // --- PAGINAÇÃO SERVER-SIDE ---
@@ -51,9 +52,8 @@ export const OccurrenceList: React.FC = () => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const userStr = localStorage.getItem('zaproute_user');
-        const user = userStr ? JSON.parse(userStr) : null;
-        if (!user?.tenantId) return;
+        const tenantId = getStoredTenantId();
+        if (!tenantId) return;
 
         // Filtros
         let statusFilter: string | undefined = undefined;
@@ -66,7 +66,7 @@ export const OccurrenceList: React.FC = () => {
         };
 
         const result = await api.occurrences.getAllPaginated(
-          user.tenantId,
+          tenantId,
           page,
           limit,
           filters,

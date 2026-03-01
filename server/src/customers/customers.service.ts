@@ -22,7 +22,19 @@ export class CustomersService {
     search: string,
     status?: string,
   ) {
-    if (!tenantId) return { data: [], total: 0, pages: 0 };
+    if (!tenantId) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
+    }
 
     const skip = (page - 1) * limit;
 
@@ -49,12 +61,16 @@ export class CustomersService {
       }),
     ]);
 
+    const totalPages = Math.ceil(total / limit);
     return {
       data,
       meta: {
         total,
         page,
-        lastPage: Math.ceil(total / limit),
+        limit,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
     };
   }
@@ -190,7 +206,9 @@ export class CustomersService {
       .join(', ');
 
     if (addressStr.length < 10)
-      throw new Error('Endereço incompleto para geocodificação.');
+      throw new BadRequestException(
+        'Endereço incompleto para geocodificação.',
+      );
 
     // THROTTLE: Espera 1.5s antes de chamar a API
     await new Promise((r) => setTimeout(r, 1500));

@@ -11,12 +11,14 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantGuard } from '../common/guards/tenant.guard';
+import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('Users')
 @ApiBearerAuth()
 @Controller('users')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
@@ -28,13 +30,13 @@ export class UsersController {
 
   @ApiOperation({ summary: 'Criar novo usuário' })
   @Post()
-  async create(@Request() req: any, @Body() data: any) {
+  async create(@Request() req: any, @Body() data: CreateUserDto) {
     return this.usersService.create({ ...data, tenantId: req.user.tenantId });
   }
 
   @ApiOperation({ summary: 'Atualizar usuário' })
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() data: any) {
+  async update(@Param('id') id: string, @Body() data: UpdateUserDto) {
     return this.usersService.update(id, data);
   }
 

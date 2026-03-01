@@ -11,8 +11,13 @@ import {
   Req,
 } from '@nestjs/common';
 import { RoutesService } from './routes.service';
-import { CreateRouteDto, UpdateDeliveryStatusDto } from './dto/route.dto';
+import {
+  CreateRouteDto,
+  UpdateDeliveryStatusDto,
+  UpdateRouteDto,
+} from './dto/route.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantGuard } from '../common/guards/tenant.guard';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import {
   ApiTags,
@@ -24,7 +29,7 @@ import {
 @ApiTags('Routes')
 @ApiBearerAuth()
 @Controller('routes')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class RoutesController {
   constructor(private readonly routesService: RoutesService) {}
 
@@ -36,11 +41,11 @@ export class RoutesController {
   })
   @Get()
   async findAll(
-    @Query('tenantId') tenantId: string,
+    @Req() req: any,
     @Query('days') days?: string,
   ) {
     return this.routesService.findAll(
-      tenantId,
+      req.user.tenantId,
       days ? parseInt(days) : undefined,
     );
   }
@@ -48,11 +53,11 @@ export class RoutesController {
   @ApiOperation({ summary: 'Estatísticas do Dashboard' })
   @Get('dashboard')
   async getDashboardStats(
-    @Query('tenantId') tenantId: string,
+    @Req() req: any,
     @Query('days') days?: string,
   ) {
     return this.routesService.getDashboardStats(
-      tenantId,
+      req.user.tenantId,
       days ? parseInt(days) : 7,
     );
   }
@@ -60,16 +65,19 @@ export class RoutesController {
   @ApiOperation({ summary: 'Listar rotas com paginação' })
   @Get('paginated')
   async findAllPaginated(
-    @Query('tenantId') tenantId: string,
+    @Req() req: any,
     @Query() paginationDto: PaginationDto,
   ) {
-    return this.routesService.findAllPaginated(tenantId, paginationDto);
+    return this.routesService.findAllPaginated(req.user.tenantId, paginationDto);
   }
 
   @ApiOperation({ summary: 'Importar rota' })
   @Post('import')
-  async importRoute(@Body() createRouteDto: CreateRouteDto) {
-    return this.routesService.importRoute(createRouteDto);
+  async importRoute(@Body() createRouteDto: CreateRouteDto, @Req() req: any) {
+    return this.routesService.importRoute({
+      ...createRouteDto,
+      tenantId: req.user.tenantId,
+    });
   }
 
   @ApiOperation({ summary: 'Obter detalhes da rota' })
@@ -80,7 +88,11 @@ export class RoutesController {
 
   @ApiOperation({ summary: 'Atualizar rota' })
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+  async update(
+    @Param('id') id: string,
+    @Body() data: UpdateRouteDto,
+    @Req() req: any,
+  ) {
     return this.routesService.update(id, req.user.tenantId, data);
   }
 
@@ -95,7 +107,8 @@ export class RoutesController {
   async updateDeliveryStatus(
     @Param('id') id: string,
     @Body() updateDto: UpdateDeliveryStatusDto,
+    @Req() req: any,
   ) {
-    return this.routesService.updateDeliveryStatus(id, updateDto);
+    return this.routesService.updateDeliveryStatus(id, updateDto, req.user.tenantId);
   }
 }

@@ -127,6 +127,11 @@ export const envValidationSchema = Joi.object({
     .optional()
     .default('info'),
 
+  // ===== METRICS (OPTIONAL) =====
+  METRICS_ENABLED: Joi.boolean().optional().default(true),
+
+  METRICS_TOKEN: Joi.string().optional(),
+
   // ===== MONITORING (OPTIONAL) =====
   SENTRY_DSN: Joi.string().uri().optional(),
 });

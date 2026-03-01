@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
@@ -25,9 +25,14 @@ export class SellersService {
     });
   }
 
-  async update(id: string, data: any) {
+  async update(id: string, tenantId: string, data: any) {
     // Filtrar apenas os campos permitidos para evitar erro do Prisma com campos extras (ex: _count, createdAt)
     const { name, phone, email, status } = data;
+
+    const exists = await (this.prisma as any).seller.findFirst({
+      where: { id, tenantId },
+    });
+    if (!exists) throw new NotFoundException('Vendedor não encontrado');
 
     return (this.prisma as any).seller.update({
       where: { id },
@@ -40,7 +45,12 @@ export class SellersService {
     });
   }
 
-  async remove(id: string) {
+  async remove(id: string, tenantId: string) {
+    const exists = await (this.prisma as any).seller.findFirst({
+      where: { id, tenantId },
+    });
+    if (!exists) throw new NotFoundException('Vendedor não encontrado');
+
     return (this.prisma as any).seller.delete({ where: { id } });
   }
 }

@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import '../global.css';
@@ -10,6 +10,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useEffect } from 'react';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, asyncStoragePersister } from '@/api/queryClient';
+import { setUnauthorizedHandler } from '@/api/client';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -26,6 +27,11 @@ export default function RootLayout() {
       // api.post('/users/push-token', { token: expoPushToken });
     }
   }, [expoPushToken]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => router.replace('/login'));
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   return (
     <PersistQueryClientProvider

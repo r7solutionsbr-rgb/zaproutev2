@@ -2,12 +2,13 @@ import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
 import { OccurrencesService } from './occurrences.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantGuard } from '../common/guards/tenant.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('Occurrences')
 @ApiBearerAuth()
 @Controller('occurrences')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class OccurrencesController {
   constructor(private readonly occurrencesService: OccurrencesService) {}
 

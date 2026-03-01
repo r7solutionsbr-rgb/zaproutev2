@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MailService } from './mail.service';
 import * as nodemailer from 'nodemailer';
+import { ConfigService } from '@nestjs/config';
 
 // Mock do nodemailer
 jest.mock('nodemailer');
@@ -36,10 +37,22 @@ describe('MailService', () => {
     // Clear environment variables
     delete process.env.SENDPULSE_CLIENT_ID;
     delete process.env.SENDPULSE_CLIENT_SECRET;
-    delete process.env.SMTP_HOST;
+    delete process.env.EMAIL_HOST;
+    delete process.env.EMAIL_PORT;
+    delete process.env.EMAIL_USER;
+    delete process.env.EMAIL_PASS;
+    delete process.env.MAIL_SECURE;
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [MailService],
+      providers: [
+        MailService,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) => process.env[key]),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<MailService>(MailService);
@@ -60,20 +73,29 @@ describe('MailService', () => {
     });
 
     it('deve usar SMTP se configurado', async () => {
-      process.env.SMTP_HOST = 'smtp.example.com';
-      process.env.SMTP_PORT = '587';
-      process.env.SMTP_USER = 'user@example.com';
-      process.env.SMTP_PASS = 'password';
+      process.env.EMAIL_HOST = 'smtp.example.com';
+      process.env.EMAIL_USER = 'user@example.com';
+      process.env.EMAIL_PASS = 'password';
+
+      (nodemailer.createTransport as jest.Mock).mockClear();
 
       const module = await Test.createTestingModule({
-        providers: [MailService],
+        providers: [
+          MailService,
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn((key: string) => process.env[key]),
+            },
+          },
+        ],
       }).compile();
 
       const smtpService = module.get<MailService>(MailService);
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect(nodemailer.createTransport).toHaveBeenLastCalledWith(
         expect.objectContaining({
           host: 'smtp.example.com',
           port: 587,

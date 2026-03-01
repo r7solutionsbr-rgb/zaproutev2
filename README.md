@@ -3,7 +3,7 @@
 [![CI - ZapRoute v2](https://github.com/r7solutionsbr-rgb/zaproutev2/actions/workflows/ci.yml/badge.svg)](https://github.com/r7solutionsbr-rgb/zaproutev2/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/r7solutionsbr-rgb/zaproutev2/branch/main/graph/badge.svg)](https://codecov.io/gh/r7solutionsbr-rgb/zaproutev2)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
-[![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org)
+[![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/typescript-5.3-blue.svg)](https://www.typescriptlang.org)
 
 Sistema completo de gestão de rotas e entregas multi-tenant, com integração de IA, WhatsApp e rastreamento em tempo real.
@@ -59,7 +59,7 @@ ZapRoute v2 é uma plataforma SaaS para gestão logística que oferece:
 
 ## 📦 Pré-requisitos
 
-- **Node.js** >= 18.x
+- **Node.js** >= 20.x
 - **npm** >= 9.x
 - **Docker** >= 20.x (opcional, para desenvolvimento local)
 - **PostgreSQL** 15+ (se não usar Docker)

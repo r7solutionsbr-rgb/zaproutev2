@@ -10,6 +10,20 @@ jobs:
   backend-validation:
     name: 🛡️ Backend (NestJS)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: zaproute_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     defaults:
       run:
         working-directory: ./server
@@ -39,7 +53,9 @@ jobs:
       run: npm run test
       env:
         CI: true
-        JWT_SECRET: "mock-secret-for-ci"
+        NODE_ENV: test
+        DATABASE_URL: "postgresql://test:test@localhost:5432/zaproute_test"
+        JWT_SECRET: "mock-secret-for-ci-32-characters-minimum"
 
   frontend-validation:
     name: 🎨 Frontend (React)

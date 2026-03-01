@@ -20,6 +20,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { getStoredTenantId } from '../utils/tenant';
 
 interface DriverAppProps {
   driverId: string;
@@ -109,13 +110,12 @@ export const DriverApp: React.FC<DriverAppProps> = ({
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const userStr = localStorage.getItem('zaproute_user');
-        const user = userStr ? JSON.parse(userStr) : null;
-        if (user && user.tenantId) {
+        const tenantId = getStoredTenantId();
+        if (tenantId) {
           const tenant = await api.tenants.getMe();
           setTenantConfig(tenant.config || {});
 
-          const drivers = await api.drivers.getAll(user.tenantId);
+          const drivers = await api.drivers.getAll(tenantId);
           const me = drivers.find((d: any) => d.id === driverId);
           if (me) setJourneyStatus(me.currentJourneyStatus as JourneyStatus);
         }

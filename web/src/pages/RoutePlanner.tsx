@@ -41,6 +41,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { getStoredTenantId } from '../utils/tenant';
 
 // --- ÍCONES DO MAPA ---
 const createIcon = (color: string) =>
@@ -74,6 +75,43 @@ const DELIVERY_STATUS_LABELS: Record<string, string> = {
   DELIVERED: 'Entregue',
   FAILED: 'Falha',
   RETURNED: 'Devolvida',
+};
+
+const normalizeRoutesData = (routesData: any[]) => {
+  const allDeliveries: Delivery[] = [];
+  const processedRoutes = routesData.map((r: any) => {
+    if (r.deliveries) {
+      r.deliveries.forEach((d: any) => {
+        if (d.customer) {
+          allDeliveries.push({
+            ...d,
+            customer: {
+              ...d.customer,
+              location: d.customer.location || {
+                lat: 0,
+                lng: 0,
+                address: d.customer.addressDetails?.street || '',
+              },
+              addressDetails: d.customer.addressDetails || {
+                street: '',
+                number: '',
+                neighborhood: '',
+                city: '',
+                state: '',
+                zipCode: '',
+              },
+            },
+          });
+        }
+      });
+    }
+    return {
+      ...r,
+      deliveries: r.deliveries ? r.deliveries.map((d: any) => d.id) : [],
+    };
+  });
+
+  return { processedRoutes, allDeliveries };
 };
 
 // --- COMPONENTE RECENTER ---
@@ -478,46 +516,13 @@ export const RoutePlanner: React.FC = () => {
     const loadData = async () => {
       setIsLoadingRoutes(true);
       try {
-        const userStr = localStorage.getItem('zaproute_user');
-        const user = userStr ? JSON.parse(userStr) : null;
-        if (!user?.tenantId) return;
+        const tenantId = getStoredTenantId();
+        if (!tenantId) return;
 
         // Busca rotas dos últimos 30 dias (padrão inicial)
-        const routesData = await api.routes.getAll(user.tenantId, 30);
-
-        // Processa entregas extraindo das rotas (lógica igual ao DataContext antigo)
-        const allDeliveries: Delivery[] = [];
-        const processedRoutes = routesData.map((r: any) => {
-          if (r.deliveries) {
-            r.deliveries.forEach((d: any) => {
-              if (d.customer) {
-                allDeliveries.push({
-                  ...d,
-                  customer: {
-                    ...d.customer,
-                    location: d.customer.location || {
-                      lat: 0,
-                      lng: 0,
-                      address: d.customer.addressDetails?.street || '',
-                    },
-                    addressDetails: d.customer.addressDetails || {
-                      street: '',
-                      number: '',
-                      neighborhood: '',
-                      city: '',
-                      state: '',
-                      zipCode: '',
-                    },
-                  },
-                });
-              }
-            });
-          }
-          return {
-            ...r,
-            deliveries: r.deliveries ? r.deliveries.map((d: any) => d.id) : [],
-          };
-        });
+        const routesData = await api.routes.getAll(tenantId, 30);
+        const { processedRoutes, allDeliveries } =
+          normalizeRoutesData(routesData);
 
         setRoutes(processedRoutes);
         setDeliveries(allDeliveries);
@@ -535,14 +540,15 @@ export const RoutePlanner: React.FC = () => {
   const refreshRouteData = async () => {
     // Reutiliza a lógica de loadData se necessário, ou implementa atualização otimista
     // Por enquanto, recarrega tudo para garantir consistência
-    const userStr = localStorage.getItem('zaproute_user');
-    const user = userStr ? JSON.parse(userStr) : null;
-    if (user?.tenantId) {
-      const routesData = await api.routes.getAll(user.tenantId, 30);
-      // ... mesma lógica de processamento ...
-      // Simplificação: apenas seta rotas e entregas novas
-      // TODO: Refatorar em função reutilizável fora do useEffect
-    }
+    const tenantId = getStoredTenantId();
+    if (!tenantId) return;
+
+    const routesData = await api.routes.getAll(tenantId, 30);
+    const { processedRoutes, allDeliveries } =
+      normalizeRoutesData(routesData);
+
+    setRoutes(processedRoutes);
+    setDeliveries(allDeliveries);
   };
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(
     routes[0]?.id || null,
@@ -629,52 +635,17 @@ export const RoutePlanner: React.FC = () => {
 
   // --- FUNÇÃO DE ATUALIZAÇÃO (CORRIGIDA E MANTIDA) ---
   const handleRefresh = async () => {
-    const userStr = localStorage.getItem('zaproute_user');
-    const user = userStr ? JSON.parse(userStr) : null;
-    if (!user?.tenantId) return;
+    const tenantId = getStoredTenantId();
+    if (!tenantId) return;
 
     setIsRefreshing(true);
     try {
-      const routesData = await api.routes.getAll(user.tenantId);
+      const routesData = await api.routes.getAll(tenantId);
+      const { processedRoutes, allDeliveries } =
+        normalizeRoutesData(routesData);
 
-      // 1. Extrair todas as entregas para o estado global 'deliveries'
-      const allDeliveries: any[] = [];
-      routesData.forEach((r: any) => {
-        if (r.deliveries) {
-          r.deliveries.forEach((d: any) => {
-            if (d.customer) {
-              allDeliveries.push({
-                ...d,
-                customer: {
-                  ...d.customer,
-                  location: d.customer.location || {
-                    lat: 0,
-                    lng: 0,
-                    address: d.customer.addressDetails?.street || '',
-                  },
-                  addressDetails: d.customer.addressDetails || {
-                    street: '',
-                    number: '',
-                    neighborhood: '',
-                    city: '',
-                    state: '',
-                    zipCode: '',
-                  },
-                },
-              });
-            }
-          });
-        }
-      });
       setDeliveries(allDeliveries);
-
-      // 2. Formatar as rotas para salvar apenas os IDs das entregas
-      const formattedRoutes = routesData.map((r: any) => ({
-        ...r,
-        deliveries: r.deliveries ? r.deliveries.map((d: any) => d.id) : [],
-      }));
-
-      setRoutes(formattedRoutes);
+      setRoutes(processedRoutes);
     } catch (e) {
       console.error('Erro ao atualizar dados', e);
     } finally {
@@ -784,9 +755,15 @@ export const RoutePlanner: React.FC = () => {
     if (!file) return;
     setIsImporting(true);
     setImportResults({ success: 0, errors: [] });
-    const userStr = localStorage.getItem('zaproute_user');
-    const user = JSON.parse(userStr || '{}');
-    const tenantId = user.tenantId;
+    const tenantId = getStoredTenantId();
+    if (!tenantId) {
+      setImportResults({
+        success: 0,
+        errors: ['Tenant não encontrado. Faça login novamente.'],
+      });
+      setIsImporting(false);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {

@@ -13,20 +13,22 @@ Header: Authorization: Bearer {jwt_token}
 ```
 
 ### Tenant
-Muitos endpoints requerem o `tenantId`. Este pode ser:
-- Um parâmetro query: `?tenantId=uuid`
-- Um path param: `/routes/:id`
-- Automaticamente do usuário logado (via JWT)
+O `tenantId` é derivado automaticamente do usuário logado (via JWT).
+Somente endpoints administrativos/backoffice podem aceitar `tenantId` explícito.
 
 ### Paginação
 ```
 GET /api/endpoint?page=1&limit=20&sort=createdAt&order=desc
 Response: {
   data: [...],
-  total: 100,
-  page: 1,
-  limit: 20,
-  pages: 5
+  meta: {
+    total: 100,
+    page: 1,
+    limit: 20,
+    totalPages: 5,
+    hasNext: true,
+    hasPrev: false
+  }
 }
 ```
 
@@ -106,7 +108,6 @@ Realiza logout do usuário (opcional no frontend).
 Lista todos os usuários do tenant.
 
 **Query Params:**
-- `tenantId` (required): ID do tenant
 - `page` (optional, default: 1)
 - `limit` (optional, default: 20)
 - `search` (optional): busca por nome/email
@@ -125,9 +126,14 @@ Lista todos os usuários do tenant.
       "createdAt": "2026-02-15T10:00:00Z"
     }
   ],
-  "total": 50,
-  "page": 1,
-  "limit": 20
+  "meta": {
+    "total": 50,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 3,
+    "hasNext": true,
+    "hasPrev": false
+  }
 }
 ```
 
@@ -164,8 +170,7 @@ Cria um novo usuário.
   "name": "Maria Santos",
   "email": "maria@example.com",
   "password": "senha123",
-  "role": "USER",
-  "tenantId": "tenant-1"
+  "role": "USER"
 }
 ```
 
@@ -239,7 +244,6 @@ Altera a senha do usuário.
 Lista todos os motoristas.
 
 **Query Params:**
-- `tenantId` (required)
 - `page`, `limit`, `sort`
 - `status` (optional): IDLE, BUSY, UNAVAILABLE
 - `search` (optional): por nome ou CPF
@@ -261,13 +265,17 @@ Lista todos os motoristas.
       "totalDeliveries": 342,
       "status": "IDLE",
       "vehicleId": "vehicle-1",
-      "tenantId": "tenant-1",
       "createdAt": "2026-01-15T10:00:00Z"
     }
   ],
-  "total": 25,
-  "page": 1,
-  "limit": 20
+  "meta": {
+    "total": 25,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 2,
+    "hasNext": true,
+    "hasPrev": false
+  }
 }
 ```
 
@@ -290,8 +298,7 @@ Cria um novo motorista.
   "phone": "11998765432",
   "cnh": "9876543210",
   "cnhCategory": "B",
-  "cnhExpiration": "2026-12-31",
-  "tenantId": "tenant-1"
+  "cnhExpiration": "2026-12-31"
 }
 ```
 
@@ -365,7 +372,6 @@ Registra a localização atual do motorista (GPS).
 Lista todos os veículos.
 
 **Query Params:**
-- `tenantId` (required)
 - `status` (optional): AVAILABLE, BUSY, MAINTENANCE
 - `search` (optional): por placa
 
@@ -387,7 +393,6 @@ Lista todos os veículos.
       "driverId": "driver-1",
       "lastMaintenance": "2026-01-20T10:00:00Z",
       "nextMaintenance": "2026-03-20T10:00:00Z",
-      "tenantId": "tenant-1",
       "createdAt": "2026-01-15T10:00:00Z"
     }
   ]
@@ -408,8 +413,7 @@ Cria novo veículo.
   "year": 2023,
   "fuelType": "GASOLINA",
   "capacityWeight": 1500,
-  "capacityVolume": 5.2,
-  "tenantId": "tenant-1"
+  "capacityVolume": 5.2
 }
 ```
 
@@ -463,10 +467,17 @@ Lista clientes.
         "longitude": -46.6333
       },
       "sellerId": "seller-1",
-      "tenantId": "tenant-1",
       "createdAt": "2026-01-15T10:00:00Z"
     }
-  ]
+  ],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 5,
+    "hasNext": true,
+    "hasPrev": false
+  }
 }
 ```
 
@@ -550,7 +561,6 @@ Lista rotas.
       "actualDistance": null,
       "estimatedDuration": 180,
       "actualDuration": null,
-      "tenantId": "tenant-1",
       "createdAt": "2026-02-15T08:00:00Z",
       "deliveries": [
         {
@@ -563,9 +573,14 @@ Lista rotas.
       ]
     }
   ],
-  "total": 45,
-  "page": 1,
-  "limit": 20
+  "meta": {
+    "total": 45,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 3,
+    "hasNext": true,
+    "hasPrev": false
+  }
 }
 ```
 
@@ -612,7 +627,6 @@ Detalhes de uma rota.
         "volume": 5
       }
     ],
-    "tenantId": "tenant-1"
   }
 }
 ```
@@ -627,7 +641,6 @@ Importa e cria uma nova rota a partir de arquivo CSV.
 Content-Type: multipart/form-data
 
 file: <arquivo CSV>
-tenantId: tenant-1 (optional, usa do user se não enviado)
 ```
 
 **CSV Format:**
@@ -1009,44 +1022,39 @@ Análise inteligente de uma rota.
 
 ---
 
-## 💬 WhatsApp
+## 💬 WhatsApp / Webhooks
 
-### Webhook: POST /api/webhook/whatsapp
-Recebe atualizações do WhatsApp Business.
+### Webhook: POST /api/webhook/zapi
+Recebe mensagens da Z-API (WhatsApp).
 
-**Request (enviado por WhatsApp):**
+**Request (exemplo):**
 ```json
 {
-  "object": "whatsapp_business_account",
-  "entry": [
-    {
-      "id": "ENTRY_ID",
-      "changes": [
-        {
-          "value": {
-            "messaging_product": "whatsapp",
-            "contacts": [
-              {
-                "profile": {
-                  "name": "Carlos Roberto"
-                },
-                "wa_id": "5511999999999"
-              }
-            ],
-            "messages": [
-              {
-                "from": "5511999999999",
-                "id": "msg_id",
-                "timestamp": "1234567890",
-                "text": {
-                  "body": "Entrega confirmada"
-                }
-              }
-            ]
-          }
-        }
-      ]
-    }
+  "payload": {
+    "messageId": "msg_id",
+    "phone": "5511999999999",
+    "text": "Entrega confirmada"
+  }
+}
+```
+
+> Observação: o endpoint também aceita payload direto sem o wrapper `payload`.
+
+---
+
+### Webhook: POST /api/webhook/whatsapp
+Endpoint legado (compatibilidade). Aceita o mesmo formato de `/webhook/zapi`.
+
+---
+
+### Webhook: POST /api/webhook/sendpulse
+Recebe eventos do SendPulse.
+
+**Request (exemplo):**
+```json
+{
+  "events": [
+    { "event": "message", "from": "5511999999999", "text": "Oi" }
   ]
 }
 ```
@@ -1054,7 +1062,7 @@ Recebe atualizações do WhatsApp Business.
 **Response (200):**
 ```json
 {
-  "statusCode": 200
+  "status": "OK"
 }
 ```
 
@@ -1194,7 +1202,6 @@ Status da aplicação.
 Lista vendedores.
 
 **Query Params:**
-- `tenantId` (required)
 - `status` (optional): ACTIVE, INACTIVE
 
 ---
@@ -1207,8 +1214,7 @@ Cria vendedor.
 {
   "name": "João Silva",
   "email": "joao@example.com",
-  "phone": "11999999999",
-  "tenantId": "tenant-1"
+  "phone": "11999999999"
 }
 ```
 

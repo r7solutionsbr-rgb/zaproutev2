@@ -98,13 +98,16 @@ export class OccurrencesService {
       invoiceNumber: d.orderId,
     }));
 
+    const totalPages = Math.ceil(total / limit);
     return {
       data: mappedData,
       meta: {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
     };
   }

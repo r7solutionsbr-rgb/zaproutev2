@@ -14,27 +14,20 @@ Este projeto utiliza **GitHub Actions** para automação de CI/CD, incluindo:
 ## 🔧 Workflows Configurados
 
 ### 1. CI Pipeline (`ci.yml`)
-**Trigger:** Push e Pull Requests para `main` e `develop`
+**Trigger:** Push e Pull Requests para `main`
 
 **Jobs:**
-- **backend-test** - Testa e builda o backend
-  - Configura PostgreSQL test database
-  - Roda testes com coverage
-  - Faz upload para Codecov
-  - Valida build
+- **backend-validation** - Build e testes do backend
+  - Sobe PostgreSQL de teste
+  - Executa `npm run build`
+  - Executa `npm run test`
   
-- **frontend-test** - Testa e builda o frontend
-  - Roda linter
-  - Executa testes (quando disponíveis)
-  - Valida build
+- **frontend-validation** - Typecheck e build do frontend
+  - Executa `npx tsc --noEmit`
+  - Executa `npm run build`
   
-- **security-audit** - Auditoria de segurança
-  - `npm audit` no backend e frontend
-  - Reporta vulnerabilidades
-  
-- **code-quality** - Qualidade de código
-  - TypeScript compilation check
-  - Validação de tipos
+> Observação: auditoria de segurança e outras checagens podem ser adicionadas
+> conforme a maturidade do pipeline.
 
 ### 2. Deploy Pipeline (`deploy.yml`)
 **Trigger:** Push para `main` ou manual
@@ -46,6 +39,14 @@ Este projeto utiliza **GitHub Actions** para automação de CI/CD, incluindo:
   - Notifica sucesso/falha
 
 ### 3. PR Checks (`pr-checks.yml`)
+### 4. Backend Tests + Coverage (`tests.yml`)
+**Trigger:** Push e Pull Requests para `main` e `develop`
+
+**Jobs:**
+- **test** - Testes com coverage e upload no Codecov
+  - Sobe PostgreSQL de teste
+  - Executa `npm run test:cov`
+  - Faz upload de cobertura
 **Trigger:** Pull Requests (opened, synchronize, reopened)
 
 **Jobs:**

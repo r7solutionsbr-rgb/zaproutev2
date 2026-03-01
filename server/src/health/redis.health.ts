@@ -22,7 +22,10 @@ export class RedisHealthIndicator extends HealthIndicator {
       if (val === 'ok') {
         return this.getStatus(key, true);
       }
-      throw new Error('Redis get value mismatch');
+      throw new HealthCheckError(
+        'Redis check failed',
+        this.getStatus(key, false, { message: 'Redis get value mismatch' }),
+      );
     } catch (e) {
       throw new HealthCheckError(
         'Redis check failed',

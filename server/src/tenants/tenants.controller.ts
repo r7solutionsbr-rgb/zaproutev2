@@ -9,9 +9,11 @@ import {
 } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantGuard } from '../common/guards/tenant.guard';
+import { UpdateTenantConfigDto, UpdateTenantDto } from './dto/tenant.dto';
 
 @Controller('tenants')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) {}
 
@@ -22,7 +24,7 @@ export class TenantsController {
   }
 
   @Patch('me')
-  async updateMe(@Request() req: any, @Body() data: any) {
+  async updateMe(@Request() req: any, @Body() data: UpdateTenantDto) {
     return this.tenantsService.update(req.user.tenantId, data);
   }
 
@@ -37,7 +39,10 @@ export class TenantsController {
   }
 
   @Patch(':id/config')
-  async updateConfig(@Param('id') id: string, @Body() config: any) {
-    return this.tenantsService.update(id, { config });
+  async updateConfig(
+    @Param('id') id: string,
+    @Body() data: UpdateTenantConfigDto,
+  ) {
+    return this.tenantsService.update(id, { config: data.config });
   }
 }

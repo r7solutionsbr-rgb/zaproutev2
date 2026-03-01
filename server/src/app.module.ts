@@ -43,6 +43,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { envValidationSchema } from './config/env.validation';
 import { CacheModule } from './cache/cache.module';
+import { MetricsModule } from './metrics/metrics.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { CacheModule } from './cache/cache.module';
     StorageModule,
     MailModule,
     HealthModule,
+    MetricsModule,
   ],
   controllers: [
     // Endpoints

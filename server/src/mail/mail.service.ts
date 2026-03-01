@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import axios from 'axios';
@@ -203,11 +203,14 @@ export class MailService {
     this.logger.error(
       '❌ Nenhum método de envio configurado (Sem API Key e sem SMTP).',
     );
-    throw new Error('Email configuration missing');
+    throw new BadRequestException('Email configuration missing');
   }
 
   async sendForgotPassEmail(to: string, token: string) {
-    const resetLink = `http://localhost:5173/reset-password?token=${token}`;
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
+      'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password?token=${token}`;
     const html = `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
             <h2>Recuperação de Senha</h2>
@@ -222,7 +225,10 @@ export class MailService {
   }
 
   async sendWelcomeEmail(to: string, name: string, pass: string) {
-    const loginLink = `http://localhost:5173/login`;
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
+      'http://localhost:5173';
+    const loginLink = `${frontendUrl}/login`;
     const html = `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px;">
             <h2 style="color: #2563eb;">Bem-vindo ao ZapRoute, ${name}!</h2>

@@ -26,6 +26,7 @@ import { useData } from '../contexts/DataContext';
 import { api } from '../services/api';
 import { SkeletonTable } from '../components/ui/SkeletonTable';
 import { EmptyState } from '../components/ui/EmptyState';
+import { getStoredTenantId } from '../utils/tenant';
 
 // --- LEAFLET ICONS ---
 const createIcon = (color: string) =>
@@ -361,9 +362,8 @@ export const DeliveryList: React.FC = () => {
     const loadDeliveries = async () => {
       setIsLoading(true);
       try {
-        const userStr = localStorage.getItem('zaproute_user');
-        const user = userStr ? JSON.parse(userStr) : null;
-        if (!user?.tenantId) return;
+        const tenantId = getStoredTenantId();
+        if (!tenantId) return;
 
         // Mapeia Tab para filtros de status
         // A lógica do 'PROBLEMS' precisa ser tratada como lista de status
@@ -388,7 +388,7 @@ export const DeliveryList: React.FC = () => {
         };
 
         const result = await api.deliveries.getAllPaginated(
-          user.tenantId,
+          tenantId,
           page,
           limit,
           filters,

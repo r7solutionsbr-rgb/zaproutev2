@@ -167,7 +167,7 @@ describe('CustomersService', () => {
       expect(result.data).toEqual(customers);
       expect(result.meta.total).toBe(2);
       expect(result.meta.page).toBe(1);
-      expect(result.meta.lastPage).toBe(1);
+      expect(result.meta.totalPages).toBe(1);
       expect(mockPrismaService.customer.findMany).toHaveBeenCalledWith({
         where: { tenantId: 'tenant-1', OR: undefined },
         skip: 0,
@@ -216,7 +216,17 @@ describe('CustomersService', () => {
     it('deve retornar vazio se tenantId não for fornecido', async () => {
       const result = await service.findAll('', 1, 10, '', undefined);
 
-      expect(result).toEqual({ data: [], total: 0, pages: 0 });
+      expect(result).toEqual({
+        data: [],
+        meta: {
+          total: 0,
+          page: 1,
+          limit: 10,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      });
       expect(mockPrismaService.customer.findMany).not.toHaveBeenCalled();
     });
 
@@ -226,7 +236,7 @@ describe('CustomersService', () => {
 
       const result = await service.findAll('tenant-1', 2, 10, '', undefined);
 
-      expect(result.meta.lastPage).toBe(3); // 25 / 10 = 3 páginas
+      expect(result.meta.totalPages).toBe(3); // 25 / 10 = 3 páginas
       expect(mockPrismaService.customer.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           skip: 10, // (2 - 1) * 10

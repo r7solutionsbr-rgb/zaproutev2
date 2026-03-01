@@ -555,7 +555,17 @@ export class RoutesService {
     );
   }
 
-  async updateDeliveryStatus(id: string, dto: UpdateDeliveryStatusDto) {
+  async updateDeliveryStatus(
+    id: string,
+    dto: UpdateDeliveryStatusDto,
+    tenantId: string,
+  ) {
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id, route: { tenantId } },
+    });
+    if (!delivery) {
+      throw new NotFoundException('Entrega não encontrada ou acesso negado.');
+    }
     const data: any = {
       status: dto.status,
       proofOfDelivery: dto.proofUrl,
@@ -569,10 +579,7 @@ export class RoutesService {
     if (dto.unloadingEndedAt)
       data.unloadingEndedAt = new Date(dto.unloadingEndedAt);
 
-    return (this.prisma as any).delivery.update({
-      where: { id },
-      data,
-    });
+    return (this.prisma as any).delivery.update({ where: { id }, data });
   }
   // --- DASHBOARD STATS ---
   async getDashboardStats(tenantId: string, days = 7) {

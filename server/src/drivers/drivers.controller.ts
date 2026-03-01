@@ -13,6 +13,9 @@ import {
 } from '@nestjs/common';
 import { DriversService } from './drivers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantGuard } from '../common/guards/tenant.guard';
+import { CreateDriverDto, UpdateDriverDto } from './dto/driver.dto';
+import { ImportDriversDto } from './dto/import-drivers.dto';
 
 import { AiService } from '../ai/ai.service';
 import {
@@ -25,7 +28,7 @@ import {
 @ApiTags('Drivers')
 @ApiBearerAuth()
 @Controller('drivers')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class DriversController {
   constructor(
     private readonly driversService: DriversService,
@@ -68,26 +71,33 @@ export class DriversController {
 
   @ApiOperation({ summary: 'Cadastrar motorista' })
   @Post()
-  async create(@Body() data: any) {
-    return this.driversService.create(data);
+  async create(@Body() data: CreateDriverDto, @Req() req: any) {
+    return this.driversService.create({
+      ...data,
+      tenantId: req.user.tenantId,
+    });
   }
 
   @ApiOperation({ summary: 'Atualizar motorista' })
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+  async update(
+    @Param('id') id: string,
+    @Body() data: UpdateDriverDto,
+    @Req() req: any,
+  ) {
     return this.driversService.update(id, req.user.tenantId, data);
   }
 
   @ApiOperation({ summary: 'Importação massiva de motoristas' })
   @Post('import')
-  async import(@Body() body: any) {
+  async import(@Body() body: ImportDriversDto, @Req() req: any) {
     if (!body.drivers || !Array.isArray(body.drivers)) {
       throw new HttpException(
         'Lista de motoristas inválida',
         HttpStatus.BAD_REQUEST,
       );
     }
-    return this.driversService.importMassive(body.tenantId, body.drivers);
+    return this.driversService.importMassive(req.user.tenantId, body.drivers);
   }
   @ApiOperation({ summary: 'Análise de performance com IA' })
   @Get(':id/ai-analysis')

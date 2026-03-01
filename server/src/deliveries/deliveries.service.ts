@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
@@ -94,13 +94,16 @@ export class DeliveriesService {
       invoiceNumber: d.orderId, // Assumindo mapeamento
     }));
 
+    const totalPages = Math.ceil(total / limit);
     return {
       data: mappedData,
       meta: {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
     };
   }
@@ -140,7 +143,7 @@ export class DeliveriesService {
       where: { id, customer: { tenantId } },
     });
 
-    if (!delivery) throw new Error('Entrega não encontrada');
+    if (!delivery) throw new NotFoundException('Entrega não encontrada');
 
     return this.prisma.delivery.update({
       where: { id },
@@ -158,7 +161,7 @@ export class DeliveriesService {
       where: { id, customer: { tenantId } },
     });
 
-    if (!delivery) throw new Error('Entrega não encontrada');
+    if (!delivery) throw new NotFoundException('Entrega não encontrada');
 
     return this.prisma.delivery.update({
       where: { id },

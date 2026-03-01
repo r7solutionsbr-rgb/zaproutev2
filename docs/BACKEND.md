@@ -621,10 +621,18 @@ Integração nativa para captura de erros e performance.
 - **Performance:** Rastreamento de latência e transações.
 - **Profiling:** Monitoramento de uso de CPU em tempo hábil.
 
-### 3. Health Checks (@nestjs/terminus)
+### 3. Métricas (Prometheus)
+Endpoint `GET /metrics` com métricas padrão do Node.js e latência HTTP.
+- **Proteção opcional:** header `x-metrics-token` quando `METRICS_TOKEN` definido.
+- **Desabilitar:** `METRICS_ENABLED=false`.
+
+### 4. Health Checks (@nestjs/terminus)
 Endpoint `GET /api/health` para monitoramento de disponibilidade.
 - **Database:** Verifica conexão Prisma.
 - **Redis:** Verifica disponibilidade do cache.
+
+### 5. Otimizações de Performance
+- **Compressão HTTP:** respostas com gzip/br via middleware `compression`.
 
 ---
 
@@ -646,9 +654,14 @@ Endpoint `GET /api/health` para monitoramento de disponibilidade.
 ### TenantGuard (Custom)
 ```typescript
 // Validar que usuário pertence ao tenant solicitado
-const userTenantId = req.user.tenantId;
-const requestTenantId = req.query.tenantId;
-if (userTenantId !== requestTenantId) throw ForbiddenException();
+if (!req.user) return false;
+if (req.user.role === 'SUPER_ADMIN') return true;
+
+const requestTenantId =
+  req.params?.tenantId || req.query?.tenantId || req.body?.tenantId;
+if (requestTenantId && req.user.tenantId !== requestTenantId) {
+  throw new ForbiddenException('Acesso negado a outro tenant');
+}
 ```
 
 ---

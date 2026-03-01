@@ -35,6 +35,7 @@ import { cleanDigits, maskCpfCnpj, maskPhone } from '../utils/masks';
 import { isValidCpf, isValidPhone, hasMask } from '../utils/validators';
 
 import { useData } from '../contexts/DataContext';
+import { getStoredTenantId } from '../utils/tenant';
 
 export const DriverList: React.FC = () => {
   // --- ESTADO LOCAL (PAGINAÇÃO) ---
@@ -95,12 +96,11 @@ export const DriverList: React.FC = () => {
   const loadDrivers = async () => {
     setIsLoadingList(true);
     try {
-      const userStr = localStorage.getItem('zaproute_user');
-      const user = userStr ? JSON.parse(userStr) : null;
-      if (!user?.tenantId) return;
+      const tenantId = getStoredTenantId();
+      if (!tenantId) return;
 
       const result = await api.drivers.getAllPaginated(
-        user.tenantId,
+        tenantId,
         page,
         limit,
         debouncedSearch,
@@ -236,8 +236,11 @@ export const DriverList: React.FC = () => {
     setFormError('');
 
     try {
-      const userStr = localStorage.getItem('zaproute_user');
-      const user = userStr ? JSON.parse(userStr) : null;
+      const tenantId = getStoredTenantId();
+      if (!tenantId) {
+        setFormError('Tenant não encontrado. Faça login novamente.');
+        return;
+      }
 
       // Limpa dados antes de enviar
       const payload = {
@@ -260,7 +263,7 @@ export const DriverList: React.FC = () => {
       if (!payload.cnhCategory) payload.cnhCategory = 'B';
 
       if (modalMode === 'CREATE') {
-        const createPayload = { ...payload, tenantId: user.tenantId };
+        const createPayload = { ...payload, tenantId };
         await api.drivers.create(createPayload);
         setNotification({
           type: 'SUCCESS',
@@ -339,8 +342,15 @@ export const DriverList: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
     setIsImporting(true);
-    const userStr = localStorage.getItem('zaproute_user');
-    const user = userStr ? JSON.parse(userStr) : null;
+    const tenantId = getStoredTenantId();
+    if (!tenantId) {
+      setNotification({
+        type: 'ERROR',
+        message: 'Tenant não encontrado. Faça login novamente.',
+      });
+      setIsImporting(false);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
@@ -413,7 +423,7 @@ export const DriverList: React.FC = () => {
           });
           return;
         }
-        await api.drivers.import(user.tenantId, driversToImport);
+        await api.drivers.import(tenantId, driversToImport);
         setNotification({
           type: 'SUCCESS',
           message: `${driversToImport.length} motoristas importados com sucesso!`,

@@ -114,3 +114,25 @@ export class UpdateDeliveryStatusDto {
   @IsOptional()
   unloadingEndedAt?: string;
 }
+
+export class UpdateRouteDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  date?: string;
+
+  @IsEnum(['PLANNED', 'ACTIVE', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'])
+  @IsOptional()
+  status?: 'PLANNED' | 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+
+  @IsString()
+  @IsOptional()
+  driverId?: string;
+
+  @IsString()
+  @IsOptional()
+  vehicleId?: string;
+}

@@ -12,9 +12,11 @@ import {
 } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantGuard } from '../common/guards/tenant.guard';
+import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
 
 @Controller('customers')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
@@ -42,7 +44,7 @@ export class CustomersController {
 
   // ... (outros métodos: create, update, geocode, import mantêm-se iguais)
   @Post()
-  async create(@Body() data: any, @Req() req: any) {
+  async create(@Body() data: CreateCustomerDto, @Req() req: any) {
     return this.customersService.create({
       ...data,
       tenantId: req.user.tenantId,
@@ -50,7 +52,11 @@ export class CustomersController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+  async update(
+    @Param('id') id: string,
+    @Body() data: UpdateCustomerDto,
+    @Req() req: any,
+  ) {
     return this.customersService.update(id, req.user.tenantId, data);
   }
 

@@ -147,6 +147,7 @@ describe('AuthService', () => {
         sub: mockUser.id,
         role: mockUser.role,
         tenantId: mockUser.tenantId,
+        driverId: null,
       });
     });
   });

@@ -22,6 +22,7 @@ import { SkeletonTable } from '../components/ui/SkeletonTable';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useData } from '../contexts/DataContext';
+import { getStoredTenantId } from '../utils/tenant';
 
 export const VehicleList: React.FC = () => {
   const { vehicles, setVehicles, drivers, loading } = useData();
@@ -103,8 +104,11 @@ export const VehicleList: React.FC = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const userStr = localStorage.getItem('zaproute_user');
-      const user = userStr ? JSON.parse(userStr) : null;
+      const tenantId = getStoredTenantId();
+      if (!tenantId) {
+        alert('Tenant não encontrado. Faça login novamente.');
+        return;
+      }
 
       // Limpar máscara da placa para salvar puro se necessário, ou manter formatado.
       // Aqui mantemos a máscara visual se for o padrão antigo, ou puro se for Mercosul
@@ -128,7 +132,7 @@ export const VehicleList: React.FC = () => {
         ).toISOString();
 
       if (modalMode === 'CREATE') {
-        const createPayload = { ...payload, tenantId: user.tenantId };
+        const createPayload = { ...payload, tenantId };
         const newVehicle = await api.vehicles.create(createPayload);
         setVehicles([...vehicles, newVehicle]);
         alert('Veículo criado com sucesso!');
@@ -181,8 +185,12 @@ export const VehicleList: React.FC = () => {
     if (!file) return;
 
     setIsImporting(true);
-    const userStr = localStorage.getItem('zaproute_user');
-    const user = userStr ? JSON.parse(userStr) : null;
+    const tenantId = getStoredTenantId();
+    if (!tenantId) {
+      alert('Tenant não encontrado. Faça login novamente.');
+      setIsImporting(false);
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -207,7 +215,7 @@ export const VehicleList: React.FC = () => {
           nextMaintenance: null,
         }));
 
-        await api.vehicles.import(user.tenantId, vehiclesToImport);
+        await api.vehicles.import(tenantId, vehiclesToImport);
         alert(
           `${vehiclesToImport.length} veículos processados! Recarregando...`,
         );

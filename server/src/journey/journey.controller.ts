@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { JourneyService } from './journey.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantGuard } from '../common/guards/tenant.guard';
 import { JourneyEventType } from '@prisma/client';
 import {
   ApiTags,
@@ -22,7 +23,7 @@ import {
 @ApiTags('Journey')
 @ApiBearerAuth()
 @Controller('journey')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class JourneyController {
   constructor(private readonly journeyService: JourneyService) {}
 

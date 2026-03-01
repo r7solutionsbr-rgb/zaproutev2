@@ -34,6 +34,7 @@ import { SkeletonTable } from '../components/ui/SkeletonTable';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Skeleton } from '../components/ui/Skeleton';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { getStoredTenantId } from '../utils/tenant';
 
 export const CustomerList: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -89,21 +90,20 @@ export const CustomerList: React.FC = () => {
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const userStr = localStorage.getItem('zaproute_user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        const response = await api.customers.getAll(
-          user.tenantId,
-          page,
-          10,
-          debouncedSearch,
-          statusFilter,
-        );
+      const tenantId = getStoredTenantId();
+      if (!tenantId) return;
 
-        setCustomers(response.data);
-        setTotalPages(response.meta.lastPage);
-        setTotalItems(response.meta.total);
-      }
+      const response = await api.customers.getAll(
+        tenantId,
+        page,
+        10,
+        debouncedSearch,
+        statusFilter,
+      );
+
+      setCustomers(response.data);
+      setTotalPages(response.meta.lastPage);
+      setTotalItems(response.meta.total);
     } catch (e) {
       console.error('Failed to load customers', e);
       setNotification({
@@ -184,8 +184,11 @@ export const CustomerList: React.FC = () => {
     setFormError('');
 
     try {
-      const userStr = localStorage.getItem('zaproute_user');
-      const user = userStr ? JSON.parse(userStr) : null;
+      const tenantId = getStoredTenantId();
+      if (!tenantId) {
+        setFormError('Tenant não encontrado. Faça login novamente.');
+        return;
+      }
 
       const payload = {
         ...formData,
@@ -203,7 +206,7 @@ export const CustomerList: React.FC = () => {
       if (!payload.location) payload.location = { lat: 0, lng: 0, address: '' };
 
       if (modalMode === 'CREATE') {
-        const createPayload = { ...payload, tenantId: user.tenantId };
+        const createPayload = { ...payload, tenantId };
         await api.customers.create(createPayload);
         setNotification({
           type: 'SUCCESS',
@@ -284,8 +287,17 @@ export const CustomerList: React.FC = () => {
     setImportStatus('PROCESSING');
     setImportModalOpen(true);
 
-    const userStr = localStorage.getItem('zaproute_user');
-    const user = userStr ? JSON.parse(userStr) : {};
+    const tenantId = getStoredTenantId();
+    if (!tenantId) {
+      setImportSummary({
+        total: 0,
+        success: 0,
+        errors: 1,
+        errorDetails: ['Tenant não encontrado. Faça login novamente.'],
+      });
+      setImportStatus('COMPLETED');
+      return;
+    }
 
     const reader = new FileReader();
 
@@ -406,7 +418,7 @@ export const CustomerList: React.FC = () => {
           setImportChunkInfo({ current: i + 1, total: totalChunks });
 
           try {
-            await api.customers.import(user.tenantId, chunk);
+            await api.customers.import(tenantId, chunk);
             successCount += chunk.length;
           } catch (err: any) {
             console.error(`Erro no lote ${i + 1}:`, err);

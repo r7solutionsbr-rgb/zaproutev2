@@ -38,6 +38,10 @@ app.enableCors({
 });
 ```
 
+**Recomendado em produção:**
+- Definir `ALLOWED_ORIGINS` com lista separada por vírgula.
+- Evitar `*` quando `credentials` estiver habilitado.
+
 ### 3. CSRF Protection
 - ✅ CSRF token em cookies httpOnly
 - ✅ Validação em POST, PATCH, DELETE
@@ -168,10 +172,17 @@ async validatePassword(password: string, hash: string): Promise<boolean> {
 export class TenantGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const userTenantId = request.user.tenantId;
-    const queryTenantId = request.query.tenantId;
+    const user = request.user;
 
-    if (userTenantId !== queryTenantId) {
+    if (!user) return false;
+    if (user.role === 'SUPER_ADMIN') return true;
+
+    const requestedTenantId =
+      request?.params?.tenantId ||
+      request?.query?.tenantId ||
+      request?.body?.tenantId;
+
+    if (requestedTenantId && requestedTenantId !== user.tenantId) {
       throw new ForbiddenException('Acesso negado a outro tenant');
     }
 
@@ -213,6 +224,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }, httpStatus);
   }
 }
+```
+
+### 11. Hardening da API
+- `x-powered-by` desabilitado
+- `ValidationPipe` com `whitelist`, `forbidNonWhitelisted` e `transform`
+
+**Configuração (main.ts):**
+```typescript
+app.disable('x-powered-by');
+app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }),
+);
 ```
 
 ---

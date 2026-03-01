@@ -155,8 +155,12 @@ describe('SellersService', () => {
       };
 
       mockPrismaService.seller.update.mockResolvedValue(updatedSeller);
+      mockPrismaService.seller.findFirst.mockResolvedValue({
+        id: 'seller-1',
+        tenantId: 'tenant-1',
+      });
 
-      const result = await service.update('seller-1', updateData);
+      const result = await service.update('seller-1', 'tenant-1', updateData);
 
       expect(result).toEqual(updatedSeller);
       expect(mockPrismaService.seller.update).toHaveBeenCalledWith({
@@ -184,8 +188,12 @@ describe('SellersService', () => {
         id: 'seller-1',
         name: 'João Silva',
       });
+      mockPrismaService.seller.findFirst.mockResolvedValue({
+        id: 'seller-1',
+        tenantId: 'tenant-1',
+      });
 
-      await service.update('seller-1', updateData);
+      await service.update('seller-1', 'tenant-1', updateData);
 
       expect(mockPrismaService.seller.update).toHaveBeenCalledWith({
         where: { id: 'seller-1' },
@@ -208,8 +216,12 @@ describe('SellersService', () => {
         id: 'seller-1',
         name: 'Novo Nome',
       });
+      mockPrismaService.seller.findFirst.mockResolvedValue({
+        id: 'seller-1',
+        tenantId: 'tenant-1',
+      });
 
-      await service.update('seller-1', partialUpdate);
+      await service.update('seller-1', 'tenant-1', partialUpdate);
 
       expect(mockPrismaService.seller.update).toHaveBeenCalledWith({
         where: { id: 'seller-1' },
@@ -228,8 +240,12 @@ describe('SellersService', () => {
       };
 
       mockPrismaService.seller.delete.mockResolvedValue(deletedSeller);
+      mockPrismaService.seller.findFirst.mockResolvedValue({
+        id: 'seller-1',
+        tenantId: 'tenant-1',
+      });
 
-      const result = await service.remove('seller-1');
+      const result = await service.remove('seller-1', 'tenant-1');
 
       expect(result).toEqual(deletedSeller);
       expect(mockPrismaService.seller.delete).toHaveBeenCalledWith({

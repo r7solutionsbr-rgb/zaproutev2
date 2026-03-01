@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
@@ -43,8 +43,8 @@ export class VehiclesService {
   }
 
   // Edição (Corrigida)
-  async update(id: string, data: any) {
-    const { id: _id, tenantId, tenant, drivers, routes, ...cleanData } = data;
+  async update(id: string, tenantId: string, data: any) {
+    const { id: _id, tenant, drivers, routes, ...cleanData } = data;
 
     // Sanitiza datas se estiverem presentes no payload
     if ('lastMaintenance' in cleanData)
@@ -59,10 +59,12 @@ export class VehiclesService {
     if (cleanData.capacityVolume)
       cleanData.capacityVolume = Number(cleanData.capacityVolume);
 
-    return (this.prisma as any).vehicle.update({
-      where: { id },
-      data: cleanData,
+    const exists = await (this.prisma as any).vehicle.findFirst({
+      where: { id, tenantId },
     });
+    if (!exists) throw new NotFoundException('Veículo não encontrado');
+
+    return (this.prisma as any).vehicle.update({ where: { id }, data: cleanData });
   }
 
   // Importação Massiva

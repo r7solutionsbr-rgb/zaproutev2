@@ -8,6 +8,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto/auth.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -22,7 +23,7 @@ export class AuthController {
     },
   })
   @Post('login')
-  async login(@Body() body: any) {
+  async login(@Body() body: LoginDto) {
     const user = await this.authService.validateUser(body.email, body.password);
     if (!user) {
       throw new HttpException(
@@ -37,7 +38,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Solicitar recuperação de senha' })
   @ApiBody({ schema: { example: { email: 'user@example.com' } } })
   @Post('forgot-password')
-  async forgotPassword(@Body() body: { email: string }) {
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
     return this.authService.forgotPassword(body.email);
   }
 
@@ -47,7 +48,7 @@ export class AuthController {
     schema: { example: { token: 'TOKEN_XYZ', password: 'newpassword' } },
   })
   @Post('reset-password')
-  async resetPassword(@Body() body: { token: string; password: string }) {
+  async resetPassword(@Body() body: ResetPasswordDto) {
     try {
       return await this.authService.resetPassword(body.token, body.password);
     } catch (error: any) {

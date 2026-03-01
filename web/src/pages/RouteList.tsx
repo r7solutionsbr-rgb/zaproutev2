@@ -25,6 +25,7 @@ import {
 
 import { useData } from '../contexts/DataContext';
 import { api } from '../services/api';
+import { getStoredTenantId } from '../utils/tenant';
 
 // Imported Components
 import { ImageModal } from '../components/ImageModal';
@@ -35,6 +36,64 @@ import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { EmptyState } from '../components/ui/EmptyState';
 
 type RouteStatus = 'PLANNED' | 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED';
+
+const normalizeRoutesData = (routesData: any[]) => {
+  const allDeliveries: Delivery[] = [];
+  const processedRoutes = routesData.map((r: any) => {
+    if (r.deliveries) {
+      r.deliveries.forEach((d: any) => {
+        if (d.customer) {
+          allDeliveries.push({
+            ...d,
+            customer: {
+              ...d.customer,
+              location: d.customer.location || {
+                lat: 0,
+                lng: 0,
+                address: d.customer.addressDetails?.street || '',
+              },
+              addressDetails: d.customer.addressDetails || {
+                street: '',
+                number: '',
+                neighborhood: '',
+                city: '',
+                state: '',
+                zipCode: '',
+              },
+            },
+          });
+        }
+      });
+    }
+    return {
+      ...r,
+      deliveries: r.deliveries ? r.deliveries.map((d: any) => d.id) : [],
+    };
+  });
+
+  return { processedRoutes, allDeliveries };
+};
+
+const getRouteDeliveries = (route: Route, deliveries: Delivery[]) => {
+  if (!Array.isArray(route.deliveries)) return [];
+  return deliveries.filter((d) => route.deliveries.includes(d.id));
+};
+
+const getRouteProgress = (routeDeliveries: Delivery[], totalOps: number) => {
+  const completedOps = routeDeliveries.filter(
+    (d) => d.status === 'DELIVERED',
+  ).length;
+  const failedOps = routeDeliveries.filter(
+    (d) => d.status === 'FAILED' || d.status === 'RETURNED',
+  ).length;
+  const pendingOps = totalOps - completedOps - failedOps;
+  const progress =
+    totalOps > 0
+      ? Math.round(((completedOps + failedOps) / totalOps) * 100)
+      : 0;
+
+  return { completedOps, failedOps, pendingOps, progress };
+};
 
 export const RouteList: React.FC = () => {
   // --- PAGINAÇÃO REAL (Server-Side) ---
@@ -86,9 +145,8 @@ export const RouteList: React.FC = () => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const userStr = localStorage.getItem('zaproute_user');
-        const user = userStr ? JSON.parse(userStr) : null;
-        if (!user?.tenantId) return;
+        const tenantId = getStoredTenantId();
+        if (!tenantId) return;
 
         // Filtros para API
         const filters = {
@@ -100,7 +158,7 @@ export const RouteList: React.FC = () => {
         };
 
         const result = await api.routes.getAllPaginated(
-          user.tenantId,
+          tenantId,
           page,
           limit,
           filters,
@@ -112,38 +170,8 @@ export const RouteList: React.FC = () => {
 
         // Processa entregas
         const routesData = result.data;
-        const allDeliveries: Delivery[] = [];
-        const processedRoutes = routesData.map((r: any) => {
-          if (r.deliveries) {
-            r.deliveries.forEach((d: any) => {
-              if (d.customer) {
-                allDeliveries.push({
-                  ...d,
-                  customer: {
-                    ...d.customer,
-                    location: d.customer.location || {
-                      lat: 0,
-                      lng: 0,
-                      address: d.customer.addressDetails?.street || '',
-                    },
-                    addressDetails: d.customer.addressDetails || {
-                      street: '',
-                      number: '',
-                      neighborhood: '',
-                      city: '',
-                      state: '',
-                      zipCode: '',
-                    },
-                  },
-                });
-              }
-            });
-          }
-          return {
-            ...r,
-            deliveries: r.deliveries ? r.deliveries.map((d: any) => d.id) : [],
-          };
-        });
+        const { processedRoutes, allDeliveries } =
+          normalizeRoutesData(routesData);
 
         console.log('Rotas carregadas (paginadas):', processedRoutes.length);
 
@@ -794,24 +822,14 @@ export const RouteList: React.FC = () => {
           </>
         ) : (
           routes.map((route) => {
-            // Lógica de cálculo de progresso
-            const totalOps = route.deliveries.length;
-            // Como deliveries é um array de objetos Delivery no objeto route, precisamos filtrar do state deliveries global
-            const routeDeliveries = deliveries.filter((d) =>
-              route.deliveries.some((rd) => rd.id === d.id),
+            const totalOps = Array.isArray(route.deliveries)
+              ? route.deliveries.length
+              : 0;
+            const routeDeliveries = getRouteDeliveries(route, deliveries);
+            const { completedOps, pendingOps, progress } = getRouteProgress(
+              routeDeliveries,
+              totalOps,
             );
-
-            const completedOps = routeDeliveries.filter(
-              (d) => d.status === 'DELIVERED',
-            ).length;
-            const failedOps = routeDeliveries.filter(
-              (d) => d.status === 'FAILED' || d.status === 'RETURNED',
-            ).length;
-            const pendingOps = totalOps - completedOps - failedOps;
-            const progress =
-              totalOps > 0
-                ? Math.round(((completedOps + failedOps) / totalOps) * 100)
-                : 0;
 
             const driver = drivers.find((d) => d.id === route.driverId);
             const vehicle = vehicles.find((v) => v.id === route.vehicleId);

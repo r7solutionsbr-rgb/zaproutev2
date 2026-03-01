@@ -85,9 +85,6 @@ describe('ZApiAuthGuard', () => {
       }),
     } as unknown as ExecutionContext;
 
-    // Spy on console.error to avoid noise in test output
-    jest.spyOn(console, 'error').mockImplementation(() => {});
-
     expect(() => guard.canActivate(context)).toThrow(
       'Configuração de segurança incompleta no servidor.',
     );

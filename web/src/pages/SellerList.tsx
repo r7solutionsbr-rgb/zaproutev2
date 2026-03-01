@@ -18,6 +18,7 @@ import { useData } from '../contexts/DataContext';
 import { SkeletonTable } from '../components/ui/SkeletonTable';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { getStoredTenantId } from '../utils/tenant';
 
 interface Seller {
   id: string;
@@ -50,12 +51,11 @@ export const SellerList: React.FC = () => {
   const fetchSellers = async () => {
     try {
       setLoading(true);
-      const userStr = localStorage.getItem('zaproute_user');
-      const userData = userStr ? JSON.parse(userStr) : null;
-      if (userData?.tenantId) {
-        const data = await api.sellers.getAll(userData.tenantId);
-        setSellers(data);
-      }
+      const tenantId = getStoredTenantId();
+      if (!tenantId) return;
+
+      const data = await api.sellers.getAll(tenantId);
+      setSellers(data);
     } catch (err) {
       console.error(err);
       setNotification({
@@ -90,13 +90,16 @@ export const SellerList: React.FC = () => {
     setError('');
 
     try {
-      const userStr = localStorage.getItem('zaproute_user');
-      const userData = userStr ? JSON.parse(userStr) : null;
+      const tenantId = getStoredTenantId();
+      if (!tenantId) {
+        setError('Tenant não encontrado. Faça login novamente.');
+        return;
+      }
 
       if (modalMode === 'CREATE') {
         const payload = {
           ...formData,
-          tenantId: userData.tenantId,
+          tenantId,
           status: formData.status || 'ACTIVE',
         };
         await api.sellers.create(payload);
