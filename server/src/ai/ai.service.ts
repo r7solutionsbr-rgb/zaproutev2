@@ -17,28 +17,39 @@ export class AiService {
     }
   }
 
-  async interpretText(text: string): Promise<any> {
-    return this.askGemini(text);
+  async interpretText(text: string, roleContext?: string): Promise<any> {
+    return this.askGemini(text, undefined, undefined, roleContext);
   }
 
-  async interpretAudio(audioUrl: string): Promise<any> {
+  async interpretAudio(audioUrl: string, roleContext?: string): Promise<any> {
     try {
       this.logger.log(`🎧 Baixando áudio: ${audioUrl}`);
       const response = await axios.get(audioUrl, {
         responseType: 'arraybuffer',
       });
       const audioBase64 = Buffer.from(response.data).toString('base64');
-      return this.askGemini('Analise este áudio do motorista.', undefined, {
-        mimeType: 'audio/ogg',
-        data: audioBase64,
-      });
+      return this.askGemini(
+        roleContext
+          ? `Analise este áudio. Papel do usuário: ${roleContext}.`
+          : 'Analise este áudio do motorista.',
+        undefined,
+        {
+          mimeType: 'audio/ogg',
+          data: audioBase64,
+        },
+        roleContext,
+      );
     } catch (error) {
       this.logger.error('Erro ao processar áudio', error);
       return { action: 'UNKNOWN', error: 'Falha no download do áudio' };
     }
   }
 
-  async interpretImage(imageUrl: string, caption: string = ''): Promise<any> {
+  async interpretImage(
+    imageUrl: string,
+    caption: string = '',
+    roleContext?: string,
+  ): Promise<any> {
     try {
       this.logger.log(`📷 Baixando imagem: ${imageUrl}`);
       const response = await axios.get(imageUrl, {
@@ -48,9 +59,10 @@ export class AiService {
       const mimeType = response.headers['content-type'] || 'image/jpeg';
 
       return this.askGemini(
-        `Analise esta imagem (comprovante/ocorrência). Legenda: "${caption}"`,
+        `Analise esta imagem (comprovante/ocorrência). Legenda: "${caption}"${roleContext ? ` | Papel: ${roleContext}` : ''}`,
         undefined,
         { mimeType, data: imageBase64 },
+        roleContext,
       );
     } catch (error) {
       this.logger.error('Erro ao processar imagem', error);
@@ -59,19 +71,20 @@ export class AiService {
   }
 
   async processMessage(
-    driverId: string,
+    actorId: string,
     text?: string,
     imageUrl?: string,
     audioUrl?: string,
+    roleContext?: string,
   ): Promise<any> {
     if (imageUrl) {
-      return this.interpretImage(imageUrl, text);
+      return this.interpretImage(imageUrl, text, roleContext);
     }
     if (audioUrl) {
-      return this.interpretAudio(audioUrl);
+      return this.interpretAudio(audioUrl, roleContext);
     }
     if (text) {
-      return this.interpretText(text);
+      return this.interpretText(text, roleContext);
     }
     return { action: 'UNKNOWN', error: 'Nenhum conteúdo processável' };
   }
@@ -80,6 +93,7 @@ export class AiService {
     context: string,
     _unused?: string,
     mediaData?: { mimeType: string; data: string },
+    roleContext?: string,
   ): Promise<any> {
     if (!this.genAI) {
       this.logger.error('❌ Gemini não configurado - API_KEY ausente');
@@ -118,9 +132,17 @@ export class AiService {
       try {
         const model = this.genAI.getGenerativeModel({ model: modelName });
 
+        const roleHint = roleContext
+          ? `PAPEL DO USUÁRIO: ${roleContext}`
+          : '';
+
         const prompt = `
               Você é um assistente logístico chamado ZapRoute.
-              Sua função é extrair a INTENÇÃO e DADOS da mensagem do motorista.
+              Sua função é extrair a INTENÇÃO e DADOS da mensagem do usuário conforme seu papel.
+
+            ${roleHint}
+
+              Se o papel NÃO for DRIVER, priorize ações: STATUS, DETALHES, LISTAR, RESUMO, AJUDA, SAUDACAO.
 
               ${learningContext}
 
@@ -155,10 +177,11 @@ export class AiService {
               29. INICIO_ESPERA: Tempo de espera no cliente. (Ex: "Estou na fila", "Aguardando nota", "Esperando para descarregar")
               30. FIM_ESPERA: Fim da espera. (Ex: "Sai da fila", "Acabou a espera", "Liberaram a descarga")
               31. FIM_JORNADA: Encerrar o dia de trabalho. (Ex: "Encerrar por hoje", "Fim do expediente", "Bater ponto final")
+              32. STATUS: Consultar status da nota. (Ex: "Status da nota 123", "Como está a 456")
 
               SAÍDA JSON (Sem markdown):
               {
-                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "AJUDA" | "SAUDACAO" | "FINALIZAR" | "VENDEDOR" | "SUPERVISOR" | "LISTAR" | "SINISTRO" | "SAIR_ROTA" | "CHEGADA" | "INICIO_DESCARGA" | "FIM_DESCARGA" | "INICIO_JORNADA" | "INICIO_ALMOCO" | "FIM_ALMOCO" | "INICIO_DESCANSO" | "FIM_DESCANSO" | "INICIO_ESPERA" | "FIM_ESPERA" | "FIM_JORNADA" | "OUTRO" | "UNKNOWN",
+                "action": "INICIO" | "ENTREGA" | "FALHA" | "PAUSA" | "RETOMADA" | "RESUMO" | "ATRASO" | "NAVEGACAO" | "CONTATO" | "DESFAZER" | "DETALHES" | "AJUDA" | "SAUDACAO" | "FINALIZAR" | "VENDEDOR" | "SUPERVISOR" | "LISTAR" | "SINISTRO" | "SAIR_ROTA" | "CHEGADA" | "INICIO_DESCARGA" | "FIM_DESCARGA" | "INICIO_JORNADA" | "INICIO_ALMOCO" | "FIM_ALMOCO" | "INICIO_DESCANSO" | "FIM_DESCANSO" | "INICIO_ESPERA" | "FIM_ESPERA" | "FIM_JORNADA" | "STATUS" | "OUTRO" | "UNKNOWN",
                 "identifier": "numero nota, nome cliente ou nome da rota",
                 "reason": "motivo, tempo de atraso ou detalhe"
               }

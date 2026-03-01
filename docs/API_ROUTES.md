@@ -1040,6 +1040,28 @@ Recebe mensagens da Z-API (WhatsApp).
 
 > Observação: o endpoint também aceita payload direto sem o wrapper `payload`.
 
+**Bot por papel (resumo):**
+- **Motorista**: comandos operacionais (entrega, falha, pausa, jornada, etc.)
+- **Motorista Terceiro**: comandos operacionais limitados (início, entrega/falha, chegada/descarga, resumo/lista)
+- **Supervisor/Transportador**: resumo, listar pendentes, status/detalhes de nota
+- **Vendedor**: status/detalhes e lista de pendentes
+- **Cliente**: status/detalhes da nota
+
+**Configuração de papéis no tenant:**
+```json
+{
+  "whatsappRoles": {
+    "supervisorPhones": ["5511999999999"],
+    "transporterPhones": ["5511888888888"]
+  }
+}
+```
+
+**Exemplos de mensagens aceitas:**
+- "Entreguei a nota 123" (Motorista)
+- "Status da nota 123" (Cliente/Vendedor/Supervisor/Transportador)
+- "Resumo" (Motorista/Supervisor/Transportador)
+
 ---
 
 ### Webhook: POST /api/webhook/whatsapp

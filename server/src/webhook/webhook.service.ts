@@ -2,11 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
 import { NormalizationService } from './services/normalization.service';
-import { DriverIdentificationService } from './services/driver-identification.service';
+import { BotIdentityService } from './services/bot-identity.service';
 import { RouteCommandService } from './services/route-command.service';
 import { MessageResponder } from './services/message-responder.service';
 import { MessageType } from './dto/incoming-message.dto';
 import { JourneyService } from '../journey/journey.service';
+import { BotRole } from './types/bot-role';
 
 @Injectable()
 export class WebhookService {
@@ -16,11 +17,262 @@ export class WebhookService {
     private prisma: PrismaService,
     private aiService: AiService,
     private normalization: NormalizationService,
-    private driverIdentification: DriverIdentificationService,
+    private identity: BotIdentityService,
     private routeCommand: RouteCommandService,
     private responder: MessageResponder,
     private journeyService: JourneyService,
   ) {}
+
+  private getAllowedActions(role: BotRole): string[] {
+    const base = ['AJUDA', 'SAUDACAO'];
+    switch (role) {
+      case 'DRIVER':
+        return [
+          ...base,
+          'INICIO',
+          'ENTREGA',
+          'FALHA',
+          'PAUSA',
+          'RETOMADA',
+          'RESUMO',
+          'ATRASO',
+          'NAVEGACAO',
+          'CONTATO',
+          'DESFAZER',
+          'DETALHES',
+          'FINALIZAR',
+          'VENDEDOR',
+          'SUPERVISOR',
+          'LISTAR',
+          'SINISTRO',
+          'SAIR_ROTA',
+          'CHEGADA',
+          'INICIO_DESCARGA',
+          'FIM_DESCARGA',
+          'INICIO_JORNADA',
+          'INICIO_ALMOCO',
+          'FIM_ALMOCO',
+          'INICIO_DESCANSO',
+          'FIM_DESCANSO',
+          'INICIO_ESPERA',
+          'FIM_ESPERA',
+          'FIM_JORNADA',
+          'STATUS',
+        ];
+      case 'THIRD_PARTY_DRIVER':
+        return [
+          ...base,
+          'INICIO',
+          'ENTREGA',
+          'FALHA',
+          'CHEGADA',
+          'INICIO_DESCARGA',
+          'FIM_DESCARGA',
+          'RESUMO',
+          'LISTAR',
+          'ATRASO',
+          'SINISTRO',
+        ];
+      case 'SUPERVISOR':
+      case 'TRANSPORTER':
+        return [...base, 'RESUMO', 'LISTAR', 'STATUS', 'DETALHES'];
+      case 'SELLER':
+        return [...base, 'STATUS', 'DETALHES', 'LISTAR'];
+      case 'CUSTOMER':
+        return [...base, 'STATUS', 'DETALHES'];
+      default:
+        return base;
+    }
+  }
+
+  private getHelpMessage(role: BotRole): string {
+    switch (role) {
+      case 'DRIVER':
+        return (
+          `🤖 *Comandos ZapRoute (Motorista)*\n\n` +
+          `▶️ Iniciar rota\n⏸️ Pausa / Retomada\n` +
+          `📦 Entreguei a nota X\n❌ Falha na nota X\n` +
+          `📍 Cheguei / Início descarga / Fim descarga\n` +
+          `📊 Resumo / Lista\n🧭 Navegação\n` +
+          `☎️ Contato cliente / Vendedor / Supervisor\n` +
+          `🚨 Sinistro / Atraso\n📝 Detalhes nota\n🏁 Finalizar rota`
+        );
+      case 'THIRD_PARTY_DRIVER':
+        return (
+          `🤖 *Comandos ZapRoute (Motorista Terceiro)*\n\n` +
+          `▶️ Iniciar rota\n📦 Entreguei a nota X\n❌ Falha na nota X\n` +
+          `📍 Cheguei / Início descarga / Fim descarga\n` +
+          `📊 Resumo / Lista\n🚨 Sinistro / Atraso`
+        );
+      case 'SUPERVISOR':
+        return (
+          `🤖 *Comandos ZapRoute (Supervisor)*\n\n` +
+          `📊 Resumo geral\n📋 Lista pendentes\n` +
+          `🔎 Status da nota X\n📝 Detalhes da nota X`
+        );
+      case 'TRANSPORTER':
+        return (
+          `🤖 *Comandos ZapRoute (Transportador)*\n\n` +
+          `📊 Resumo geral\n📋 Lista pendentes\n` +
+          `🔎 Status da nota X\n📝 Detalhes da nota X`
+        );
+      case 'SELLER':
+        return (
+          `🤖 *Comandos ZapRoute (Vendedor)*\n\n` +
+          `🔎 Status da nota X\n📝 Detalhes da nota X\n📋 Lista pendentes`
+        );
+      case 'CUSTOMER':
+        return (
+          `🤖 *Comandos ZapRoute (Cliente)*\n\n` +
+          `🔎 Status da nota X\n📝 Detalhes da nota X`
+        );
+      default:
+        return `🤖 *Comandos ZapRoute*\n\nPeça ajuda com "Ajuda".`;
+    }
+  }
+
+  private async handleNonDriverAction(
+    role: BotRole,
+    actor: any,
+    tenant: any,
+    aiResult: any,
+    send: (msg: string) => Promise<void>,
+  ) {
+    const { action, identifier } = aiResult || {};
+    const allowed = this.getAllowedActions(role);
+
+    if (!allowed.includes(action)) {
+      await send('🤔 Comando não permitido para este perfil. Digite "Ajuda".');
+      return { status: 'action_not_allowed' };
+    }
+
+    if (action === 'AJUDA') {
+      await send(this.getHelpMessage(role));
+      return { status: 'help_sent' };
+    }
+
+    if (action === 'SAUDACAO') {
+      const greeting = this.responder.getGreeting();
+      await send(`${greeting}! Como posso ajudar?`);
+      return { status: 'greeting_sent' };
+    }
+
+    if (!identifier && ['STATUS', 'DETALHES'].includes(action)) {
+      await send('📌 Informe a nota (ex: "Status da nota 123").');
+      return { status: 'identifier_required' };
+    }
+
+    if (action === 'RESUMO') {
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+
+      const [routesCount, deliveriesCount, deliveredCount, failedCount] =
+        await Promise.all([
+          (this.prisma as any).route.count({
+            where: { tenantId: tenant.id, date: { gte: today, lt: tomorrow } },
+          }),
+          (this.prisma as any).delivery.count({
+            where: { tenantId: tenant.id, date: { gte: today, lt: tomorrow } },
+          }),
+          (this.prisma as any).delivery.count({
+            where: {
+              tenantId: tenant.id,
+              date: { gte: today, lt: tomorrow },
+              status: 'DELIVERED',
+            },
+          }),
+          (this.prisma as any).delivery.count({
+            where: {
+              tenantId: tenant.id,
+              date: { gte: today, lt: tomorrow },
+              status: { in: ['FAILED', 'RETURNED'] },
+            },
+          }),
+        ]);
+
+      await send(
+        `📊 *Resumo de Hoje*\n\nRotas: ${routesCount}\nEntregas: ${deliveriesCount}\n✅ Entregues: ${deliveredCount}\n⚠️ Falhas: ${failedCount}`,
+      );
+      return { status: 'summary_sent' };
+    }
+
+    if (action === 'LISTAR') {
+      const where: any = {
+        tenantId: tenant.id,
+        status: { in: ['PENDING', 'IN_TRANSIT'] },
+      };
+
+      if (role === 'SELLER') {
+        where.customer = { sellerId: actor.id };
+      }
+
+      const pending = await (this.prisma as any).delivery.findMany({
+        where,
+        take: 5,
+        include: { customer: true, route: true },
+      });
+
+      if (pending.length === 0) {
+        await send('🎉 Nenhuma entrega pendente no momento.');
+        return { status: 'list_empty' };
+      }
+
+      const list = pending
+        .map(
+          (d: any, i: number) =>
+            `${i + 1}. ${d.customer?.tradeName || 'Cliente'} (${d.invoiceNumber})`,
+        )
+        .join('\n');
+      await send(`📋 *Pendentes (top 5)*\n\n${list}`);
+      return { status: 'list_sent' };
+    }
+
+    if (action === 'STATUS' || action === 'DETALHES') {
+      let where: any = { invoiceNumber: identifier, tenantId: tenant.id };
+
+      if (role === 'CUSTOMER') {
+        where.customerId = actor.id;
+      }
+
+      if (role === 'SELLER') {
+        where.customer = { sellerId: actor.id };
+      }
+
+      const delivery = await (this.prisma as any).delivery.findFirst({
+        where,
+        include: { customer: true, route: true, driver: true },
+      });
+
+      if (!delivery) {
+        await send('⚠️ Nota não encontrada.');
+        return { status: 'not_found' };
+      }
+
+      if (action === 'STATUS') {
+        await send(
+          `🔎 *Status da Nota ${delivery.invoiceNumber}*\n\n` +
+            `Cliente: ${delivery.customer?.tradeName || 'N/A'}\n` +
+            `Status: ${delivery.status}\n` +
+            `Rota: ${delivery.route?.name || 'N/A'}`,
+        );
+        return { status: 'status_sent' };
+      }
+
+      await send(
+        `📄 *Detalhes da Nota ${delivery.invoiceNumber}*\n\n` +
+          `Cliente: ${delivery.customer?.tradeName || 'N/A'}\n` +
+          `Status: ${delivery.status}\n` +
+          `Rota: ${delivery.route?.name || 'N/A'}\n` +
+          `Motorista: ${delivery.driver?.name || 'N/A'}`,
+      );
+      return { status: 'details_sent' };
+    }
+
+    await send('🤔 Comando não permitido para este perfil. Digite "Ajuda".');
+    return { status: 'action_not_allowed' };
+  }
 
   async processSendPulseMessage(event: any) {
     const message = this.normalization.normalize('SENDPULSE', event);
@@ -42,24 +294,29 @@ export class WebhookService {
       `📱 Webhook recebido de: ${message.rawPhone} | Tipo: ${message.type}`,
     );
 
-    // 2. Identificação do Motorista
-    const driver = await this.driverIdentification.identifyDriver(
-      message.rawPhone,
-    );
+    // 2. Identificação do Papel
+    const identity = await this.identity.identifyActor(message.rawPhone);
 
-    if (!driver) {
-      this.logger.warn(`⚠️ Motorista não encontrado.`);
-      return { status: 'driver_not_found' };
+    if (!identity || identity.role === 'UNKNOWN' || !identity.tenant) {
+      this.logger.warn(`⚠️ Contato não autorizado.`);
+      return { status: 'actor_not_found' };
     }
 
-    this.logger.log(
-      `✅ Motorista identificado: ${driver.name} (ID: ${driver.id})`,
-    );
+    const role = identity.role;
+    const driver = identity.driver;
+
+    if (role === 'DRIVER' && driver) {
+      this.logger.log(
+        `✅ Motorista identificado: ${driver.name} (ID: ${driver.id})`,
+      );
+    } else {
+      this.logger.log(`✅ Contato identificado como ${role}`);
+    }
 
     // Responder para o número que enviou a mensagem
     const replyPhone = message.rawPhone.replace(/\D/g, '');
     const send = (msg: string) =>
-      this.responder.send(replyPhone, msg, (driver as any).tenant);
+      this.responder.send(replyPhone, msg, identity.tenant);
 
     // 3. Interpretação (IA)
     if (message.type === MessageType.LOCATION) {
@@ -77,10 +334,11 @@ export class WebhookService {
       message.type === MessageType.AUDIO ? message.payload.url : undefined;
 
     const aiResult = await this.aiService.processMessage(
-      driver.id,
+      driver?.id || identity.seller?.id || identity.customer?.id || role,
       text,
       imageUrl,
       audioUrl,
+      role,
     );
 
     if (!aiResult || aiResult.action === 'UNKNOWN') {
@@ -91,10 +349,24 @@ export class WebhookService {
     }
 
     if (aiResult.action === 'AJUDA') {
-      await send(
-        `🤖 *Comandos ZapRoute*\n\n▶️ Iniciar\n⏸️ Pausa\n📦 Entreguei a nota X\n❌ Falha na nota X\n📊 Resumo`,
-      );
+      await send(this.getHelpMessage(role));
       return { status: 'help_sent' };
+    }
+
+    if (role !== 'DRIVER' && role !== 'THIRD_PARTY_DRIVER') {
+      return this.handleNonDriverAction(
+        role,
+        identity.seller || identity.customer || identity,
+        identity.tenant,
+        aiResult,
+        send,
+      );
+    }
+
+    const allowedActions = this.getAllowedActions(role);
+    if (!allowedActions.includes(aiResult.action)) {
+      await send('🤔 Comando não permitido para este perfil. Digite "Ajuda".');
+      return { status: 'action_not_allowed' };
     }
 
     // 4. Lógica de Rota
@@ -190,6 +462,7 @@ export class WebhookService {
       const journeyControlEnabled = config?.journeyControlEnabled !== false; // Padrão true se não definido, ou ajustar conforme regra de negócio
 
       if (
+        role === 'DRIVER' &&
         journeyControlEnabled &&
         (driver as any).currentJourneyStatus !== 'JOURNEY_START'
       ) {

@@ -449,6 +449,43 @@ Notificações e comunicação automatizada via WhatsApp Business.
 - Cliente responde "Recebido" → confirma entrega
 - Retentativas automáticas se erro
 
+#### 8.3 Bot por Papel (Motorista, Supervisor, Vendedor, Cliente, Transportador)
+O bot identifica o papel do remetente pelo telefone e aplica permissões específicas.
+
+**Papéis Reconhecidos:**
+- **Motorista**: cadastro de motorista (`driverType=OWN`)
+- **Motorista Terceiro**: cadastro de motorista (`driverType=THIRD_PARTY`)
+- **Vendedor**: cadastro de vendedor
+- **Cliente**: cadastro de cliente
+- **Supervisor**: telefone configurado no tenant
+- **Transportador**: telefone configurado no tenant
+
+**Configuração (tenant.config.whatsappRoles):**
+```json
+{
+  "whatsappRoles": {
+    "supervisorPhones": ["5511999999999"],
+    "transporterPhones": ["5511888888888"]
+  }
+}
+```
+
+**Comandos por Papel (resumo):**
+
+| Papel | Comandos principais |
+|------|----------------------|
+| Motorista | Início, Entrega, Falha, Pausa/Retomada, Resumo, Listar, Navegação, Contato, Sinistro, Jornada |
+| Motorista Terceiro | Início, Entrega, Falha, Chegada/Descarga, Resumo, Listar, Sinistro, Atraso |
+| Supervisor | Resumo geral, Listar pendentes, Status da nota, Detalhes da nota |
+| Transportador | Resumo geral, Listar pendentes, Status da nota, Detalhes da nota |
+| Vendedor | Status da nota, Detalhes da nota, Listar pendentes |
+| Cliente | Status da nota, Detalhes da nota |
+
+**Exemplos de mensagens:**
+- "Status da nota 123" (Cliente/Vendedor/Supervisor/Transportador)
+- "Entreguei a nota 123" (Motorista)
+- "Resumo" (Motorista/Supervisor/Transportador)
+
 ---
 
 ## 📊 Feature 9: Dashboards e Relatórios

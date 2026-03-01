@@ -74,6 +74,7 @@ model Driver {
   totalDeliveries      Int                    @default(0)
   externalId           String?
   status               String                 @default("IDLE")
+  driverType           String                 @default("OWN")
   vehicleId            String?
   tenantId             String
   createdAt            DateTime               @default(now())
@@ -92,6 +93,7 @@ model Driver {
   @@index([phone]) // Crítico para o Webhook achar rápido
   @@index([cpf])
   @@index([status])
+  @@index([driverType])
   @@index([vehicleId]) // Performance: FK
   @@map("drivers")
 }

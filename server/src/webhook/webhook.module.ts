@@ -7,6 +7,7 @@ import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { JourneyModule } from '../journey/journey.module';
 import { NormalizationService } from './services/normalization.service';
 import { DriverIdentificationService } from './services/driver-identification.service';
+import { BotIdentityService } from './services/bot-identity.service';
 import { RouteCommandService } from './services/route-command.service';
 import { MessageResponder } from './services/message-responder.service';
 
@@ -18,6 +19,7 @@ import { MessageResponder } from './services/message-responder.service';
     PrismaService,
     NormalizationService,
     DriverIdentificationService,
+    BotIdentityService,
     RouteCommandService,
     MessageResponder,
   ],

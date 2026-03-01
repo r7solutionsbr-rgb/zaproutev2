@@ -50,6 +50,10 @@ export class CreateDriverDto {
 
   @IsOptional()
   @IsString()
+  driverType?: string;
+
+  @IsOptional()
+  @IsString()
   vehicleId?: string;
 }
 
@@ -101,6 +105,10 @@ export class UpdateDriverDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  driverType?: string;
 
   @IsOptional()
   @IsString()
