@@ -37,7 +37,7 @@ model Tenant {
   DriverJourneyEvent   DriverJourneyEvent[]
 
   @@index([status])
-  @@map("tenants")
+  @@map("Tenant")
 }
 
 model User {
@@ -58,7 +58,7 @@ model User {
 
   @@index([tenantId]) // Performance: FK
   @@index([email]) // Performance: Login
-  @@map("users")
+  @@map("User")
 }
 
 model Driver {
@@ -96,7 +96,7 @@ model Driver {
   @@index([status])
   @@index([driverType])
   @@index([vehicleId]) // Performance: FK
-  @@map("drivers")
+  @@map("Driver")
 }
 
 model Vehicle {
@@ -129,7 +129,7 @@ model Vehicle {
   @@index([tenantId])
   @@index([plate])
   @@index([status]) // Performance: Filtro de ativos
-  @@map("vehicles")
+  @@map("Vehicle")
 }
 
 model Seller {
@@ -144,7 +144,7 @@ model Seller {
   customers Customer[]
   tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@map("sellers")
+  @@map("Seller")
 }
 
 model Customer {
@@ -182,7 +182,7 @@ model Customer {
   @@index([tradeName]) // Para busca no import
   @@index([legalName]) // Para busca no import
   @@index([status])
-  @@map("customers")
+  @@map("Customer")
 }
 
 model Carrier {
@@ -197,7 +197,7 @@ model Carrier {
 
   @@index([tenantId])
   @@index([phone])
-  @@map("carriers")
+  @@map("Carrier")
 }
 
 enum Priority {
@@ -240,7 +240,7 @@ model Delivery {
   @@index([carrierId])
   @@index([orderId]) // Otimiza buscas por nota fiscal (invoiceNumber -> orderId)
   @@index([priority]) // Otimiza filtro de prioridade
-  @@map("deliveries")
+  @@map("Delivery")
 }
 
 model Route {
@@ -268,7 +268,7 @@ model Route {
   @@index([driverId]) // Otimiza joins e queries de motorista
   @@index([vehicleId]) // Otimiza joins
   @@index([date]) // Otimiza filtros por data
-  @@map("routes")
+  @@map("Route")
 }
 
 model audit_logs {
@@ -581,7 +581,7 @@ model Occurrence {
   @@index([deliveryId]) // Performance: FK
   @@index([tenantId]) // Performance: FK
   @@index([type]) // Performance: Filtro por tipo
-  @@map("occurrences")
+  @@map("Occurrence")
 }
 
 enum JourneyEventType {
@@ -612,5 +612,5 @@ model DriverJourneyEvent {
 
   @@index([driverId])
   @@index([tenantId])
-  @@map("driver_journey_events")
+  @@map("DriverJourneyEvent")
 }
