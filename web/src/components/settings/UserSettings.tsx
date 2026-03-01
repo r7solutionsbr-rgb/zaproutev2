@@ -35,8 +35,8 @@ export const UserSettings: React.FC = () => {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const data = await api.users.getAll();
-      setUsers(data);
+      const response = await api.users.getAll();
+      setUsers(response.data || []);
     } catch (error) {
       console.error('Erro ao carregar usuários', error);
       showNotification('ERROR', 'Falha ao carregar lista de usuários.');
@@ -69,7 +69,7 @@ export const UserSettings: React.FC = () => {
     } catch (error: any) {
       showNotification(
         'ERROR',
-        error.response?.data?.message || 'Erro ao salvar usuário.',
+        error.response?.data?.error?.message || 'Erro ao salvar usuário.',
       );
     } finally {
       setSaving(false);

@@ -458,7 +458,7 @@ O bot identifica o papel do remetente pelo telefone e aplica permissões especí
 - **Vendedor**: cadastro de vendedor
 - **Cliente**: cadastro de cliente
 - **Supervisor**: telefone configurado no tenant
-- **Transportador**: telefone configurado no tenant
+- **Transportador**: cadastro de transportadora (Carrier) ou telefone configurado no tenant
 
 **Configuração (tenant.config.whatsappRoles):**
 ```json
@@ -469,6 +469,10 @@ O bot identifica o papel do remetente pelo telefone e aplica permissões especí
   }
 }
 ```
+
+**Cadastro de Transportadoras:**
+- Entidade Carrier vinculada ao tenant
+- Telefone cadastrado permite acesso como Transportador no bot
 
 **Comandos por Papel (resumo):**
 

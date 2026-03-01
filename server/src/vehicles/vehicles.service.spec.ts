@@ -9,9 +9,10 @@ describe('VehiclesService', () => {
   const mockPrismaService = {
     vehicle: {
       findMany: jest.fn(),
-      findFirst: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
+        count: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
     },
   };
 
@@ -36,10 +37,11 @@ describe('VehiclesService', () => {
     it('should return array of vehicles', async () => {
       const tenantId = 'tenant-1';
       const mockVehicles = [{ id: '1', plate: 'ABC1234' }];
+        mockPrismaService.vehicle.count.mockResolvedValue(mockVehicles.length);
       mockPrismaService.vehicle.findMany.mockResolvedValue(mockVehicles);
 
       const result = await service.findAll(tenantId);
-      expect(result).toEqual(mockVehicles);
+        expect(result.data).toEqual(mockVehicles);
     });
   });
 

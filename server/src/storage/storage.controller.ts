@@ -32,6 +32,6 @@ export class StorageController {
       file.originalname,
       file.mimetype,
     );
-    return { url };
+    return { data: { url } };
   }
 }

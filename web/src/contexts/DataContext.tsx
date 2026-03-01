@@ -39,12 +39,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       // Carrega apenas cadastros básicos leves
       // Rotas e Entregas agora são carregadas localmente nas páginas c/ paginação
-      const [driversData, vehiclesData] = await Promise.all([
+      const [driversResponse, vehiclesResponse] = await Promise.all([
         api.drivers.getAll(user.tenantId),
         api.vehicles.getAll(user.tenantId),
       ]);
-      setDrivers(driversData);
-      setVehicles(vehiclesData);
+      setDrivers(driversResponse.data || []);
+      setVehicles(vehiclesResponse.data || []);
       // setDeliveries(deliveriesData); // Se implementado API
     } catch (error) {
       console.error('Erro ao carregar dados:', error);

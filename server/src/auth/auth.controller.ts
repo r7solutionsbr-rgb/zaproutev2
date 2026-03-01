@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBody, ApiOkResponse } from '@nestjs/swagger';
+import { DataResponseDto } from '../common/dto/response.dto';
 import { ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto/auth.dto';
 
 @ApiTags('Auth')
@@ -17,6 +18,7 @@ export class AuthController {
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Realizar login' })
+  @ApiOkResponse({ type: DataResponseDto })
   @ApiBody({
     schema: {
       example: { email: 'admin@zaproute.com.br', password: 'password' },
@@ -31,26 +33,34 @@ export class AuthController {
         HttpStatus.UNAUTHORIZED,
       );
     }
-    return this.authService.login(user);
+    const data = await this.authService.login(user);
+    return { data };
   }
 
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({ summary: 'Solicitar recuperação de senha' })
+  @ApiOkResponse({ type: DataResponseDto })
   @ApiBody({ schema: { example: { email: 'user@example.com' } } })
   @Post('forgot-password')
   async forgotPassword(@Body() body: ForgotPasswordDto) {
-    return this.authService.forgotPassword(body.email);
+    const data = await this.authService.forgotPassword(body.email);
+    return { data };
   }
 
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({ summary: 'Redefinir senha com token' })
+  @ApiOkResponse({ type: DataResponseDto })
   @ApiBody({
     schema: { example: { token: 'TOKEN_XYZ', password: 'newpassword' } },
   })
   @Post('reset-password')
   async resetPassword(@Body() body: ResetPasswordDto) {
     try {
-      return await this.authService.resetPassword(body.token, body.password);
+      const data = await this.authService.resetPassword(
+        body.token,
+        body.password,
+      );
+      return { data };
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }

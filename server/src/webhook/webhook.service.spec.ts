@@ -3,7 +3,7 @@ import { WebhookService } from './webhook.service';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
 import { NormalizationService } from './services/normalization.service';
-import { DriverIdentificationService } from './services/driver-identification.service';
+import { BotIdentityService } from './services/bot-identity.service';
 import { RouteCommandService } from './services/route-command.service';
 import { MessageResponder } from './services/message-responder.service';
 import { JourneyService } from '../journey/journey.service';
@@ -14,7 +14,7 @@ describe('WebhookService', () => {
   let prisma: PrismaService;
   let aiService: AiService;
   let normalization: NormalizationService;
-  let driverIdentification: DriverIdentificationService;
+  let identityService: BotIdentityService;
   let routeCommand: RouteCommandService;
   let responder: MessageResponder;
   let journeyService: JourneyService;
@@ -33,8 +33,8 @@ describe('WebhookService', () => {
     normalize: jest.fn(),
   };
 
-  const mockDriverIdentification = {
-    identifyDriver: jest.fn(),
+  const mockIdentityService = {
+    identifyActor: jest.fn(),
   };
 
   const mockRouteCommand = {
@@ -64,10 +64,7 @@ describe('WebhookService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: AiService, useValue: mockAiService },
         { provide: NormalizationService, useValue: mockNormalization },
-        {
-          provide: DriverIdentificationService,
-          useValue: mockDriverIdentification,
-        },
+        { provide: BotIdentityService, useValue: mockIdentityService },
         { provide: RouteCommandService, useValue: mockRouteCommand },
         { provide: MessageResponder, useValue: mockResponder },
         { provide: JourneyService, useValue: mockJourneyService },
@@ -78,9 +75,7 @@ describe('WebhookService', () => {
     prisma = module.get<PrismaService>(PrismaService);
     aiService = module.get<AiService>(AiService);
     normalization = module.get<NormalizationService>(NormalizationService);
-    driverIdentification = module.get<DriverIdentificationService>(
-      DriverIdentificationService,
-    );
+    identityService = module.get<BotIdentityService>(BotIdentityService);
     routeCommand = module.get<RouteCommandService>(RouteCommandService);
     responder = module.get<MessageResponder>(MessageResponder);
     journeyService = module.get<JourneyService>(JourneyService);
@@ -95,6 +90,12 @@ describe('WebhookService', () => {
       id: 'driver-1',
       name: 'João',
       tenant: { id: 'tenant-1', config: {} },
+    };
+
+    const mockIdentity = {
+      role: 'DRIVER',
+      driver: mockDriver,
+      tenant: mockDriver.tenant,
     };
 
     const incomingMsg = {
@@ -112,12 +113,12 @@ describe('WebhookService', () => {
 
     it('should return driver_not_found if driver identification fails', async () => {
       mockNormalization.normalize.mockReturnValue(incomingMsg);
-      mockDriverIdentification.identifyDriver.mockResolvedValue(null);
+      mockIdentityService.identifyActor.mockResolvedValue(null);
 
       const result = await service.processMessage(incomingMsg);
 
-      expect(result).toEqual({ status: 'driver_not_found' });
-      expect(mockDriverIdentification.identifyDriver).toHaveBeenCalledWith(
+      expect(result).toEqual({ status: 'actor_not_found' });
+      expect(mockIdentityService.identifyActor).toHaveBeenCalledWith(
         '5511999999999',
       );
     });
@@ -129,7 +130,7 @@ describe('WebhookService', () => {
         payload: { latitude: 1, longitude: 2 },
       };
       mockNormalization.normalize.mockReturnValue(locMsg);
-      mockDriverIdentification.identifyDriver.mockResolvedValue(mockDriver);
+      mockIdentityService.identifyActor.mockResolvedValue(mockIdentity);
 
       const result = await service.processMessage(locMsg);
 
@@ -143,7 +144,7 @@ describe('WebhookService', () => {
 
     it('should return help_sent if AI recognizes AJUDA action', async () => {
       mockNormalization.normalize.mockReturnValue(incomingMsg);
-      mockDriverIdentification.identifyDriver.mockResolvedValue(mockDriver);
+      mockIdentityService.identifyActor.mockResolvedValue(mockIdentity);
       mockAiService.processMessage.mockResolvedValue({ action: 'AJUDA' });
 
       const result = await service.processMessage(incomingMsg);
@@ -151,15 +152,15 @@ describe('WebhookService', () => {
       expect(result).toEqual({ status: 'help_sent' });
       expect(mockResponder.send).toHaveBeenCalledWith(
         '5511999999999',
-        expect.stringContaining('*Comandos ZapRoute*'),
+        expect.stringContaining('Comandos ZapRoute'),
         expect.any(Object),
       );
     });
 
     it('should return no_active_route if no routes are scheduled for today', async () => {
       mockNormalization.normalize.mockReturnValue(incomingMsg);
-      mockDriverIdentification.identifyDriver.mockResolvedValue(mockDriver);
-      mockAiService.processMessage.mockResolvedValue({ action: 'QUALQUER' });
+      mockIdentityService.identifyActor.mockResolvedValue(mockIdentity);
+      mockAiService.processMessage.mockResolvedValue({ action: 'RESUMO' });
       mockPrismaService.route.findMany.mockResolvedValue([]);
 
       const result = await service.processMessage(incomingMsg);
@@ -174,7 +175,7 @@ describe('WebhookService', () => {
 
     it('should handle INICIO_JORNADA command', async () => {
       mockNormalization.normalize.mockReturnValue(incomingMsg);
-      mockDriverIdentification.identifyDriver.mockResolvedValue(mockDriver);
+      mockIdentityService.identifyActor.mockResolvedValue(mockIdentity);
       mockAiService.processMessage.mockResolvedValue({
         action: 'INICIO_JORNADA',
       });
@@ -198,9 +199,10 @@ describe('WebhookService', () => {
 
     it('should handle INICIO route action', async () => {
       mockNormalization.normalize.mockReturnValue(incomingMsg);
-      mockDriverIdentification.identifyDriver.mockResolvedValue({
-        ...mockDriver,
-        currentJourneyStatus: 'JOURNEY_START', // Permite iniciar rota
+      mockIdentityService.identifyActor.mockResolvedValue({
+        role: 'DRIVER',
+        driver: { ...mockDriver, currentJourneyStatus: 'JOURNEY_START' },
+        tenant: mockDriver.tenant,
       });
       mockAiService.processMessage.mockResolvedValue({ action: 'INICIO' });
       mockPrismaService.route.findMany.mockResolvedValue([
@@ -234,7 +236,7 @@ describe('WebhookService', () => {
       };
 
       mockNormalization.normalize.mockReturnValue(incomingMsg);
-      mockDriverIdentification.identifyDriver.mockResolvedValue(mockDriver);
+      mockIdentityService.identifyActor.mockResolvedValue(mockIdentity);
       mockAiService.processMessage.mockResolvedValue({
         action: 'ENTREGA',
         identifier: '123',
@@ -273,7 +275,7 @@ describe('WebhookService', () => {
       };
 
       mockNormalization.normalize.mockReturnValue(incomingMsg);
-      mockDriverIdentification.identifyDriver.mockResolvedValue(mockDriver);
+      mockIdentityService.identifyActor.mockResolvedValue(mockIdentity);
       mockAiService.processMessage.mockResolvedValue({ action: 'NAVEGACAO' });
       mockPrismaService.route.findMany.mockResolvedValue([activeRoute]);
 
@@ -285,7 +287,7 @@ describe('WebhookService', () => {
 
     it('should fallback to chatWithLeonidas for OUTRO action', async () => {
       mockNormalization.normalize.mockReturnValue(incomingMsg);
-      mockDriverIdentification.identifyDriver.mockResolvedValue(mockDriver);
+      mockIdentityService.identifyActor.mockResolvedValue(mockIdentity);
       mockAiService.processMessage.mockResolvedValue({ action: 'OUTRO' });
       mockAiService.chatWithLeonidas.mockResolvedValue('I am Leonidas');
       mockPrismaService.route.findMany.mockResolvedValue([

@@ -125,7 +125,7 @@ export class DeliveriesService {
       },
     });
 
-    if (!delivery) return null;
+    if (!delivery) throw new NotFoundException('Entrega não encontrada');
 
     return {
       ...delivery,

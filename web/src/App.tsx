@@ -88,7 +88,8 @@ const LoginScreen = ({ onLogin }: { onLogin: () => void }) => {
     setError('');
     setLoading(true);
     try {
-      const data = await api.auth.login(email, password);
+      const response = await api.auth.login(email, password);
+      const data = response.data;
       localStorage.setItem('zaproute_token', data.access_token);
       localStorage.setItem('zaproute_user', JSON.stringify(data.user));
       onLogin();

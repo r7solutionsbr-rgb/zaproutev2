@@ -40,6 +40,10 @@ export class CreateRouteDto {
   @IsOptional()
   vehicleId?: string;
 
+  @IsString()
+  @IsOptional()
+  carrierId?: string;
+
   @IsArray()
   deliveries: CreateDeliveryDto[];
 }
@@ -70,6 +74,10 @@ export class CreateDeliveryDto {
   @IsNumber()
   @IsOptional()
   value?: number;
+
+  @IsString()
+  @IsOptional()
+  carrierId?: string;
 
   // --- NOVOS CAMPOS ---
   @IsString()

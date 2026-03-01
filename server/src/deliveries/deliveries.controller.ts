@@ -17,7 +17,13 @@ import { DeliveriesService } from './deliveries.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiOkResponse,
+} from '@nestjs/swagger';
+import { PaginatedResponseDto, DataResponseDto } from '../common/dto/response.dto';
 
 @ApiTags('Deliveries')
 @ApiBearerAuth()
@@ -27,6 +33,7 @@ export class DeliveriesController {
   constructor(private readonly deliveriesService: DeliveriesService) {}
 
   @ApiOperation({ summary: 'Listar entregas paginadas' })
+  @ApiOkResponse({ type: PaginatedResponseDto })
   @Get('paginated')
   async findAllPaginated(
     @Request() req,
@@ -42,11 +49,13 @@ export class DeliveriesController {
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: DataResponseDto })
   async findOne(@Request() req, @Param('id') id: string) {
     return this.deliveriesService.findOne(id, req.user.tenantId);
   }
 
   @ApiOperation({ summary: 'Confirmar entrega com comprovante e assinatura' })
+  @ApiOkResponse({ type: DataResponseDto })
   @Post(':id/confirm')
   @UseInterceptors(
     FileFieldsInterceptor(
@@ -87,6 +96,7 @@ export class DeliveriesController {
   }
 
   @ApiOperation({ summary: 'Registrar ocorrência/falha na entrega' })
+  @ApiOkResponse({ type: DataResponseDto })
   @Post(':id/fail')
   async failDelivery(
     @Request() req,

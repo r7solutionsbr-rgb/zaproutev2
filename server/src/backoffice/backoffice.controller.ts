@@ -10,7 +10,13 @@ import {
 import { BackofficeService } from './backoffice.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SuperAdminGuard } from './super-admin.guard';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiOkResponse,
+} from '@nestjs/swagger';
+import { PaginatedResponseDto, DataResponseDto } from '../common/dto/response.dto';
 import {
   CreateTenantDto,
   UpdateTenantDto,
@@ -25,18 +31,21 @@ export class BackofficeController {
   constructor(private readonly backofficeService: BackofficeService) {}
 
   @ApiOperation({ summary: 'Listar todas as empresas' })
+  @ApiOkResponse({ type: PaginatedResponseDto })
   @Get('tenants')
   async getAllTenants() {
     return this.backofficeService.getAllTenants();
   }
 
   @ApiOperation({ summary: 'Criar nova empresa' })
+  @ApiOkResponse({ type: DataResponseDto })
   @Post('tenants')
   async createTenant(@Body() data: CreateTenantDto) {
     return this.backofficeService.createTenant(data);
   }
 
   @ApiOperation({ summary: 'Atualizar status da empresa' })
+  @ApiOkResponse({ type: DataResponseDto })
   @Patch('tenants/:id/status')
   async updateTenantStatus(
     @Param('id') id: string,
@@ -46,6 +55,7 @@ export class BackofficeController {
   }
 
   @ApiOperation({ summary: 'Atualizar dados da empresa' })
+  @ApiOkResponse({ type: DataResponseDto })
   @Patch('tenants/:id')
   async updateTenant(@Param('id') id: string, @Body() data: UpdateTenantDto) {
     return this.backofficeService.updateTenant(id, data);

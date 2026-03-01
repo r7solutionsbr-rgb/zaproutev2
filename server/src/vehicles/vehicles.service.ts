@@ -13,11 +13,40 @@ export class VehiclesService {
   }
 
   async findAll(tenantId: string) {
-    if (!tenantId) return [];
-    return (this.prisma as any).vehicle.findMany({
-      where: { tenantId },
-      orderBy: { plate: 'asc' },
-    });
+    if (!tenantId) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page: 1,
+          limit: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
+    }
+
+    const [total, data] = await Promise.all([
+      (this.prisma as any).vehicle.count({ where: { tenantId } }),
+      (this.prisma as any).vehicle.findMany({
+        where: { tenantId },
+        orderBy: { plate: 'asc' },
+      }),
+    ]);
+
+    const totalPages = total > 0 ? 1 : 0;
+    return {
+      data,
+      meta: {
+        total,
+        page: 1,
+        limit: total,
+        totalPages,
+        hasNext: false,
+        hasPrev: false,
+      },
+    };
   }
 
   // Criação Individual (Corrigida)

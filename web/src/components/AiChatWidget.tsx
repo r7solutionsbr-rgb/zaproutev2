@@ -65,7 +65,7 @@ export const AiChatWidget: React.FC = () => {
 
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
-        text: response.response,
+        text: response.data.response,
         sender: 'bot',
         timestamp: new Date(),
       };

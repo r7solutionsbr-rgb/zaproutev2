@@ -77,7 +77,19 @@ export class DriversService {
 
   // Retorna TODOS (para selects/contexto)
   async findAll(tenantId: string, search?: string) {
-    if (!tenantId) return [];
+    if (!tenantId) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page: 1,
+          limit: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
+    }
 
     const where: Prisma.DriverWhereInput = { tenantId };
 
@@ -94,11 +106,27 @@ export class DriversService {
       ];
     }
 
-    return this.prisma.driver.findMany({
-      where,
-      include: { vehicles: true }, // Corrigido para vehicles (plural)
-      orderBy: { name: 'asc' },
-    });
+    const [total, data] = await Promise.all([
+      this.prisma.driver.count({ where }),
+      this.prisma.driver.findMany({
+        where,
+        include: { vehicles: true }, // Corrigido para vehicles (plural)
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+
+    const totalPages = total > 0 ? 1 : 0;
+    return {
+      data,
+      meta: {
+        total,
+        page: 1,
+        limit: total,
+        totalPages,
+        hasNext: false,
+        hasPrev: false,
+      },
+    };
   }
 
   async findOne(id: string, tenantId: string) {

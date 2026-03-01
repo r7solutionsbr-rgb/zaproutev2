@@ -132,10 +132,10 @@ describe('RoutesService', () => {
 
       mockPrismaService.route.findMany.mockResolvedValue(mockRoutes);
 
-      const result = await service.findAll('tenant-1');
+      const result: any = await service.findAll('tenant-1');
 
-      expect(result).toEqual(mockRoutes);
-      expect(result).toHaveLength(2);
+      expect(result.data).toEqual(mockRoutes);
+      expect(result.data).toHaveLength(2);
       expect(mockPrismaService.route.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ tenantId: 'tenant-1' }),
@@ -148,10 +148,10 @@ describe('RoutesService', () => {
     it('should return empty array when no routes exist', async () => {
       mockPrismaService.route.findMany.mockResolvedValue([]);
 
-      const result = await service.findAll('tenant-1');
+      const result: any = await service.findAll('tenant-1');
 
-      expect(result).toEqual([]);
-      expect(result).toHaveLength(0);
+      expect(result.data).toEqual([]);
+      expect(result.data).toHaveLength(0);
     });
   });
 

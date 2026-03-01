@@ -8,6 +8,7 @@ describe('SellersService', () => {
 
   const mockPrismaService = {
     seller: {
+      count: jest.fn(),
       create: jest.fn(),
       findMany: jest.fn(),
       findFirst: jest.fn(),
@@ -50,11 +51,12 @@ describe('SellersService', () => {
         },
       ];
 
+      mockPrismaService.seller.count.mockResolvedValue(sellers.length);
       mockPrismaService.seller.findMany.mockResolvedValue(sellers);
 
       const result = await service.findAll('tenant-1');
 
-      expect(result).toEqual(sellers);
+      expect(result.data).toEqual(sellers);
       expect(mockPrismaService.seller.findMany).toHaveBeenCalledWith({
         where: { tenantId: 'tenant-1' },
         orderBy: { name: 'asc' },
@@ -65,6 +67,7 @@ describe('SellersService', () => {
     });
 
     it('deve ordenar vendedores por nome', async () => {
+      mockPrismaService.seller.count.mockResolvedValue(0);
       mockPrismaService.seller.findMany.mockResolvedValue([]);
 
       await service.findAll('tenant-1');
@@ -77,6 +80,7 @@ describe('SellersService', () => {
     });
 
     it('deve incluir contagem de clientes', async () => {
+      mockPrismaService.seller.count.mockResolvedValue(0);
       mockPrismaService.seller.findMany.mockResolvedValue([]);
 
       await service.findAll('tenant-1');
@@ -256,6 +260,7 @@ describe('SellersService', () => {
 
   describe('Multi-tenancy', () => {
     it('deve isolar vendedores entre tenants', async () => {
+      mockPrismaService.seller.count.mockResolvedValue(0);
       mockPrismaService.seller.findMany.mockResolvedValue([]);
 
       await service.findAll('tenant-1');

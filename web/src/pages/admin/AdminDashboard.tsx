@@ -67,8 +67,8 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({
 
   const fetchTenants = async () => {
     try {
-      const data = await api.backoffice.getAllTenants();
-      setTenants(data);
+      const response = await api.backoffice.getAllTenants();
+      setTenants(response.data || []);
     } catch (err) {
       console.error(err);
     } finally {

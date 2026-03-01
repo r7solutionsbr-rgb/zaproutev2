@@ -55,7 +55,8 @@ export const useDashboardStats = () => {
       if (!user?.tenantId) return;
 
       try {
-        const data = await api.routes.getDashboardStats(user.tenantId, 7);
+        const response = await api.routes.getDashboardStats(user.tenantId, 7);
+        const data = response.data;
         setStats({
           total: data.stats.totalDeliveries,
           totalRoutes: data.totalRoutes,

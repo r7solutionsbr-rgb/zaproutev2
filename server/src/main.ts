@@ -1,6 +1,7 @@
 import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
@@ -102,6 +103,9 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // 4.1 Padronização de Respostas
+  app.useGlobalInterceptors(new ResponseInterceptor());
 
   // 5. Filtro Global de Exceções
   const httpAdapter = app.get(HttpAdapterHost);

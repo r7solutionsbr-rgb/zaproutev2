@@ -10,9 +10,11 @@ export class SecurityController {
   @Get('csrf-token')
   getCsrfToken(@Req() req: Request) {
     return {
-      csrfToken: (req as any).csrfToken(),
-      message:
-        'Include this token in the X-CSRF-Token header for state-changing requests',
+      data: {
+        csrfToken: (req as any).csrfToken(),
+        message:
+          'Include this token in the X-CSRF-Token header for state-changing requests',
+      },
     };
   }
 }

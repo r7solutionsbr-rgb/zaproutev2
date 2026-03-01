@@ -76,8 +76,8 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
         const userStr = localStorage.getItem('zaproute_user');
         if (userStr) {
           const user = JSON.parse(userStr);
-          const allSellers = await api.sellers.getAll(user.tenantId);
-          setSellers(allSellers);
+          const response = await api.sellers.getAll(user.tenantId);
+          setSellers(response.data || []);
         }
       } catch (error) {
         console.error('Erro ao carregar vendedores', error);

@@ -198,6 +198,30 @@ Cria um novo usuário.
 ### PATCH /api/users/:id
 Atualiza informações de um usuário.
 
+---
+
+## 🚚 Carriers (Transportadoras)
+
+### GET /api/carriers
+Lista todas as transportadoras do tenant.
+
+### POST /api/carriers
+Cria uma nova transportadora.
+
+**Request:**
+```json
+{
+  "name": "Transportadora ABC",
+  "phone": "5511999999999"
+}
+```
+
+### PATCH /api/carriers/:id
+Atualiza transportadora.
+
+### DELETE /api/carriers/:id
+Remove transportadora.
+
 **Request:**
 ```json
 {
@@ -1056,6 +1080,10 @@ Recebe mensagens da Z-API (WhatsApp).
   }
 }
 ```
+
+**Transportadoras (Carrier):**
+- O bot também identifica transportadoras pelo telefone cadastrado na entidade Carrier.
+- Quando identificado, as consultas ficam restritas às entregas com `carrierId` correspondente.
 
 **Exemplos de mensagens aceitas:**
 - "Entreguei a nota 123" (Motorista)

@@ -520,9 +520,10 @@ export const RoutePlanner: React.FC = () => {
         if (!tenantId) return;
 
         // Busca rotas dos últimos 30 dias (padrão inicial)
-        const routesData = await api.routes.getAll(tenantId, 30);
-        const { processedRoutes, allDeliveries } =
-          normalizeRoutesData(routesData);
+        const routesResponse = await api.routes.getAll(tenantId, 30);
+        const { processedRoutes, allDeliveries } = normalizeRoutesData(
+          routesResponse.data || [],
+        );
 
         setRoutes(processedRoutes);
         setDeliveries(allDeliveries);
@@ -543,9 +544,10 @@ export const RoutePlanner: React.FC = () => {
     const tenantId = getStoredTenantId();
     if (!tenantId) return;
 
-    const routesData = await api.routes.getAll(tenantId, 30);
-    const { processedRoutes, allDeliveries } =
-      normalizeRoutesData(routesData);
+    const routesResponse = await api.routes.getAll(tenantId, 30);
+    const { processedRoutes, allDeliveries } = normalizeRoutesData(
+      routesResponse.data || [],
+    );
 
     setRoutes(processedRoutes);
     setDeliveries(allDeliveries);
@@ -640,9 +642,10 @@ export const RoutePlanner: React.FC = () => {
 
     setIsRefreshing(true);
     try {
-      const routesData = await api.routes.getAll(tenantId);
-      const { processedRoutes, allDeliveries } =
-        normalizeRoutesData(routesData);
+      const routesResponse = await api.routes.getAll(tenantId);
+      const { processedRoutes, allDeliveries } = normalizeRoutesData(
+        routesResponse.data || [],
+      );
 
       setDeliveries(allDeliveries);
       setRoutes(processedRoutes);
@@ -656,7 +659,8 @@ export const RoutePlanner: React.FC = () => {
   const handleSaveEdit = async (data: any) => {
     if (!routeToEdit) return;
     try {
-      const updated = await api.routes.update(routeToEdit.id, data);
+      const updatedResponse = await api.routes.update(routeToEdit.id, data);
+      const updated = updatedResponse.data || {};
       setRoutes((prev: any[]) =>
         prev.map((r) =>
           r.id === routeToEdit.id ? { ...r, ...data, ...updated } : r,
@@ -833,7 +837,7 @@ export const RoutePlanner: React.FC = () => {
             currentSuccess++;
           } catch (error: any) {
             let msg =
-              error.response?.data?.message ||
+              error.response?.data?.error?.message ||
               error.message ||
               'Erro desconhecido';
 

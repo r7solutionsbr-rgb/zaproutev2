@@ -101,8 +101,8 @@ export const CustomerList: React.FC = () => {
         statusFilter,
       );
 
-      setCustomers(response.data);
-      setTotalPages(response.meta.lastPage);
+      setCustomers(response.data || []);
+      setTotalPages(response.meta.totalPages);
       setTotalItems(response.meta.total);
     } catch (e) {
       console.error('Failed to load customers', e);

@@ -65,7 +65,18 @@ export class RoutesService {
   }
 
   async findAll(tenantId: string, days?: number) {
-    if (!tenantId) return [];
+    if (!tenantId)
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page: 1,
+          limit: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
 
     // Chave de cache única por tenant e filtro
     const cacheKey = `routes:${tenantId}:${days || 'all'}`;
@@ -113,10 +124,24 @@ export class RoutesService {
       orderBy: { date: 'desc' },
     });
 
-    // Salvar no cache (TTL: 5 minutos = 300000ms)
-    await this.cacheManager.set(cacheKey, routes, 300000);
+    const total = routes.length;
+    const totalPages = total > 0 ? 1 : 0;
+    const response = {
+      data: routes,
+      meta: {
+        total,
+        page: 1,
+        limit: total,
+        totalPages,
+        hasNext: false,
+        hasPrev: false,
+      },
+    };
 
-    return routes;
+    // Salvar no cache (TTL: 5 minutos = 300000ms)
+    await this.cacheManager.set(cacheKey, response, 300000);
+
+    return response;
   }
 
   async findAllPaginated(
@@ -472,6 +497,7 @@ export class RoutesService {
               status: 'PENDING',
               customerId: customer.id,
               driverId: finalDriverId, // Vincula o motorista da entrega ao da rota
+              carrierId: del.carrierId || data.carrierId,
             });
           }
         }
@@ -517,6 +543,7 @@ export class RoutesService {
           status: 'PENDING',
           customerId: d.customerId,
           driverId: d.driverId, // Pode ser null
+          carrierId: d.carrierId,
           routeId: route.id,
           createdAt: new Date(),
           updatedAt: new Date(),

@@ -112,11 +112,13 @@ export const DriverApp: React.FC<DriverAppProps> = ({
       try {
         const tenantId = getStoredTenantId();
         if (tenantId) {
-          const tenant = await api.tenants.getMe();
-          setTenantConfig(tenant.config || {});
+          const tenantResponse = await api.tenants.getMe();
+          setTenantConfig(tenantResponse.data?.config || {});
 
-          const drivers = await api.drivers.getAll(tenantId);
-          const me = drivers.find((d: any) => d.id === driverId);
+          const driversResponse = await api.drivers.getAll(tenantId);
+          const me = (driversResponse.data || []).find(
+            (d: any) => d.id === driverId,
+          );
           if (me) setJourneyStatus(me.currentJourneyStatus as JourneyStatus);
         }
       } catch (e) {
@@ -242,7 +244,8 @@ export const DriverApp: React.FC<DriverAppProps> = ({
     if (!file) return;
     try {
       setUploading(true);
-      const { url } = await api.storage.upload(file);
+      const response = await api.storage.upload(file);
+      const { url } = response.data;
       setProofImage(url);
     } catch (err) {
       alert('Erro no upload.');

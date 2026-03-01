@@ -48,15 +48,15 @@ describe('AllExceptionsFilter', () => {
 
     filter.catch(mockException, mockHost);
 
-    expect(mockHttpAdapter.reply).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        statusCode: 400,
-        message: 'Test Message',
-        path: '/test-path',
-      }),
-      HttpStatus.BAD_REQUEST,
-    );
+      expect(mockHttpAdapter.reply).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({
+          statusCode: 400,
+          path: '/test-path',
+          error: expect.objectContaining({ message: 'Test Message' }),
+        }),
+        HttpStatus.BAD_REQUEST,
+      );
   });
 
   it('should catch generic Error and reply with 500 status', () => {
@@ -73,13 +73,13 @@ describe('AllExceptionsFilter', () => {
 
     filter.catch(mockException, mockHost);
 
-    expect(mockHttpAdapter.reply).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        statusCode: 500,
-        message: 'Internal Server Error',
-      }),
-      HttpStatus.INTERNAL_SERVER_ERROR,
-    );
+      expect(mockHttpAdapter.reply).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({
+          statusCode: 500,
+          error: expect.objectContaining({ message: 'Internal Server Error' }),
+        }),
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
   });
 });

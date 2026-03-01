@@ -24,6 +24,7 @@ import { CustomersController } from './customers/customers.controller';
 import { TenantsController } from './tenants/tenants.controller';
 import { UsersController } from './users/users.controller';
 import { SellersController } from './sellers/sellers.controller'; // <--- Importe do SellersController
+import { CarriersController } from './carriers/carriers.controller';
 import { SecurityController } from './security.controller'; // <--- Security Controller
 import { DeliveriesController } from './deliveries/deliveries.controller'; // <--- NOVO
 import { OccurrencesController } from './occurrences/occurrences.controller'; // <--- NOVO
@@ -36,6 +37,7 @@ import { CustomersService } from './customers/customers.service';
 import { TenantsService } from './tenants/tenants.service';
 import { UsersService } from './users/users.service';
 import { SellersService } from './sellers/sellers.service'; // <--- Importe do SellersService
+import { CarriersService } from './carriers/carriers.service';
 import { DeliveriesService } from './deliveries/deliveries.service'; // <--- NOVO
 import { OccurrencesService } from './occurrences/occurrences.service'; // <--- NOVO
 
@@ -91,6 +93,7 @@ import { MetricsModule } from './metrics/metrics.module';
     CustomersController,
     TenantsController,
     UsersController,
+    CarriersController,
     SecurityController, // <--- Security Controller
     DeliveriesController, // <--- NOVO
     OccurrencesController, // <--- NOVO
@@ -104,6 +107,7 @@ import { MetricsModule } from './metrics/metrics.module';
     CustomersService,
     TenantsService,
     UsersService,
+    CarriersService,
     SellersService,
     DeliveriesService, // <--- NOVO
     OccurrencesService, // <--- NOVO

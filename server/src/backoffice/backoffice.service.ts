@@ -19,7 +19,10 @@ export class BackofficeService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return tenants;
+    return {
+      data: tenants,
+      meta: { total: tenants.length },
+    };
   }
 
   async createTenant(data: any) {

@@ -133,7 +133,8 @@ export const VehicleList: React.FC = () => {
 
       if (modalMode === 'CREATE') {
         const createPayload = { ...payload, tenantId };
-        const newVehicle = await api.vehicles.create(createPayload);
+        const response = await api.vehicles.create(createPayload);
+        const newVehicle = response.data;
         setVehicles([...vehicles, newVehicle]);
         alert('Veículo criado com sucesso!');
       } else {

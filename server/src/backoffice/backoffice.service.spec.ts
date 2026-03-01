@@ -73,7 +73,10 @@ describe('BackofficeService', () => {
 
       const result = await service.getAllTenants();
 
-      expect(result).toEqual(tenants);
+      expect(result).toEqual({
+        data: tenants,
+        meta: { total: tenants.length },
+      });
       expect(mockPrismaService.tenant.findMany).toHaveBeenCalledWith({
         include: {
           _count: {

@@ -25,7 +25,7 @@ export class AiController {
         body.message,
         body.context,
       );
-      return { response };
+      return { data: { response } };
     } catch (error) {
       throw new HttpException(
         'Erro ao processar mensagem',

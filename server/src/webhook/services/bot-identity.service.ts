@@ -8,6 +8,7 @@ interface BotIdentityResult {
   driver?: any;
   seller?: any;
   customer?: any;
+  carrier?: any;
 }
 
 @Injectable()
@@ -102,6 +103,14 @@ export class BotIdentityService {
     });
     if (customer) {
       return { role: 'CUSTOMER', customer, tenant: customer.tenant };
+    }
+
+    const carrier = await this.prisma.carrier.findFirst({
+      where: { phone: { in: searchList } },
+      include: { tenant: true },
+    });
+    if (carrier) {
+      return { role: 'TRANSPORTER', carrier, tenant: carrier.tenant };
     }
 
     const tenants = await this.prisma.tenant.findMany({

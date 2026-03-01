@@ -137,7 +137,9 @@ export const RouteList: React.FC = () => {
 
   // Carrega configurações Iniciais
   useEffect(() => {
-    api.tenants.getMe().then((t) => setTenantConfig(t.config || {}));
+    api.tenants.getMe().then((response) =>
+      setTenantConfig(response.data?.config || {}),
+    );
   }, []);
 
   // Carrega DADOS (Sempre que filtros ou página mudarem)

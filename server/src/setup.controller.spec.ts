@@ -63,8 +63,10 @@ describe('SetupController', () => {
     await expect(
       controller.dbPush({ 'x-admin-key': 'secret' }),
     ).resolves.toMatchObject({
-      success: true,
-      stdout: 'ok',
+      data: {
+        success: true,
+        stdout: 'ok',
+      },
     });
   });
 
@@ -86,9 +88,11 @@ describe('SetupController', () => {
     await expect(
       controller.dbPush({ 'x-admin-key': 'secret' }),
     ).resolves.toMatchObject({
-      success: false,
-      error: 'failed',
-      stderr: 'stderr',
+      data: {
+        success: false,
+        error: 'failed',
+        stderr: 'stderr',
+      },
     });
   });
 
@@ -102,9 +106,11 @@ describe('SetupController', () => {
     prisma.user.upsert.mockResolvedValue({ email: 'admin@zaproute.com' });
 
     await expect(controller.seed({ 'x-admin-key': 'secret' })).resolves.toEqual({
-      success: true,
-      message: 'Banco resetado e Admin recriado com senha "123456"',
-      user: { email: 'admin@zaproute.com' },
+      data: {
+        success: true,
+        message: 'Banco resetado e Admin recriado com senha "123456"',
+        user: { email: 'admin@zaproute.com' },
+      },
     });
   });
 

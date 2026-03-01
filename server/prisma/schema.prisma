@@ -19,6 +19,7 @@ model Tenant {
   updatedAt            DateTime               @updatedAt
   audit_logs           audit_logs[]
   customers            Customer[]
+  carriers             Carrier[]
   drivers              Driver[]
   fueling_transactions fueling_transactions[]
   invoices             invoices[]
@@ -184,6 +185,21 @@ model Customer {
   @@map("customers")
 }
 
+model Carrier {
+  id        String     @id @default(uuid())
+  name      String
+  phone     String?
+  tenantId  String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries Delivery[]
+
+  @@index([tenantId])
+  @@index([phone])
+  @@map("carriers")
+}
+
 enum Priority {
   NORMAL
   HIGH
@@ -199,6 +215,7 @@ model Delivery {
   priority           Priority     @default(NORMAL)
   routeId            String?
   driverId           String?
+  carrierId          String?
   customerId         String?
   deliveryLat        Float
   deliveryLng        Float
@@ -210,6 +227,7 @@ model Delivery {
   updatedAt          DateTime     @updatedAt
   customer           Customer?    @relation(fields: [customerId], references: [id])
   driver             Driver?      @relation(fields: [driverId], references: [id])
+  carrier            Carrier?     @relation(fields: [carrierId], references: [id])
   route              Route?       @relation(fields: [routeId], references: [id])
   Occurrence         Occurrence[]
 
@@ -219,6 +237,7 @@ model Delivery {
   @@index([routeId]) // Otimiza includes de route.deliveries
   @@index([customerId]) // Otimiza joins
   @@index([driverId, status]) // Otimiza queries de motorista por status
+  @@index([carrierId])
   @@index([orderId]) // Otimiza buscas por nota fiscal (invoiceNumber -> orderId)
   @@index([priority]) // Otimiza filtro de prioridade
   @@map("deliveries")

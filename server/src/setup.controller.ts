@@ -31,10 +31,10 @@ export class SetupController {
       // --- MUDANÇA AQUI: Usando --force-reset para limpar o banco conflitante ---
       exec('npx prisma db push --force-reset', (error, stdout, stderr) => {
         if (error) {
-          resolve({ success: false, error: error.message, stderr });
+          resolve({ data: { success: false, error: error.message, stderr } });
           return;
         }
-        resolve({ success: true, stdout });
+        resolve({ data: { success: true, stdout } });
       });
     });
   }
@@ -81,9 +81,11 @@ export class SetupController {
       });
 
       return {
-        success: true,
-        message: 'Banco resetado e Admin recriado com senha "123456"',
-        user: { email: user.email },
+        data: {
+          success: true,
+          message: 'Banco resetado e Admin recriado com senha "123456"',
+          user: { email: user.email },
+        },
       };
     } catch (error: any) {
       console.error('Erro no Seed:', error);

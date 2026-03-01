@@ -16,10 +16,11 @@ describe('UsersService', () => {
   const mockPrismaService = {
     user: {
       findMany: jest.fn(),
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
+        count: jest.fn(),
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
     },
   };
 
@@ -71,11 +72,12 @@ describe('UsersService', () => {
         },
       ];
 
+      mockPrismaService.user.count.mockResolvedValue(users.length);
       mockPrismaService.user.findMany.mockResolvedValue(users);
 
       const result = await service.findAll('tenant-1');
 
-      expect(result).toEqual(users);
+      expect(result.data).toEqual(users);
       expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
         where: { tenantId: 'tenant-1' },
         select: {
@@ -92,6 +94,7 @@ describe('UsersService', () => {
     });
 
     it('deve ordenar usuários por nome', async () => {
+      mockPrismaService.user.count.mockResolvedValue(0);
       mockPrismaService.user.findMany.mockResolvedValue([]);
 
       await service.findAll('tenant-1');
@@ -104,6 +107,7 @@ describe('UsersService', () => {
     });
 
     it('não deve retornar campo password', async () => {
+      mockPrismaService.user.count.mockResolvedValue(0);
       mockPrismaService.user.findMany.mockResolvedValue([]);
 
       await service.findAll('tenant-1');
@@ -337,6 +341,7 @@ describe('UsersService', () => {
     });
 
     it('não deve retornar senha em findAll', async () => {
+      mockPrismaService.user.count.mockResolvedValue(1);
       mockPrismaService.user.findMany.mockResolvedValue([
         { id: 'user-1', name: 'Test', email: 'test@example.com' },
       ]);

@@ -45,10 +45,10 @@ export const ResetPassword = () => {
       setTimeout(() => navigate('/login'), 3000);
     } catch (error: any) {
       setStatus('ERROR');
-      setMessage(
-        error.response?.data?.message ||
-          'Erro ao redefinir senha. O link pode ter expirado.',
-      );
+          setMessage(
+            error.response?.data?.error?.message ||
+            'Erro ao redefinir senha. Tente novamente.',
+          );
     }
   };
 

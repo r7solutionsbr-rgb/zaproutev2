@@ -45,7 +45,7 @@ describe('AuthController', () => {
 
     await expect(
       controller.login({ email: 'x@y.com', password: '123456' }),
-    ).resolves.toEqual({ access_token: 'token' });
+    ).resolves.toEqual({ data: { access_token: 'token' } });
   });
 
   it('deve solicitar recuperação de senha', async () => {
@@ -53,7 +53,7 @@ describe('AuthController', () => {
 
     await expect(
       controller.forgotPassword({ email: 'user@example.com' }),
-    ).resolves.toEqual({ success: true });
+    ).resolves.toEqual({ data: { success: true } });
   });
 
   it('deve redefinir senha com token', async () => {
@@ -61,7 +61,7 @@ describe('AuthController', () => {
 
     await expect(
       controller.resetPassword({ token: 'TOKEN', password: 'newpass' }),
-    ).resolves.toEqual({ success: true });
+    ).resolves.toEqual({ data: { success: true } });
   });
 
   it('deve retornar erro ao redefinir senha com token inválido', async () => {

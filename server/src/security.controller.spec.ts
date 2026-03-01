@@ -20,10 +20,9 @@ describe('SecurityController', () => {
 
       const result = controller.getCsrfToken(mockRequest);
 
-      expect(result).toHaveProperty('csrfToken');
-      expect(result.csrfToken).toBe('mock-csrf-token-123');
-      expect(result).toHaveProperty('message');
-      expect(result.message).toContain('X-CSRF-Token');
+      expect(result).toHaveProperty('data');
+      expect(result.data.csrfToken).toBe('mock-csrf-token-123');
+      expect(result.data.message).toContain('X-CSRF-Token');
       expect(mockRequest.csrfToken).toHaveBeenCalled();
     });
 
@@ -34,7 +33,7 @@ describe('SecurityController', () => {
 
       const result = controller.getCsrfToken(mockRequest);
 
-      expect(result.message).toBe(
+      expect(result.data.message).toBe(
         'Include this token in the X-CSRF-Token header for state-changing requests',
       );
     });

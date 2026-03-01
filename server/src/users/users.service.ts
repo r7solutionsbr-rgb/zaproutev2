@@ -13,19 +13,35 @@ export class UsersService {
   ) {}
 
   async findAll(tenantId: string) {
-    return this.prisma.user.findMany({
-      where: { tenantId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        avatarUrl: true,
+    const [total, data] = await Promise.all([
+      this.prisma.user.count({ where: { tenantId } }),
+      this.prisma.user.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          createdAt: true,
+          avatarUrl: true,
+        },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+
+    const totalPages = total > 0 ? 1 : 0;
+    return {
+      data,
+      meta: {
+        total,
+        page: 1,
+        limit: total,
+        totalPages,
+        hasNext: false,
+        hasPrev: false,
       },
-      orderBy: { name: 'asc' },
-    });
+    };
   }
 
   // Uso de Prisma.UserCreateInput (Opcional, mas boa prática) ou 'any' se preferir manter flexível por enquanto

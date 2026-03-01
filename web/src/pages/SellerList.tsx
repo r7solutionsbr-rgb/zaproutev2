@@ -54,8 +54,8 @@ export const SellerList: React.FC = () => {
       const tenantId = getStoredTenantId();
       if (!tenantId) return;
 
-      const data = await api.sellers.getAll(tenantId);
-      setSellers(data);
+      const response = await api.sellers.getAll(tenantId);
+      setSellers(response.data || []);
     } catch (err) {
       console.error(err);
       setNotification({

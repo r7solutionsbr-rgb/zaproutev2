@@ -35,6 +35,7 @@ export class WebhookService {
           'PAUSA',
           'RETOMADA',
           'RESUMO',
+          'OUTRO',
           'ATRASO',
           'NAVEGACAO',
           'CONTATO',
@@ -168,27 +169,28 @@ export class WebhookService {
       const tomorrow = new Date(today);
       tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
+      const baseWhere: any = {
+        tenantId: tenant.id,
+        date: { gte: today, lt: tomorrow },
+      };
+
+      if (role === 'TRANSPORTER' && actor?.id) {
+        baseWhere.carrierId = actor.id;
+      }
+
       const [routesCount, deliveriesCount, deliveredCount, failedCount] =
         await Promise.all([
           (this.prisma as any).route.count({
             where: { tenantId: tenant.id, date: { gte: today, lt: tomorrow } },
           }),
           (this.prisma as any).delivery.count({
-            where: { tenantId: tenant.id, date: { gte: today, lt: tomorrow } },
+            where: baseWhere,
           }),
           (this.prisma as any).delivery.count({
-            where: {
-              tenantId: tenant.id,
-              date: { gte: today, lt: tomorrow },
-              status: 'DELIVERED',
-            },
+            where: { ...baseWhere, status: 'DELIVERED' },
           }),
           (this.prisma as any).delivery.count({
-            where: {
-              tenantId: tenant.id,
-              date: { gte: today, lt: tomorrow },
-              status: { in: ['FAILED', 'RETURNED'] },
-            },
+            where: { ...baseWhere, status: { in: ['FAILED', 'RETURNED'] } },
           }),
         ]);
 
@@ -206,6 +208,10 @@ export class WebhookService {
 
       if (role === 'SELLER') {
         where.customer = { sellerId: actor.id };
+      }
+
+      if (role === 'TRANSPORTER' && actor?.id) {
+        where.carrierId = actor.id;
       }
 
       const pending = await (this.prisma as any).delivery.findMany({
@@ -238,6 +244,10 @@ export class WebhookService {
 
       if (role === 'SELLER') {
         where.customer = { sellerId: actor.id };
+      }
+
+      if (role === 'TRANSPORTER' && actor?.id) {
+        where.carrierId = actor.id;
       }
 
       const delivery = await (this.prisma as any).delivery.findFirst({
@@ -356,7 +366,7 @@ export class WebhookService {
     if (role !== 'DRIVER' && role !== 'THIRD_PARTY_DRIVER') {
       return this.handleNonDriverAction(
         role,
-        identity.seller || identity.customer || identity,
+        identity.seller || identity.customer || identity.carrier || identity,
         identity.tenant,
         aiResult,
         send,

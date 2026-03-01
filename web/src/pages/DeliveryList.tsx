@@ -484,7 +484,9 @@ export const DeliveryList: React.FC = () => {
 
   const [tenantConfig, setTenantConfig] = useState<any>({});
   useEffect(() => {
-    api.tenants.getMe().then((t) => setTenantConfig(t.config || {}));
+    api.tenants.getMe().then((response) =>
+      setTenantConfig(response.data?.config || {}),
+    );
   }, []);
 
   const showFinancials = tenantConfig.displaySettings?.showFinancials ?? true;
